@@ -89,11 +89,7 @@ Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
 
 ### `npm run build`
 
-Builds client assets to `dist/client`, and the request handler plus the Node server to `dist/server`.
-
-### `npm start`
-
-Runs the production build with the emitted `dist/server/node.js` (loading `.env` if present — deploy platforms provide the real environment instead).
+Builds client assets to `dist/client`, and the Worker request handler to `dist/server`.
 
 ### `npm run serve`
 
