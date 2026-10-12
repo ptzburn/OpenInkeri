@@ -8,13 +8,17 @@
       "plugins": "zsh-autosuggestions zsh-syntax-highlighting",
       "omzPlugins": "https://github.com/zsh-users/zsh-autosuggestions https://github.com/zsh-users/zsh-syntax-highlighting"
     },
-    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "mounts": ["source=claude-code-config,target=/home/node/.claude,type=volume"],
+  "mounts": [
+    "source=claude-code-config,target=/home/node/.claude,type=volume",
+    "source=gh-config,target=/home/node/.config/gh,type=volume"
+  ],
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/home/node/.claude"
   },
-  "postCreateCommand": "sudo chown -R node:node /home/node/.claude && curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash",
+  "postCreateCommand": "sudo chown -R node:node /home/node/.claude /home/node/.config/gh && (gh auth setup-git || true) && curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash",
   "forwardPorts": [3060],
   "customizations": {
     "vscode": {
