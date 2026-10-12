@@ -37,7 +37,7 @@ export default defineConfig({
       // Set to false for a static shell + API server: pages render on the
       // client while server functions, sessions, and API routes keep working.
       ssr: true,
-      // Dev-only: capture control at /__solid/diagnostics (see AGENTS.md).
+      // Dev-only: capture control at /__solid/diagnostics (see CLAUDE.md).
       diagnostics: true,
       // The configure module runs in the handler graph before any dispatch —
       // it registers the router's single-flight collector.
