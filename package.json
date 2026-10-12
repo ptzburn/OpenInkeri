@@ -2,33 +2,17 @@
   "name": "genealogy",
   "version": "0.0.0",
   "description": "",
+  "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "deploy": "vite build && wrangler deploy",
+    "dev": "vp dev",
+    "build": "vp build",
+    "deploy": "vp build && wrangler deploy",
     "start": "node --env-file-if-exists=.env dist/server/node.js",
-    "serve": "vite preview",
-    "test": "vitest",
-    "lint": "oxlint src"
-  },
-  "license": "MIT",
-  "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.63.1",
-    "@solidjs/diagnostics": "^2.0.0-rc.14",
-    "@solidjs/start-devtools": "^1.0.0-next.4",
-    "@solidjs/testing-library": "^1.0.0-beta.3",
-    "@solidjs/vite-plugin": "^3.0.0-next.48",
-    "@testing-library/jest-dom": "^7.0.0",
-    "@types/node": "^26.2.0",
-    "eslint-plugin-solid": "~0.18.1",
-    "filesystem-routing": "0.4.0",
-    "jsdom": "^25.0.1",
-    "oxlint": "~1.79.0",
-    "typescript": "^5.9.2",
-    "vite": "^8.1.5",
-    "vitest": "^5.0.0",
-    "wrangler": "^4.149.0"
+    "serve": "vp preview",
+    "test": "vp test",
+    "lint": "vp lint src",
+    "check": "vp check"
   },
   "dependencies": {
     "@remix-run/cookie": "^0.5.4",
@@ -37,5 +21,25 @@
     "@solidjs/web": "^2.0.0-rc.14",
     "solid-js": "^2.0.0-rc.14",
     "valibot": "^1.4.2"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.63.1",
+    "@solidjs/diagnostics": "^2.0.0-rc.14",
+    "@solidjs/start-devtools": "^1.0.0-next.4",
+    "@solidjs/testing-library": "^1.0.0-beta.3",
+    "@solidjs/vite-plugin": "^3.0.0-next.48",
+    "@tailwindcss/vite": "^4.3.3",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@types/node": "^26.2.0",
+    "daisyui": "^5.7.47",
+    "eslint-plugin-solid": "~0.18.1",
+    "filesystem-routing": "0.4.0",
+    "jsdom": "^25.0.1",
+    "lefthook": "^2.2.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "wrangler": "^4.149.0"
   }
 }

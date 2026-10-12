@@ -1,4 +1,4 @@
-// The router lives in its own module so src/App.tsx (render) and
+// The router lives in its own module so src/app.tsx (render) and
 // src/server-config.ts (single-flight collector) share one instance.
 import { pageRoutes } from 'virtual:file-routes';
 import { createRouter, intentPreload } from '@solidjs/router';

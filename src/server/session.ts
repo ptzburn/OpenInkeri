@@ -87,8 +87,5 @@ export async function setSession(data: SessionData): Promise<void> {
 
 /** Expires the session cookie on the outgoing response. */
 export async function clearSession(): Promise<void> {
-  event().response.headers.append(
-    'set-cookie',
-    await cookie.serialize('', { maxAge: 0 }),
-  );
+  event().response.headers.append('set-cookie', await cookie.serialize('', { maxAge: 0 }));
 }

@@ -1,8 +1,8 @@
 import { render, fireEvent } from '@solidjs/testing-library';
 import { flush } from 'solid-js';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test } from 'vite-plus/test';
 
-import Counter from './Counter';
+import Counter from './counter';
 
 describe('<Counter />', () => {
   test('it increments on click', () => {

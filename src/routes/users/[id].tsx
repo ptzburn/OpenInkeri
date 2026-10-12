@@ -16,26 +16,36 @@ export const route = {
 
 export default function User(props: RouteProps<'/users/:id'>) {
   // Server-function reads through memos — the surrounding <Loading>
-  // boundary (in App.tsx) shows its fallback until the promises settle.
+  // boundary (in app.tsx) shows its fallback until the promises settle.
   const user = createMemo(() => getUser(props.params.id));
   const me = createMemo(() => getCurrentUser());
 
   return (
-    <section style={{ opacity: isPending(user) ? 0.5 : 1 }}>
+    <section class="transition-opacity" style={{ opacity: isPending(user) ? 0.5 : 1 }}>
       <Title>{`User ${props.params.id} - Solid App`}</Title>
-      <h2>{user().name}</h2>
-      <p>{user().title}</p>
+      <h2 class="text-2xl font-semibold">{user().name}</h2>
+      <p class="mt-1 text-base-content/70">{user().title}</p>
       {/* The mutation: a form posting to a server function action (works
           before hydration too); the router revalidates queries when it
           settles. The server checks the session — hiding the form when
           signed out is just honest UI (see src/lib/users.ts). */}
       <Show
         when={me()}
-        fallback={<p>Sign in on the home page to rename users.</p>}
+        fallback={
+          <p class="mt-6 text-base-content/70">Sign in on the home page to rename users.</p>
+        }
       >
-        <form action={renameUser.with(props.params.id!)} method="post">
-          <input name="name" value={user().name} required />
-          <button type="submit">Rename</button>
+        <form action={renameUser.with(props.params.id!)} method="post" class="join mt-6">
+          <input
+            name="name"
+            value={user().name}
+            required
+            class="input join-item"
+            aria-label="Name"
+          />
+          <button type="submit" class="btn btn-primary join-item">
+            Rename
+          </button>
         </form>
       </Show>
     </section>

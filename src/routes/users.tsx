@@ -18,11 +18,19 @@ export default function UsersLayout(props: ParentProps) {
 
   return (
     <main>
-      <h1>Users</h1>
-      <nav class="users-nav" aria-label="Users">
-        <For each={users()}>
-          {(user) => <a href={paths.users(user.id)}>{user.name}</a>}
-        </For>
+      <h1 class="my-6 text-4xl font-bold">Users</h1>
+      <nav aria-label="Users" class="mb-8">
+        <ul class="menu menu-horizontal justify-center gap-1 rounded-box bg-base-200">
+          <For each={users()}>
+            {(user) => (
+              <li>
+                <a class="aria-[current=page]:menu-active" href={paths.users(user.id)}>
+                  {user.name}
+                </a>
+              </li>
+            )}
+          </For>
+        </ul>
       </nav>
       {props.children}
     </main>

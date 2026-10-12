@@ -12,7 +12,7 @@
  * `loadSession(secret)` to pin its own secret list, which is also
  * exactly how a rotation deployment behaves (new process, new list).
  */
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vite-plus/test';
 import { commitEventResponse, createRequestEvent } from '@solidjs/web';
 import { provideRequestEvent } from '@solidjs/web/storage';
 
@@ -44,9 +44,7 @@ async function runRequest<T>(
 
 /** Extracts the session cookie pair ("session=...") from a response, ready for a Cookie header. */
 function sessionPair(response: Response): string {
-  const entries = response.headers
-    .getSetCookie()
-    .filter((c) => c.startsWith('session='));
+  const entries = response.headers.getSetCookie().filter((c) => c.startsWith('session='));
   expect(entries.length).toBeGreaterThan(0);
   return entries[entries.length - 1].split(';')[0];
 }
@@ -54,9 +52,8 @@ function sessionPair(response: Response): string {
 describe('session helper (real request/response cycle)', () => {
   it('login sets a signed, attribute-correct session cookie on the outgoing response', async () => {
     const { setSession } = await loadSession('secret-one');
-    const { response } = await runRequest(
-      new Request('http://localhost/login'),
-      () => setSession({ userId: 'user_1' }),
+    const { response } = await runRequest(new Request('http://localhost/login'), () =>
+      setSession({ userId: 'user_1' }),
     );
     const [cookie] = response.headers.getSetCookie();
     expect(cookie).toMatch(/^session=/);
@@ -89,19 +86,15 @@ describe('session helper (real request/response cycle)', () => {
       session.setSession({ userId: 'user_1' }),
     );
     const pair = sessionPair(login.response);
-    const tampered = pair.replace(
-      /^session=(.)/,
-      (_, c) => `session=${c === 'A' ? 'B' : 'A'}`,
-    );
+    const tampered = pair.replace(/^session=(.)/, (_, c) => `session=${c === 'A' ? 'B' : 'A'}`);
 
     for (const headers of [
       undefined,
       { cookie: 'theme=dark; other=1' },
       { cookie: tampered },
     ] as const) {
-      const { result } = await runRequest(
-        new Request('http://localhost/me', { headers }),
-        () => session.getSession(),
+      const { result } = await runRequest(new Request('http://localhost/me', { headers }), () =>
+        session.getSession(),
       );
       expect(result).toBeNull();
     }
@@ -163,9 +156,8 @@ describe('session helper (real request/response cycle)', () => {
 
   it('clearSession expires the cookie on the outgoing response', async () => {
     const session = await loadSession('secret-one');
-    const { response } = await runRequest(
-      new Request('http://localhost/logout'),
-      () => session.clearSession(),
+    const { response } = await runRequest(new Request('http://localhost/logout'), () =>
+      session.clearSession(),
     );
     const [cookie] = response.headers.getSetCookie();
     expect(cookie).toMatch(/^session=;/);
@@ -175,9 +167,7 @@ describe('session helper (real request/response cycle)', () => {
   it('missing SESSION_SECRET fails loudly at module init', async () => {
     delete process.env.SESSION_SECRET;
     vi.resetModules();
-    await expect(import('./session')).rejects.toThrow(
-      /SESSION_SECRET is not set/,
-    );
+    await expect(import('./session')).rejects.toThrow(/SESSION_SECRET is not set/);
   });
 
   it('outside a request scope the helpers fail with a directed error', async () => {

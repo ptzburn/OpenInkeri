@@ -1,5 +1,6 @@
 allowBuilds:
   esbuild: false
+  lefthook: true
   workerd: true
 # pnpm settings for this project (honored even for a single-package project —
 # this file marks the workspace root). The Solid packages release in lockstep
@@ -15,3 +16,13 @@ minimumReleaseAgeExclude:
   - solid-js
   - '@solidjs/*'
   - filesystem-routing
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.1.0
+  vite-plus: 1.1.0
+overrides:
+  vite@*: 'catalog:'
+peerDependencyRules:
+  allowAny:
+    - vite
+  allowedVersions:
+    vite: '*'

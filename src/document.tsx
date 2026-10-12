@@ -1,11 +1,11 @@
 import type { ParentProps } from 'solid-js';
 import { HydrationScript } from '@solidjs/web';
 
-// The document shell (the index.html replacement), picked up by the
-// src/Document.* convention; it must render the full <html> and ships no
-// client JS. <HydrationScript /> is stripped from the prerendered shell in
-// client mode and activates under `ssr: true`. Delete this file to fall
-// back to the plugin's built-in shell.
+// The document shell (the index.html replacement), wired up via the
+// `start.document` option in vite.config.ts; it must render the full <html>
+// and ships no client JS. <HydrationScript /> is stripped from the
+// prerendered shell in client mode and activates under `ssr: true`. Remove
+// the option and this file to fall back to the plugin's built-in shell.
 export default function Document(props: ParentProps) {
   return (
     <html lang="en">
