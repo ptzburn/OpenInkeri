@@ -19,7 +19,7 @@ export default defineConfig({
   // Turnkey streaming SSR: no index.html and no entry files — the plugin
   // generates the entries around src/app.tsx, wrapped in src/document.tsx.
   // `vite build` emits client assets to dist/client and the request handler
-  // to dist/server, plus the Node server (dist/server/node.js) `npm start` runs.
+  // to dist/server, which the Cloudflare plugin deploys as the Worker.
   plugins: lazyPlugins(() => [
     // Tailwind v4 + DaisyUI: configured from CSS (src/app.css), no JS config file.
     tailwindcss(),
@@ -28,9 +28,6 @@ export default defineConfig({
         middleware: './src/middleware.ts',
         // Only src/app.* is probed in lowercase; the document needs an explicit path.
         document: './src/document.tsx',
-        // Emit dist/server/node.js: a ready-to-run Node server (static
-        // assets + the handler). Other platforms import dist/server/server.js.
-        node: true,
         // Typed env is on by convention: ./env.ts is probed automatically.
         // (Set `env: false` here to opt out.)
       },

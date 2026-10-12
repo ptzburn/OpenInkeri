@@ -8,7 +8,6 @@
     "dev": "vp dev",
     "build": "vp build",
     "deploy": "vp build && wrangler deploy",
-    "start": "node --env-file-if-exists=.env dist/server/node.js",
     "serve": "vp preview",
     "test": "vp test",
     "lint": "vp lint src",
