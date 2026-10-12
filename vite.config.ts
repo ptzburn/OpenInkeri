@@ -46,7 +46,9 @@ export default defineConfig({
       // modules the fileRoutes plugin emits (their ids end in a query string).
       extensions: ['.jsx', '.tsx'],
     }),
-    cloudflare({ viteEnvironment: { name: 'ssr' } }),
+    // Not under Vitest: tests run in jsdom/node, and booting the Worker in
+    // workerd would validate env.ts against .env/.dev.vars (absent in CI).
+    ...(process.env.VITEST ? [] : [cloudflare({ viteEnvironment: { name: 'ssr' } })]),
     fileRoutes({ httpMethods: true, types: true }),
   ]),
   server: {
