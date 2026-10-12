@@ -22,6 +22,7 @@
   "forwardPorts": [3060],
   "customizations": {
     "vscode": {
+      "extensions": ["VoidZero.vite-plus-extension-pack", "bradlc.vscode-tailwindcss"],
       "settings": {
         "terminal.integrated.cwd": "${workspaceFolder}"
       }
