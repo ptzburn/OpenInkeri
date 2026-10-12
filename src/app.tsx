@@ -14,10 +14,10 @@ export default function App() {
           {/* The router marks the matching link aria-current="page". */}
           <nav class="navbar justify-center gap-1 bg-neutral text-neutral-content">
             <a class="btn btn-ghost aria-[current=page]:btn-active" href={paths()}>
-              Home
+              Дом
             </a>
             <a class="btn btn-ghost aria-[current=page]:btn-active" href={paths.users()}>
-              Users
+              Пользователи
             </a>
           </nav>
           <div class="mx-auto max-w-3xl px-4 py-12 text-center">
