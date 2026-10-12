@@ -1,0 +1,30 @@
+{
+    "image": "mcr.microsoft.com/devcontainers/typescript-node",
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "configureZshAsDefaultShell": true
+        },
+        "ghcr.io/devcontainers-extra/features/zsh-plugins:0": {
+            "plugins": "zsh-autosuggestions zsh-syntax-highlighting",
+            "omzPlugins": "https://github.com/zsh-users/zsh-autosuggestions https://github.com/zsh-users/zsh-syntax-highlighting"
+        },
+        "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+    },
+    "mounts": [
+        "source=claude-code-config,target=/home/node/.claude,type=volume"
+    ],
+    "containerEnv": {
+        "CLAUDE_CONFIG_DIR": "/home/node/.claude"
+    },
+    "postCreateCommand": "sudo chown -R node:node /home/node/.claude && curl -fsSL https://vite.plus | VP_NODE_MANAGER=no bash",
+    "forwardPorts": [
+        3060
+    ],
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "terminal.integrated.cwd": "${workspaceFolder}"
+            }
+        }
+    }
+}
