@@ -1,6 +1,7 @@
 import { Title } from '@solidjs/meta';
 import { type RouteDefinition, type RouteProps, useSubmissions } from '@solidjs/router';
 import { Show, createMemo, isPending } from 'solid-js';
+import { env } from 'virtual:env/client';
 
 import { getCurrentUser } from '~/lib/account';
 import { getUser, renameMe } from '~/lib/users';
@@ -27,7 +28,7 @@ export default function User(props: RouteProps<'/users/:id'>) {
     <Show when={user()} fallback={<p>No such user.</p>}>
       {(shown) => (
         <section class="transition-opacity" style={{ opacity: isPending(user) ? 0.5 : 1 }}>
-          <Title>{`${shown().name} - Solid App`}</Title>
+          <Title>{`${shown().name} - ${env.VITE_APP_NAME}`}</Title>
           <h2 class="text-2xl font-semibold">{shown().name}</h2>
           <p class="mt-1 text-base-content/70">
             Joined {new Date(shown().createdAt).toLocaleDateString('en')}

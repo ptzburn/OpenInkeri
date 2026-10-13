@@ -22,6 +22,6 @@ export default {
     GITHUB_CLIENT_SECRET: v.pipe(v.string(), v.minLength(1)),
   },
   client: {
-    VITE_APP_NAME: v.optional(v.pipe(v.string(), v.minLength(1)), 'Solid App'),
+    VITE_APP_NAME: v.optional(v.pipe(v.string(), v.minLength(1)), 'OpenInkeri'),
   },
 };

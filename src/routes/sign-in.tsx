@@ -1,6 +1,7 @@
 import { Title } from '@solidjs/meta';
 import { useSearchParams, useSubmissions } from '@solidjs/router';
 import { Show } from 'solid-js';
+import { env } from 'virtual:env/client';
 import GitHub from '~icons/ri/github-fill';
 
 import { type SignInError, signInWithGitHub } from '~/lib/account';
@@ -15,8 +16,8 @@ export default function SignIn() {
     (search.error ? 'Signing in with GitHub did not complete. Try again.' : undefined);
 
   return (
-    <main class="mx-auto max-w-sm">
-      <Title>Sign in - Solid App</Title>
+    <main class="mx-auto w-full max-w-sm px-4 py-12 text-center">
+      <Title>{`Sign in - ${env.VITE_APP_NAME}`}</Title>
       <h1 class="my-6 text-4xl font-bold">Sign in</h1>
       {/* Posts to the server function before JavaScript loads too. */}
       <form method="post" action={signInWithGitHub} class="flex flex-col gap-4">

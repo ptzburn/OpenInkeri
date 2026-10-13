@@ -5,12 +5,13 @@
 // revalidates queries after an action settles.
 //
 // Every function checks the session itself: the route guard decides what
-// renders, but these are public URLs anyone can call.
+// renders, but these are public URLs anyone can call. Listing and reading
+// users is for admins; renaming yourself only needs a session.
 import { action, query } from '@solidjs/router';
 import { getRequestEvent, redirect, respond } from '@solidjs/web';
 
 import { paths } from '~/router';
-import { auth, forwardCookies, requestHeaders } from '~/server/auth';
+import { auth, forwardCookies, isAdmin, requestHeaders } from '~/server/auth';
 import { db } from '~/server/database';
 
 function signedIn() {
@@ -19,9 +20,15 @@ function signedIn() {
   return user;
 }
 
+function adminOnly() {
+  const user = signedIn();
+  if (!isAdmin(user)) throw respond({ message: 'Admins only.' }, { status: 403 });
+  return user;
+}
+
 export const getUsers = query(async () => {
   'use server';
-  signedIn();
+  adminOnly();
   return db.query.user.findMany({
     columns: { id: true, name: true },
     orderBy: { createdAt: 'asc' },
@@ -30,7 +37,7 @@ export const getUsers = query(async () => {
 
 export const getUser = query(async (id: string) => {
   'use server';
-  signedIn();
+  adminOnly();
   const user = await db.query.user.findFirst({
     columns: { id: true, name: true, createdAt: true },
     where: { id },

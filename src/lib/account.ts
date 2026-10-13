@@ -6,13 +6,21 @@ import { action, query } from '@solidjs/router';
 import { getRequestEvent, redirect, respond } from '@solidjs/web';
 
 import { paths } from '~/router';
-import { auth, forwardCookies, requestHeaders } from '~/server/auth';
+import { auth, forwardCookies, isAdmin, requestHeaders } from '~/server/auth';
 
 /** The signed-in user (set on the request by src/middleware.ts), or null. */
 export const getCurrentUser = query(async () => {
   'use server';
   const user = getRequestEvent()?.locals.user;
-  return user ? { id: user.id, name: user.name, email: user.email } : null;
+  if (!user) return null;
+  // image is the GitHub avatar URL better-auth stored at sign-in.
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    image: user.image,
+    isAdmin: isAdmin(user),
+  };
 }, 'current-user');
 
 /** For pages that need a user: redirects signed-out visitors to sign-in. */
@@ -22,6 +30,15 @@ export const requireUser = query(async () => {
   if (!user) throw redirect(paths['sign-in']());
   return { id: user.id, name: user.name, email: user.email };
 }, 'require-user');
+
+/** For admin-only pages: signed-out visitors go to sign-in, everyone else home. */
+export const requireAdmin = query(async () => {
+  'use server';
+  const user = getRequestEvent()?.locals.user;
+  if (!user) throw redirect(paths['sign-in']());
+  if (!isAdmin(user)) throw redirect(paths());
+  return { id: user.id, name: user.name, email: user.email };
+}, 'require-admin');
 
 /** What a failed sign-in carries in `submission.error` (see useSubmissions). */
 export interface SignInError {

@@ -1,17 +1,18 @@
 import type { RouteDefinition, RouteSectionProps } from '@solidjs/router';
 import { For, Show, createMemo } from 'solid-js';
 
-import { requireUser } from '~/lib/account';
+import { requireAdmin } from '~/lib/account';
 import { getUsers } from '~/lib/users';
 import { paths } from '~/router';
 
-// Signed-in only. The preload starts the check as navigation begins; the
+// Admins only. The preload starts the check as navigation begins; the
 // component reads the same cached query, so a signed-out visitor is
-// redirected to /sign-in before any of the section renders. The server
+// redirected to /sign-in, and a signed-in non-admin home, before any of the
+// section renders. The server
 // functions check the session themselves too (src/lib/users.ts).
 export const route = {
   preload: () => {
-    void requireUser();
+    void requireAdmin();
     void getUsers();
   },
 } satisfies RouteDefinition;
@@ -19,12 +20,12 @@ export const route = {
 // A layout route: pairing users.tsx with the users/ directory nests every
 // page inside it under this component.
 export default function UsersLayout(props: RouteSectionProps) {
-  const me = createMemo(() => requireUser());
+  const me = createMemo(() => requireAdmin());
   const users = createMemo(() => getUsers());
 
   return (
     <Show when={me()}>
-      <main>
+      <main class="mx-auto w-full max-w-3xl px-4 py-12 text-center">
         <h1 class="my-6 text-4xl font-bold">Users</h1>
         <nav aria-label="Users" class="mb-8">
           <ul class="menu menu-horizontal justify-center gap-1 rounded-box bg-base-200">
