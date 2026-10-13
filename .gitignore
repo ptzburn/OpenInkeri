@@ -14,6 +14,9 @@ app.config.timestamp_*.js
 # dependencies
 /node_modules
 
+# Personal Claude Code settings
+.claude/settings.local.json
+
 # IDEs and editors
 /.idea
 .project

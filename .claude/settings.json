@@ -1,8 +1,29 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
+  "extraKnownMarketplaces": {
+    "cloudflare": {
+      "source": { "source": "github", "repo": "cloudflare/skills" }
+    }
+  },
+  "enabledPlugins": {
+    "cloudflare@cloudflare": true,
+    "superpowers@claude-plugins-official": true
+  },
   "permissions": {
     "allow": [
       "WebFetch(domain:v2.solidjs.com)",
-      "WebFetch(domain:v2-rebuild--solid-docs-v2.netlify.app)"
+      "WebFetch(domain:v2-rebuild--solid-docs-v2.netlify.app)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(pnpm check *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm test *)"
     ]
   }
 }
