@@ -41,7 +41,8 @@ export const getUser = query(async (id: string) => {
 export const renameMe = action(async (form: FormData) => {
   'use server';
   signedIn();
-  const name = String(form.get('name') ?? '').trim();
+  const raw = form.get('name');
+  const name = typeof raw === 'string' ? raw.trim() : '';
   if (!name || name.length > 100) {
     throw respond({ message: 'Enter a name of 1–100 characters.' }, { status: 400 });
   }
