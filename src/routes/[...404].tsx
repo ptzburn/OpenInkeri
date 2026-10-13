@@ -1,6 +1,7 @@
 import { Title } from '@solidjs/meta';
 import type { RouteDefinition } from '@solidjs/router';
 import { httpStatus } from '@solidjs/web';
+import { env } from 'virtual:env/client';
 
 // The catch-all route. httpStatus() sets the response status during SSR
 // (a no-op in the browser); it runs in preload so the status code is set
@@ -11,8 +12,8 @@ export const route = {
 
 export default function NotFound() {
   return (
-    <main>
-      <Title>Not Found - Solid App</Title>
+    <main class="mx-auto w-full max-w-3xl px-4 py-12 text-center">
+      <Title>{`Not Found - ${env.VITE_APP_NAME}`}</Title>
       <h1 class="my-6 text-4xl font-bold">Page Not Found</h1>
       <p>
         Visit{' '}

@@ -24,7 +24,7 @@ export default function UsersLayout(props: RouteSectionProps) {
 
   return (
     <Show when={me()}>
-      <main>
+      <main class="mx-auto w-full max-w-3xl px-4 py-12 text-center">
         <h1 class="my-6 text-4xl font-bold">Users</h1>
         <nav aria-label="Users" class="mb-8">
           <ul class="menu menu-horizontal justify-center gap-1 rounded-box bg-base-200">
