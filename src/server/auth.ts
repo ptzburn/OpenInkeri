@@ -1,6 +1,6 @@
 // The better-auth instance, as a server-only module. Schema-shaping options
 // live in ./auth-options.ts so the CLI can load them; this file adds what
-// needs the Worker: the D1 database, the secret, and waitUntil.
+// needs the Worker: the D1 database, the secrets, and waitUntil.
 import 'server-only';
 import { getRequestEvent } from '@solidjs/web';
 import type { RequestEvent, ResponseStub } from '@solidjs/web';
@@ -17,6 +17,14 @@ export const auth = betterAuth({
   ...authOptions,
   secret: env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: 'sqlite', schema }),
+  // GitHub is the only way in: its first sign-in creates the account. The
+  // OAuth app's callback URL is <origin>/api/auth/callback/github.
+  socialProviders: {
+    github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
+  },
+  // GitHub's access token is stored on the account row; encrypt it with the
+  // secret so a database leak doesn't hand out working tokens.
+  account: { encryptOAuthTokens: true },
   session: {
     // Keep the session in a signed cookie for 5 minutes, so most requests
     // skip the D1 lookup. A revoked session can live on for that long.
@@ -50,7 +58,7 @@ export function forwardCookies(headers: Headers): void {
 const FORWARDED = ['cookie', 'origin', 'referer', 'user-agent', 'cf-connecting-ip'];
 
 /**
- * POSTs to a better-auth endpoint (e.g. '/sign-in/email') through its HTTP
+ * POSTs to a better-auth endpoint (e.g. '/sign-in/social') through its HTTP
  * handler, as the browser would. Calling auth.api.* directly would skip the
  * handler's rate limiting and origin check, which server functions need:
  * they are public URLs. Cookies on the result are forwarded to the response.

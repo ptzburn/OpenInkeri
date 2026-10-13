@@ -9,8 +9,8 @@
 import { action, query } from '@solidjs/router';
 import { getRequestEvent, redirect, respond } from '@solidjs/web';
 
-import { callAuth } from '../server/auth';
-import { db } from '../server/database';
+import { callAuth } from '~/server/auth';
+import { db } from '~/server/database';
 
 function signedIn() {
   const user = getRequestEvent()?.locals.user;

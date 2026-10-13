@@ -1,3 +1,3 @@
 # Generated files: collapsed in GitHub diffs.
 worker-configuration.d.ts linguist-generated=true
-drizzle/*/snapshot.json linguist-generated=true
+src/server/database/migrations/*/snapshot.json linguist-generated=true

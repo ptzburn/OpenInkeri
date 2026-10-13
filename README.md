@@ -46,11 +46,14 @@ Run these in the dev container's terminal:
 pnpm install            # also installs the git hooks (lefthook)
 cp .env.example .env
 openssl rand -base64 32 # paste the output as BETTER_AUTH_SECRET in .env
+                        # and fill in GITHUB_CLIENT_ID/SECRET (see below)
 pnpm db:migrate         # create the local D1 database
 pnpm dev                # http://localhost:3060
 ```
 
-`.env` is git-ignored. `BETTER_AUTH_SECRET` must be at least 32 characters; the server refuses to start without it. See [Typed environment variables](#typed-environment-variables) and [Authentication](#authentication) for details.
+`.env` is git-ignored. `BETTER_AUTH_SECRET` must be at least 32 characters, and the server refuses to start without it or the GitHub credentials.
+
+Sign-in is with GitHub only, so local dev needs a GitHub OAuth app: at [github.com/settings/developers](https://github.com/settings/developers), choose **New OAuth App**, set the homepage URL to `http://localhost:3060` and the callback URL to `http://localhost:3060/api/auth/callback/github`, then copy its client ID and a new client secret into `.env`. An OAuth app has one callback URL, so production gets its own app, with `https://<your-worker>.workers.dev/api/auth/callback/github`. See [Typed environment variables](#typed-environment-variables) and [Authentication](#authentication) for details.
 
 ### Git hooks
 
@@ -68,7 +71,7 @@ git config --global user.email "you@example.com"
 
 ### Deploying
 
-Deploys are handled by Cloudflare Workers Builds, connected to this repo in the Cloudflare dashboard, so you normally don't deploy by hand. To deploy from your machine anyway, run `npx wrangler login` once (or set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env`), set the production secret with `npx wrangler secret put BETTER_AUTH_SECRET`, then run `pnpm run deploy`. Deploys don't apply database migrations: run `pnpm db:migrate:remote` after deploying a change that adds one.
+Deploys are handled by Cloudflare Workers Builds, connected to this repo in the Cloudflare dashboard, so you normally don't deploy by hand. To deploy from your machine anyway, run `npx wrangler login` once (or set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env`), set the production secrets with `npx wrangler secret put BETTER_AUTH_SECRET` (and the same for `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`), then run `pnpm run deploy`. Deploys don't apply database migrations: run `pnpm db:migrate:remote` after deploying a change that adds one.
 
 ### Working with AI agents
 
@@ -102,7 +105,7 @@ The sections below come from the Solid `fullstack` template this project started
 
 - **Data loading through server functions** — `'use server'` functions the UI calls like local async functions (`src/lib/users.ts`).
 - **A single-flight mutation** — a `<form>` posting to an `action()` server function; the response carries the refreshed page data, so the UI updates in one round trip. Works before hydration too.
-- **Email and password auth** — [better-auth](https://better-auth.com) on D1 (this project replaced the template's demo cookie session; see [Authentication](#authentication)).
+- **Sign-in with GitHub** — [better-auth](https://better-auth.com) on D1 (this project replaced the template's demo cookie session; see [Authentication](#authentication)).
 - **An API route** — uppercase method exports under `src/routes/api` answer HTTP requests (better-auth's endpoints live at `src/routes/api/auth/[...auth].ts`).
 
 **Deployment contract:** there is a server. `vite build` emits static client assets to `dist/client`, a request handler to `dist/server/server.js`, and — via `start: { node: true }` — a ready-to-run Node server at `dist/server/node.js` that `npm start` runs. Streaming SSR is the default posture — set `ssr: false` in `vite.config.ts` for a static shell + API server: pages render on the client while server functions, sessions, and API routes keep working. Same template, one boolean.
@@ -123,13 +126,13 @@ Two things make a route single-flight-complete, and both are already good practi
 
 ## Authentication
 
-Email and password sign-up, sign-in and sign-out with [better-auth](https://better-auth.com), storing users and sessions in D1 through Drizzle. Email verification and password reset are not set up yet; they need an email provider.
+Sign-in with GitHub and sign-out with [better-auth](https://better-auth.com), storing users and sessions in D1 through Drizzle. There are no passwords: a user's first GitHub sign-in creates their account.
 
-- **`src/server/auth.ts`** — the better-auth instance. Options that shape the database schema live in `src/server/auth-options.ts`, so the `auth` CLI can load them (`pnpm auth:generate` writes `src/server/database/auth-schema.ts` via `auth.cli.ts`; then `pnpm db:generate` writes the migration).
+- **`src/server/auth.ts`** — the better-auth instance, with the GitHub provider. Options that shape the database schema live in `src/server/auth-options.ts`, so the `auth` CLI can load them (`pnpm auth:generate` writes `src/server/database/auth-schema.ts` via `auth.cli.ts`; then `pnpm db:generate` writes the migration).
 - **`src/middleware.ts`** — reads the session once per request and sets `event.locals.user`. A 5-minute signed cookie cache saves most requests a D1 lookup.
-- **`src/lib/account.ts`** — `signUp`, `signIn` and `signOut` as server functions behind router actions, so the forms on `/sign-up` and `/sign-in` work before JavaScript loads. They call better-auth through its HTTP handler (`callAuth`), not `auth.api.*`, so its rate limiting and origin check apply. `requireUser` guards pages and sends signed-out visitors to `/sign-in?next=…`.
-- **Passwords** are hashed with PBKDF2-SHA256 through Web Crypto at 100,000 iterations (`src/server/password.ts`), because better-auth's default scrypt runs as pure JavaScript on Workers and costs far more CPU.
-- **Rate limiting** applies in production only: 5 sign-ins and 3 sign-ups per IP per minute, counted in D1 so every Worker isolate shares the count.
+- **`src/lib/account.ts`** — `signInWithGitHub` and `signOut` as server functions behind router actions, so the forms work before JavaScript loads. `signInWithGitHub` asks better-auth for GitHub's authorize URL and sends the browser there; GitHub returns to `/api/auth/callback/github`, which signs the user in and redirects to `next` (or back to `/sign-in?error=…`). They call better-auth through its HTTP handler (`callAuth`), not `auth.api.*`, so its rate limiting and origin check apply. `requireUser` guards pages and sends signed-out visitors to `/sign-in?next=…`.
+- **GitHub access tokens** are stored on the `account` row encrypted with `BETTER_AUTH_SECRET` (`account.encryptOAuthTokens`).
+- **Rate limiting** applies in production only: 10 GitHub sign-in starts per IP per minute, counted in D1 so every Worker isolate shares the count.
 
 ## Typed environment variables
 
@@ -158,27 +161,27 @@ Link preloading is opt-in. The router is created with `preloadLinks: intentPrelo
 
 ## Testing
 
-Two vitest projects, because they need different halves of the framework: `client` runs the DOM component tests from `basic` in jsdom, and `server` runs the server tests (password hashing) in node against the real server runtime — full request/response cycles through the same code paths production takes, with the plugin's env module stubbed (`vitest-env-server-stub.ts`).
+Two vitest projects, because they need different halves of the framework: `client` runs the DOM component tests from `basic` in jsdom, and `server` runs server tests (`src/server/**/*.test.ts`; none yet) in node against the real server runtime — full request/response cycles through the same code paths production takes, with the plugin's env module stubbed (`vitest-env-server-stub.ts`).
 
 ## Development scripts
 
 Run these with pnpm (`pnpm <script>`; use `pnpm run deploy` for deploy, since `pnpm deploy` is a different pnpm command):
 
-| Script              | What it does                                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------------------------- |
-| `dev`               | Dev server with streaming SSR, running in local workerd, at [localhost:3060](http://localhost:3060).    |
-| `build`             | Builds client assets to `dist/client` and the Worker request handler to `dist/server`.                  |
-| `serve`             | Previews the production build locally.                                                                  |
-| `test`              | Runs both test projects (`client` component tests in jsdom, `server` tests in node).                    |
-| `check`             | Format check, lint (including the Solid 2 rules), and type check.                                       |
-| `lint`              | Lint only, for `src`.                                                                                   |
-| `deploy`            | Builds and deploys to Cloudflare Workers with wrangler.                                                 |
-| `db:generate`       | Writes a Drizzle migration to `drizzle/` from changes in `src/server/database/schema.ts`.               |
-| `db:migrate`        | Applies pending migrations to the local D1 database (in `.wrangler/`).                                  |
-| `db:migrate:remote` | Applies pending migrations to the production D1 database.                                               |
-| `cf-typegen`        | Regenerates `worker-configuration.d.ts` (binding and runtime types) after editing `wrangler.jsonc`.     |
-| `db:studio`         | Opens Drizzle Studio on the local D1 database (run `pnpm db:migrate` or `pnpm dev` first).              |
-| `auth:generate`     | Regenerates the better-auth tables in `src/server/database/auth-schema.ts` after changing auth options. |
+| Script              | What it does                                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `dev`               | Dev server with streaming SSR, running in local workerd, at [localhost:3060](http://localhost:3060).             |
+| `build`             | Builds client assets to `dist/client` and the Worker request handler to `dist/server`.                           |
+| `serve`             | Previews the production build locally.                                                                           |
+| `test`              | Runs both test projects (`client` component tests in jsdom, `server` tests in node).                             |
+| `check`             | Format check, lint (including the Solid 2 rules), and type check.                                                |
+| `lint`              | Lint only, for `src`.                                                                                            |
+| `deploy`            | Builds and deploys to Cloudflare Workers with wrangler.                                                          |
+| `db:generate`       | Writes a Drizzle migration to `src/server/database/migrations/` from changes in `src/server/database/schema.ts`. |
+| `db:migrate`        | Applies pending migrations to the local D1 database (in `.wrangler/`).                                           |
+| `db:migrate:remote` | Applies pending migrations to the production D1 database.                                                        |
+| `cf-typegen`        | Regenerates `worker-configuration.d.ts` (binding and runtime types) after editing `wrangler.jsonc`.              |
+| `db:studio`         | Opens Drizzle Studio on the local D1 database (run `pnpm db:migrate` or `pnpm dev` first).                       |
+| `auth:generate`     | Regenerates the better-auth tables in `src/server/database/auth-schema.ts` after changing auth options.          |
 
 Learn more on the [Solid 2 docs](https://v2.solidjs.com) and come chat on the [Solid Discord](https://discord.com/invite/solidjs).
 

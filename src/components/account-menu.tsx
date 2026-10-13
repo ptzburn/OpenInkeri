@@ -1,7 +1,7 @@
 import { useLocation } from '@solidjs/router';
 import { Loading, Show, createMemo } from 'solid-js';
 
-import { getCurrentUser, signOut } from '../lib/account';
+import { getCurrentUser, signOut } from '~/lib/account';
 
 // The navbar's account corner: the user's name and Sign out, or a Sign in
 // link that brings them back to this page afterwards. The read is the same

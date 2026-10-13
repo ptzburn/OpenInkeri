@@ -2,8 +2,8 @@ import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { defineConfig } from 'drizzle-kit';
 
-// `generate` diffs the schema against the last snapshot in ./drizzle and
-// writes drizzle/<timestamp>_<name>/migration.sql. Wrangler applies those
+// `generate` diffs the schema against the last snapshot in the migrations folder
+// and writes <timestamp>_<name>/migration.sql there. Wrangler applies those
 // files to D1 (see the db:migrate scripts and migrations_pattern in
 // wrangler.jsonc), so generating needs no database.
 //
@@ -28,6 +28,6 @@ const url = localDatabase();
 export default defineConfig({
   dialect: 'sqlite',
   schema: './src/server/database/schema.ts',
-  out: './drizzle',
+  out: './src/server/database/migrations',
   ...(url && { dbCredentials: { url } }),
 });

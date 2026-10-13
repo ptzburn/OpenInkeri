@@ -12,6 +12,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "noEmit": true,
+    // `~/x` is src/x. Vite resolves it from here too (resolve.tsconfigPaths).
+    "paths": { "~/*": ["./src/*"] },
 
     // Type Checking & Safety
     "strict": true,

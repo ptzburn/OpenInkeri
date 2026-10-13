@@ -31,6 +31,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.63.1",
+    "@iconify-json/ri": "^1.2.10",
     "@solidjs/diagnostics": "^2.0.0-rc.14",
     "@solidjs/start-devtools": "^1.0.0-next.4",
     "@solidjs/testing-library": "^1.0.0-beta.3",
@@ -47,6 +48,7 @@
     "lefthook": "^2.2.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.2",
+    "unplugin-icons": "^24.0.0",
     "vite": "catalog:",
     "vite-plus": "catalog:",
     "wrangler": "^4.149.0"

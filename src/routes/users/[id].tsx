@@ -2,8 +2,8 @@ import { Title } from '@solidjs/meta';
 import { type RouteDefinition, type RouteProps, useSubmissions } from '@solidjs/router';
 import { Show, createMemo, isPending } from 'solid-js';
 
-import { getCurrentUser } from '../../lib/account';
-import { getUser, renameMe } from '../../lib/users';
+import { getCurrentUser } from '~/lib/account';
+import { getUser, renameMe } from '~/lib/users';
 
 // The preload starts these fetches as navigation begins — and it doubles as
 // the page's single-flight manifest: after the rename mutation, the server

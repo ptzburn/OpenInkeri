@@ -21,6 +21,8 @@ declare module 'virtual:env/server' {
     : string;
   const env: {
     readonly "BETTER_AUTH_SECRET": __Out<__Schema["server"]["BETTER_AUTH_SECRET"]>;
+    readonly "GITHUB_CLIENT_ID": __Out<__Schema["server"]["GITHUB_CLIENT_ID"]>;
+    readonly "GITHUB_CLIENT_SECRET": __Out<__Schema["server"]["GITHUB_CLIENT_SECRET"]>;
     readonly "VITE_APP_NAME": __Out<__Schema["client"]["VITE_APP_NAME"]>;
   };
   export { env };

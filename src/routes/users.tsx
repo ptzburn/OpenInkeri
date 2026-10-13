@@ -1,9 +1,9 @@
 import type { RouteDefinition, RouteSectionProps } from '@solidjs/router';
 import { For, Show, createMemo } from 'solid-js';
 
-import { requireUser } from '../lib/account';
-import { getUsers } from '../lib/users';
-import { paths } from '../router';
+import { requireUser } from '~/lib/account';
+import { getUsers } from '~/lib/users';
+import { paths } from '~/router';
 
 // Signed-in only. The preload starts the check as navigation begins; the
 // component reads the same cached query, so a signed-out visitor is
