@@ -26,23 +26,32 @@ function adminOnly() {
   return user;
 }
 
+// What the users pages show of someone; the raw role string stays on the
+// server, reduced to the one flag the UI needs.
+const columns = {
+  id: true,
+  name: true,
+  email: true,
+  image: true,
+  role: true,
+  banned: true,
+  createdAt: true,
+} as const;
+
 export const getUsers = query(async () => {
   'use server';
   adminOnly();
-  return db.query.user.findMany({
-    columns: { id: true, name: true },
-    orderBy: { createdAt: 'asc' },
-  });
+  const users = await db.query.user.findMany({ columns, orderBy: { createdAt: 'asc' } });
+  return users.map(({ role, ...user }) => ({ ...user, isAdmin: isAdmin({ role }) }));
 }, 'users');
 
 export const getUser = query(async (id: string) => {
   'use server';
   adminOnly();
-  const user = await db.query.user.findFirst({
-    columns: { id: true, name: true, createdAt: true },
-    where: { id },
-  });
-  return user ?? null;
+  const user = await db.query.user.findFirst({ columns, where: { id } });
+  if (!user) return null;
+  const { role, ...rest } = user;
+  return { ...rest, isAdmin: isAdmin({ role }) };
 }, 'user');
 
 /** Renames the signed-in user; nobody can rename anyone else. */

@@ -53,7 +53,7 @@ export const auth = betterAuth({
 export type User = typeof auth.$Infer.Session.user;
 
 /** Whether the admin plugin counts this user as an admin (role may be a comma list). */
-export function isAdmin(user: User): boolean {
+export function isAdmin(user: Pick<User, 'role'>): boolean {
   return user.role?.split(',').includes('admin') ?? false;
 }
 
