@@ -1,7 +1,11 @@
 import { defineRelations } from 'drizzle-orm';
 
+import { authRelations } from './auth-schema';
 import * as schema from './schema';
 
-// Relations v2: one definition for the whole schema. Generated parts (e.g.
-// better-auth's authRelations) are spread after it in ./index.ts.
-export const relations = defineRelations(schema, () => ({}));
+// Relations v2: one definition for the whole schema, with generated parts
+// (better-auth's authRelations) spread after it.
+export const relations = {
+  ...defineRelations(schema, () => ({})),
+  ...authRelations,
+};

@@ -1,49 +1,52 @@
-// The app's data layer: server functions ('use server') the UI calls
+// The users pages' data: server functions ('use server') the UI calls
 // directly. On the server they are plain function calls; in the browser the
 // compiler turns each into a typed fetch against the /_server endpoint.
 // query() caches reads per key; action() marks writes, and the router
 // revalidates queries after an action settles.
+//
+// Every function checks the session itself: the route guard decides what
+// renders, but these are public URLs anyone can call.
 import { action, query } from '@solidjs/router';
+import { getRequestEvent, redirect, respond } from '@solidjs/web';
 
-import { findUser, listUsers, updateUser } from '../server/db';
-import { clearSession, getSession, setSession } from '../server/session';
+import { callAuth } from '../server/auth';
+import { db } from '../server/database';
+
+function signedIn() {
+  const user = getRequestEvent()?.locals.user;
+  if (!user) throw redirect('/sign-in?next=%2Fusers');
+  return user;
+}
 
 export const getUsers = query(async () => {
   'use server';
-  return listUsers();
+  signedIn();
+  return db.query.user.findMany({
+    columns: { id: true, name: true },
+    orderBy: { createdAt: 'asc' },
+  });
 }, 'users');
 
 export const getUser = query(async (id: string) => {
   'use server';
-  return findUser(id) ?? { name: 'Unknown', title: 'No such user' };
+  signedIn();
+  const user = await db.query.user.findFirst({
+    columns: { id: true, name: true, createdAt: true },
+    where: { id },
+  });
+  return user ?? null;
 }, 'user');
 
-// The session read: who is signed in. The cookie write in login/logout
-// rides the outgoing response (see src/server/session.ts), and because
-// they are actions, the router refetches this query when they settle.
-export const getCurrentUser = query(async () => {
+/** Renames the signed-in user; nobody can rename anyone else. */
+export const renameMe = action(async (form: FormData) => {
   'use server';
-  const userId = (await getSession())?.userId;
-  const user = userId ? findUser(userId) : undefined;
-  return user ? { id: userId!, ...user } : null;
-}, 'current-user');
-
-export const login = action(async (formData: FormData) => {
-  'use server';
-  const id = String(formData.get('id') ?? '');
-  if (!findUser(id)) throw new Error(`No user "${id}"`);
-  await setSession({ userId: id });
-});
-
-export const logout = action(async () => {
-  'use server';
-  await clearSession();
-});
-
-export const renameUser = action(async (id: string, formData: FormData) => {
-  'use server';
-  // Server-side authorization off the session — the UI hiding the form is
-  // cosmetic; this check is the real gate.
-  if (!(await getSession())?.userId) throw new Error('Sign in to rename users');
-  updateUser(id, { name: String(formData.get('name') ?? '') });
-});
+  signedIn();
+  const name = String(form.get('name') ?? '').trim();
+  if (!name || name.length > 100) {
+    throw respond({ message: 'Enter a name of 1–100 characters.' }, { status: 400 });
+  }
+  const response = await callAuth('/update-user', { name });
+  if (!response.ok) {
+    throw respond({ message: 'Could not save the name. Try again.' }, { status: response.status });
+  }
+}, 'rename-me');

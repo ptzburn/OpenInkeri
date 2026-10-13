@@ -15,11 +15,12 @@
     "cf-typegen": "wrangler types --env-file=/dev/null",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply DB --local",
-    "db:migrate:remote": "wrangler d1 migrations apply DB --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:studio": "drizzle-kit studio",
+    "auth:generate": "auth generate --config auth.cli.ts --output src/server/database/auth-schema.ts --yes"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.7",
-    "@remix-run/cookie": "^0.5.4",
     "@solidjs/meta": "^1.0.0-next.2",
     "@solidjs/router": "^2.0.0-next.38",
     "@solidjs/web": "^2.0.0-rc.14",
