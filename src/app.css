@@ -1,2 +1,8 @@
 @import 'tailwindcss';
-@plugin 'daisyui';
+/* No --prefersdark: the sidebar's light/dark toggle picks the theme, so the
+   OS preference must not override an unchecked (light) toggle. */
+@plugin 'daisyui' {
+  themes:
+    light --default,
+    dark;
+}

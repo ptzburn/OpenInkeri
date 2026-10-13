@@ -5,20 +5,24 @@ import Team from '~icons/ri/team-line';
 import { env } from 'virtual:env/client';
 
 import AccountMenu from '~/components/account-menu';
+import ThemeSwitcher from '~/components/theme-switcher';
 import { getCurrentUser } from '~/lib/account';
 import { paths } from '~/router';
 
-// The drawer's sidebar: the app name, the navigation and, at the bottom, the
-// account corner. Admin-only links stay hidden from everyone else; the pages
-// and server functions guard themselves anyway.
+// The drawer's sidebar: the app name with the theme toggle, the navigation
+// and, at the bottom, the account corner. Admin-only links stay hidden from
+// everyone else; the pages and server functions guard themselves anyway.
 export default function Sidebar() {
   const user = createMemo(() => getCurrentUser());
 
   return (
     <aside class="flex min-h-full w-64 flex-col bg-base-200">
-      <a href={paths()} class="px-6 py-5 text-xl font-bold">
-        {env.VITE_APP_NAME}
-      </a>
+      <div class="flex items-center justify-between py-3 pr-3 pl-6">
+        <a href={paths()} class="text-xl font-bold">
+          {env.VITE_APP_NAME}
+        </a>
+        <ThemeSwitcher />
+      </div>
       {/* The router marks the matching link aria-current="page". */}
       <nav aria-label="Main" class="grow">
         <ul class="menu w-full gap-1">
