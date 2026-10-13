@@ -5,19 +5,12 @@
     "pr": "",
     "sessionUrl": false
   },
-  "extraKnownMarketplaces": {
-    "cloudflare": {
-      "source": { "source": "github", "repo": "cloudflare/skills" }
-    }
-  },
-  "enabledPlugins": {
-    "cloudflare@cloudflare": true,
-    "superpowers@claude-plugins-official": true
-  },
   "permissions": {
     "allow": [
       "WebFetch(domain:v2.solidjs.com)",
       "WebFetch(domain:v2-rebuild--solid-docs-v2.netlify.app)",
+      "WebFetch(domain:orm.drizzle.team)",
+      "WebFetch(domain:better-auth.com)",
       "Bash(git status *)",
       "Bash(git diff *)",
       "Bash(git log *)",
@@ -25,5 +18,24 @@
       "Bash(pnpm lint *)",
       "Bash(pnpm test *)"
     ]
+  },
+  "enabledPlugins": {
+    "cloudflare@cloudflare": true,
+    "daisyui@daisyui": true,
+    "superpowers@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "cloudflare": {
+      "source": {
+        "source": "github",
+        "repo": "cloudflare/skills"
+      }
+    },
+    "daisyui": {
+      "source": {
+        "source": "github",
+        "repo": "saadeghi/daisyui"
+      }
+    }
   }
 }

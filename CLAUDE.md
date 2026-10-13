@@ -38,6 +38,36 @@ The installed packages ship agent skills that match their exact installed versio
 - `node_modules/solid-js/skills/reactivity-diagnostics/SKILL.md` — repair guide mapping every dev-mode diagnostic code (e.g. `REACTIVE_WRITE_IN_OWNED_SCOPE`, `STRICT_READ_UNTRACKED`) to its prescribed fix. Read it whenever a Solid diagnostic code appears in test output or the browser console.
 - `node_modules/@solidjs/diagnostics/skills/agent-loops/SKILL.md` — how to capture reactive evidence (which scopes re-ran and why, wasted recomputes, cost tables) and assert budgets, in tests and against live pages.
 - `node_modules/@solidjs/web/skills/server-components/SKILL.md` — rules for writing `"use server"` server components and their client slots.
+- `node_modules/drizzle-kit/skills/drizzle-*/SKILL.md` — drizzle-kit workflow: config and generate-vs-push (`drizzle-migrations`), `generate`, `push`, `pull`, resolving `missing_hints`, output modes, and response/error codes. Run drizzle-kit as `pnpm exec drizzle-kit`. Don't run `drizzle-kit skills`: it copies snapshots into the repo that go stale on upgrade.
+
+## Drizzle ORM 1.0 (release candidate)
+
+The database is Cloudflare D1 (SQLite) through `drizzle-orm` and `drizzle-kit`, both pinned to `1.0.0-rc.4`. Drizzle 1.0 is not 0.x: most Drizzle code you have seen is 0.x, and its relations and relational-query syntax is wrong here.
+
+- **Relations:** one `defineRelations(schema, (r) => ({ ... }))` from `drizzle-orm`, with `r.one.<table>({ from, to })` / `r.many.<table>(...)`. `fields` → `from`, `references` → `to`, `relationName` → `alias`; `through` defines many-to-many directly. Split large definitions with `defineRelationsPart`. Never use the per-table `relations()` (it now lives in `drizzle-orm/_relations` only for legacy code).
+- **Client:** `drizzle(env.DB, { relations })` from `drizzle-orm/d1` — pass `relations`, not `schema`.
+- **Relational queries:** `where` and `orderBy` are objects, not callbacks: `db.query.users.findMany({ where: { id: 1 }, orderBy: { id: "asc" }, with: { posts: true } })`. `where` supports `AND`/`OR`/`NOT`/`RAW`, operator objects (`{ age: { gt: 18 } }`), and filtering on relations.
+- **Renamed helpers:** `getTableColumns` → `getColumns`. Casing is set per table with `snakeCase.table(...)` / `camelCase.table(...)` from `drizzle-orm/sqlite-core`, not `drizzle({ casing })`. Generated columns take `sql\`...\``, not raw strings.
+- **Validation:** schema-to-Valibot comes from `drizzle-orm/valibot` (not the `drizzle-valibot` package).
+- **Migrations:** each migration is its own folder (no `meta/_journal.json`). Change the schema, then generate migrations through the `drizzle-generate` skill; don't hand-write migration SQL.
+
+Docs: `https://orm.drizzle.team/llms.txt` is the index. Use the SQLite pages (`https://orm.drizzle.team/docs/sqlite/...`), and the "sqlite/Upgrade to v1.0 RC" section for v1 changes (`v0-v1-changes`, `relations-v1-v2`, `connect-cloudflare-d1`). Pages are HTML only; there is no `.md` variant. When the docs and the installed types disagree, the types in `node_modules/drizzle-orm` win.
+
+## daisyUI
+
+Styling is Tailwind CSS 4 + daisyUI 5. The `daisyui` plugin (enabled in `.claude/settings.json`) provides the official daisyUI skill: read it before writing markup. Its examples are plain HTML; in Solid JSX keep `class` (never `className`) and replace inline `onclick="..."` strings with `onClick` handlers or `ref` callbacks. Don't install `daisyui-blueprint` from the same marketplace — it needs a paid license.
+
+## better-auth
+
+`better-auth`, `@better-auth/drizzle-adapter` and the `auth` CLI are pinned to the same version (`1.7.7`); upgrade them together.
+
+- **Adapter:** import `drizzleAdapter` from `@better-auth/drizzle-adapter/relations-v2` with `provider: "sqlite"`. The default `better-auth/adapters/drizzle` targets Drizzle 0.x relations and is wrong here.
+- **Schema:** generate the auth tables with `pnpm exec auth generate` (never `auth@latest` via `dlx`/`npx`). It emits `authRelations` with `defineRelationsPart`; spread it after the app's relations: `relations: { ...relations, ...authRelations }`. Then generate the migration with drizzle-kit, not `auth migrate`.
+- **Client:** don't use `better-auth/solid` — it is built on Solid 1 (the source of the `solid-js ^1` peer warning). Use `createAuthClient` from `better-auth/client` and bridge it to Solid 2 primitives. The docs' SolidStart integration page assumes Solid 1; adapt it with the Solid 2 rules above.
+
+Skills: `.claude/skills/` has better-auth's feature skills (`better-auth-security-best-practices`, `email-and-password-best-practices`, `two-factor-authentication-best-practices`, `organization-best-practices`), copied from `github.com/better-auth/skills` and tracked in `skills-lock.json`. They are not version-matched; refresh them with `npx skills update -p`. Their setup steps are generic: where they say `npx auth@latest migrate`, `better-auth/adapters/drizzle` or `better-auth/solid`, follow the rules above instead. Their upstream `create-auth` and `best-practices` skills are deliberately not installed because they contradict these rules.
+
+Docs: the `better-auth` MCP server (in `.mcp.json`) searches the documentation; prefer it. Otherwise `https://better-auth.com/docs/llms.txt` is the index for the 1.7 line, and every page has a Markdown variant (append `.md`, e.g. `https://better-auth.com/docs/adapters/drizzle.md`). When the docs and the installed types disagree, the types in `node_modules/better-auth` win.
 
 ## Reactive diagnostics — capture evidence instead of guessing
 

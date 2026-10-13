@@ -7,8 +7,16 @@ import tailwindcss from '@tailwindcss/vite';
 import solidV2 from 'eslint-plugin-solid/configs/v2';
 
 export default defineConfig({
-  // Generated on every dev/build start by the Solid and routing plugins.
-  fmt: { singleQuote: true, ignorePatterns: ['solid-env.d.ts', 'file-routes.d.ts'] },
+  fmt: {
+    singleQuote: true,
+    ignorePatterns: [
+      // Generated on every dev/build start by the Solid and routing plugins.
+      'solid-env.d.ts',
+      'file-routes.d.ts',
+      // Vendored from github.com/better-auth/skills; keep byte-identical for `npx skills update`.
+      '.claude/skills/*-best-practices/**',
+    ],
+  },
   lint: {
     jsPlugins: [{ name: 'vite-plus', specifier: 'vite-plus/oxlint-plugin' }, 'eslint-plugin-solid'],
     ignorePatterns: ['**/*.gen.*', 'dist'],
