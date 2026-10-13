@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:v2.solidjs.com)",
+      "WebFetch(domain:v2-rebuild--solid-docs-v2.netlify.app)"
+    ]
+  }
+}
