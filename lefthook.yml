@@ -4,18 +4,15 @@ pre-commit:
   jobs:
     - name: format
       glob: '*.{js,jsx,ts,tsx,json,jsonc,css,md,yml,yaml}'
-      run: vp fmt --no-error-on-unmatched-pattern {staged_files}
+      run: pnpm exec vp fmt --no-error-on-unmatched-pattern {staged_files}
       stage_fixed: true
 
     - name: lint
       glob: '*.{js,jsx,ts,tsx}'
-      run: vp lint --fix {staged_files}
+      run: pnpm exec vp lint --fix {staged_files}
       stage_fixed: true
 
 pre-push:
   jobs:
     - name: check
-      run: vp check
-
-    - name: test
-      run: vp test run
+      run: pnpm exec vp check

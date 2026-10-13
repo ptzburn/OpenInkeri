@@ -1,3 +1,100 @@
+# Genealogy
+
+A SolidJS 2 app (`solid-js` 2.0 release candidate) with streaming SSR, deployed to Cloudflare Workers.
+
+## Setup
+
+This project is developed only inside a dev container. A dev container is a ready-made Linux environment that runs inside Docker. It comes with everything this project needs already installed (Node.js 24, pnpm, the GitHub CLI, and Claude Code; the [Vite+](https://viteplus.dev) toolchain comes from the project's dependencies), so you don't install any of those on your own computer.
+
+**1. Install the tools (once per computer)**
+
+- [Git](https://git-scm.com/downloads), to download the code.
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/), which runs the container. After installing, start Docker Desktop and leave it running. On Windows, it will ask you to enable [WSL 2](https://learn.microsoft.com/windows/wsl/install); say yes.
+- [Visual Studio Code](https://code.visualstudio.com/) (VS Code), the code editor.
+- The [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) for VS Code. Open the link and click **Install**, or search for "Dev Containers" in VS Code's Extensions panel.
+
+**2. Get the code**
+
+Open a terminal (Terminal on macOS, PowerShell on Windows) and run:
+
+```bash
+git clone https://github.com/ptzburn/genealogy.git
+code genealogy
+```
+
+If `code` isn't found, open VS Code and use **File → Open Folder…** to open the `genealogy` folder instead.
+
+**3. Open it in the container**
+
+VS Code shows a popup: "Folder contains a Dev Container configuration file". Click **Reopen in Container**. If you missed it, press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> (<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> on macOS), type "Reopen in Container", and press <kbd>Enter</kbd>.
+
+The first start downloads and builds the container, which takes a few minutes. Later starts are fast.
+
+**4. Open a terminal in the container**
+
+Use **Terminal → New Terminal** (or <kbd>Ctrl</kbd>+<kbd>\`</kbd>). Commands you type there run inside the container. Continue with [Install and configure](#install-and-configure).
+
+> Prefer not to install anything? [GitHub Codespaces](https://github.com/features/codespaces) runs the same dev container in your browser: on the repo page, click **Code → Codespaces → Create codespace on main**, then continue from step 4.
+
+Your GitHub CLI and Claude Code logins are stored outside the container, so you only log in once, even after the container is rebuilt. Port 3060 (the dev server) is forwarded, so http://localhost:3060 works in your normal browser.
+
+### Install and configure
+
+Run these in the dev container's terminal:
+
+```bash
+pnpm install            # also installs the git hooks (lefthook)
+cp .env.example .env
+openssl rand -base64 32 # paste the output as SESSION_SECRET in .env
+pnpm dev                # http://localhost:3060
+```
+
+`.env` is git-ignored. `SESSION_SECRET` must be at least 32 characters; the server refuses to start without it. See [Typed environment variables](#typed-environment-variables) and [Sessions](#sessions) for details.
+
+### Git hooks
+
+`pnpm install` sets up [lefthook](https://lefthook.dev) hooks (`lefthook.yml`):
+
+- **pre-commit:** formats and lint-fixes the staged files.
+- **pre-push:** runs `vp check` (format, lint, type check). Tests run in CI (`.github/workflows/ci.yml`) along with the same checks and a build, on every pull request.
+
+Make sure git knows who you are before committing (the dev container doesn't set this):
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+### Deploying
+
+Deploys are handled by Cloudflare Workers Builds, connected to this repo in the Cloudflare dashboard, so you normally don't deploy by hand. To deploy from your machine anyway, run `npx wrangler login` once (or set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env`), set the production secret with `npx wrangler secret put SESSION_SECRET`, then run `pnpm run deploy`.
+
+### Working with AI agents
+
+`CLAUDE.md` is the guide for coding agents: Solid 2 conventions, versioned skills, and how to capture reactive diagnostics. Keep it up to date when conventions change.
+
+[Claude Code](https://code.claude.com/docs) is preinstalled in the dev container. The project shares one Claude Code setup through the repo:
+
+- `CLAUDE.md`: project instructions every session starts with.
+- `.claude/settings.json`: team settings: no Claude attribution in commits or PRs, the plugins below, and commands Claude may run without asking.
+- `.claude/skills/`: Solid skills that point at the docs shipped with the installed packages.
+
+The first time, run `claude` in the dev container terminal and log in with your own account. When it asks whether to trust this folder, say yes; the shared settings only apply after that. Then install the team plugins once:
+
+```bash
+claude plugin install cloudflare@cloudflare --scope project
+claude plugin install superpowers@claude-plugins-official --scope project
+```
+
+- **cloudflare:** skills and docs for Workers, Wrangler, and other Cloudflare products.
+- **superpowers:** workflows for brainstorming, planning, test-driven development, systematic debugging, and code review.
+
+For personal tweaks, use `.claude/settings.local.json`. It's git-ignored.
+
+---
+
+The sections below come from the Solid `fullstack` template this project started from, and explain how its pieces work.
+
 ## Solid `fullstack` template
 
 `basic` plus a server. Same structure, same conventions — the diff against `basic` is what a server adds:
@@ -65,39 +162,21 @@ Link preloading is opt-in. The router is created with `preloadLinks: intentPrelo
 
 Two vitest projects, because they need different halves of the framework: `client` runs the DOM component tests from `basic` in jsdom, and `server` runs the session suite in node against the real server runtime — full request/response cycles through the same code paths production takes, with the plugin's env module stubbed (`vitest-env-server-stub.ts`).
 
-## Usage
+## Development scripts
 
-Those templates dependencies are maintained via [pnpm](https://pnpm.io) via `pnpm up -Lri`.
+Run these with pnpm (`pnpm <script>`; use `pnpm run deploy` for deploy, since `pnpm deploy` is a different pnpm command):
 
-This is the reason you see a `pnpm-lock.yaml`. That being said, any package manager will work. This file can be safely be removed once you clone a template.
+| Script   | What it does                                                                                         |
+| -------- | ---------------------------------------------------------------------------------------------------- |
+| `dev`    | Dev server with streaming SSR, running in local workerd, at [localhost:3060](http://localhost:3060). |
+| `build`  | Builds client assets to `dist/client` and the Worker request handler to `dist/server`.               |
+| `serve`  | Previews the production build locally.                                                               |
+| `test`   | Runs both test projects (`client` component tests in jsdom, `server` session suite in node).         |
+| `check`  | Format check, lint (including the Solid 2 rules), and type check.                                    |
+| `lint`   | Lint only, for `src`.                                                                                |
+| `deploy` | Builds and deploys to Cloudflare Workers with wrangler.                                              |
 
-```bash
-$ npm install # or pnpm install or yarn install
-$ cp .env.example .env # then fill in SESSION_SECRET
-```
-
-### Learn more on the [Solid Website](https://solidjs.com) and come chat with us on our [Discord](https://discord.com/invite/solidjs)
-
-## Available Scripts
-
-In the project directory, you can run:
-
-### `npm run dev`
-
-Runs the app in the development mode with streaming SSR.<br>
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
-
-### `npm run build`
-
-Builds client assets to `dist/client`, and the Worker request handler to `dist/server`.
-
-### `npm run serve`
-
-`vite preview` runs the production artifact without a server file: statics from `dist/client`, everything else through the built handler.
-
-### `npm test`
-
-Runs both test projects: the component tests inherited from `basic` and the session suite.
+Learn more on the [Solid 2 docs](https://v2.solidjs.com) and come chat on the [Solid Discord](https://discord.com/invite/solidjs).
 
 ## Deployment
 
