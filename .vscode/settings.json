@@ -6,6 +6,8 @@
   "[typescriptreact]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
   "oxc.disableNestedConfig": true,
   "oxc.fmt.disableNestedConfig": true,
+  // Tailwind v4 is configured in CSS (@import, @plugin); parse .css as Tailwind.
+  "files.associations": { "*.css": "tailwindcss" },
   "editor.formatOnSave": true,
   "editor.formatOnSaveMode": "file",
   "editor.codeActionsOnSave": {
