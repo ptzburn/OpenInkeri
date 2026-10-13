@@ -12,7 +12,8 @@ import { auth, forwardCookies, requestHeaders } from '~/server/auth';
 export const getCurrentUser = query(async () => {
   'use server';
   const user = getRequestEvent()?.locals.user;
-  return user ? { id: user.id, name: user.name, email: user.email } : null;
+  // image is the GitHub avatar URL better-auth stored at sign-in.
+  return user ? { id: user.id, name: user.name, email: user.email, image: user.image } : null;
 }, 'current-user');
 
 /** For pages that need a user: redirects signed-out visitors to sign-in. */
