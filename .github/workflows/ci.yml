@@ -17,9 +17,7 @@ jobs:
       LEFTHOOK: 0 # don't install git hooks in CI
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12.10.1
+      - uses: pnpm/action-setup@v4 # version from packageManager in package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 24
