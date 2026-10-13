@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "genealogy",
+  "name": "openinkeri",
   // Solid's virtual Fetchable SSR entry (see README "Cloudflare Workers").
   "main": "virtual:solid-ssr-handler",
   "compatibility_date": "2026-10-06",
@@ -10,4 +10,15 @@
     "directory": "./dist/client",
     "binding": "ASSETS",
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "openinkeri",
+      // No database_id: `wrangler deploy` provisions the database on first
+      // deploy and links it by name. Local dev uses a SQLite file in .wrangler/.
+      // Drizzle 1.0 writes one folder per migration (drizzle/<name>/migration.sql).
+      "migrations_dir": "drizzle",
+      "migrations_pattern": "drizzle/*/migration.sql",
+    },
+  ],
 }

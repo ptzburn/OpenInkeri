@@ -1,4 +1,4 @@
-# Genealogy
+# OpenInkeri
 
 A SolidJS 2 app (`solid-js` 2.0 release candidate) with streaming SSR, deployed to Cloudflare Workers.
 
@@ -18,11 +18,11 @@ This project is developed only inside a dev container. A dev container is a read
 Open a terminal (Terminal on macOS, PowerShell on Windows) and run:
 
 ```bash
-git clone https://github.com/ptzburn/genealogy.git
-code genealogy
+git clone https://github.com/ptzburn/OpenInkeri.git
+code OpenInkeri
 ```
 
-If `code` isn't found, open VS Code and use **File → Open Folder…** to open the `genealogy` folder instead.
+If `code` isn't found, open VS Code and use **File → Open Folder…** to open the `OpenInkeri` folder instead.
 
 **3. Open it in the container**
 
@@ -166,15 +166,19 @@ Two vitest projects, because they need different halves of the framework: `clien
 
 Run these with pnpm (`pnpm <script>`; use `pnpm run deploy` for deploy, since `pnpm deploy` is a different pnpm command):
 
-| Script   | What it does                                                                                         |
-| -------- | ---------------------------------------------------------------------------------------------------- |
-| `dev`    | Dev server with streaming SSR, running in local workerd, at [localhost:3060](http://localhost:3060). |
-| `build`  | Builds client assets to `dist/client` and the Worker request handler to `dist/server`.               |
-| `serve`  | Previews the production build locally.                                                               |
-| `test`   | Runs both test projects (`client` component tests in jsdom, `server` session suite in node).         |
-| `check`  | Format check, lint (including the Solid 2 rules), and type check.                                    |
-| `lint`   | Lint only, for `src`.                                                                                |
-| `deploy` | Builds and deploys to Cloudflare Workers with wrangler.                                              |
+| Script              | What it does                                                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------------------- |
+| `dev`               | Dev server with streaming SSR, running in local workerd, at [localhost:3060](http://localhost:3060). |
+| `build`             | Builds client assets to `dist/client` and the Worker request handler to `dist/server`.               |
+| `serve`             | Previews the production build locally.                                                               |
+| `test`              | Runs both test projects (`client` component tests in jsdom, `server` session suite in node).         |
+| `check`             | Format check, lint (including the Solid 2 rules), and type check.                                    |
+| `lint`              | Lint only, for `src`.                                                                                |
+| `deploy`            | Builds and deploys to Cloudflare Workers with wrangler.                                              |
+| `db:generate`       | Writes a Drizzle migration to `drizzle/` from changes in `src/server/database/schema.ts`.            |
+| `db:migrate`        | Applies pending migrations to the local D1 database (in `.wrangler/`).                               |
+| `db:migrate:remote` | Applies pending migrations to the production D1 database.                                            |
+| `cf-typegen`        | Regenerates `worker-configuration.d.ts` (binding and runtime types) after editing `wrangler.jsonc`.  |
 
 Learn more on the [Solid 2 docs](https://v2.solidjs.com) and come chat on the [Solid Discord](https://discord.com/invite/solidjs).
 
