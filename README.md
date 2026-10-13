@@ -130,9 +130,9 @@ Sign-in with GitHub and sign-out with [better-auth](https://better-auth.com), st
 
 - **`src/server/auth.ts`** — the better-auth instance, with the GitHub provider. Options that shape the database schema live in `src/server/auth-options.ts`, so the `auth` CLI can load them (`pnpm auth:generate` writes `src/server/database/auth-schema.ts` via `auth.cli.ts`; then `pnpm db:generate` writes the migration).
 - **`src/middleware.ts`** — reads the session once per request and sets `event.locals.user`. A 5-minute signed cookie cache saves most requests a D1 lookup.
-- **`src/lib/account.ts`** — `signInWithGitHub` and `signOut` as server functions behind router actions, so the forms work before JavaScript loads. `signInWithGitHub` asks better-auth for GitHub's authorize URL and sends the browser there; GitHub returns to `/api/auth/callback/github`, which signs the user in and redirects to `next` (or back to `/sign-in?error=…`). They call better-auth through its HTTP handler (`callAuth`), not `auth.api.*`, so its rate limiting and origin check apply. `requireUser` guards pages and sends signed-out visitors to `/sign-in?next=…`.
+- **`src/lib/account.ts`** — `signInWithGitHub` and `signOut` as server functions behind router actions, so the forms work before JavaScript loads. `signInWithGitHub` asks better-auth for GitHub's authorize URL and sends the browser there; GitHub returns to `/api/auth/callback/github`, which signs the user in and redirects home (or back to `/sign-in?error=…`). They call better-auth directly through `auth.api.*` (typed, no HTTP round trip); Solid's server-function CSRF check keeps other sites from calling them. `requireUser` guards pages and sends signed-out visitors to `/sign-in`.
 - **GitHub access tokens** are stored on the `account` row encrypted with `BETTER_AUTH_SECRET` (`account.encryptOAuthTokens`).
-- **Rate limiting** applies in production only: 10 GitHub sign-in starts per IP per minute, counted in D1 so every Worker isolate shares the count.
+- **Rate limiting** covers better-auth's own HTTP endpoints (`/api/auth/*`) in production: 10 sign-in starts per IP per minute, counted in D1 so every Worker isolate shares the count. The server functions call `auth.api.*`, which bypasses it.
 
 ## Typed environment variables
 

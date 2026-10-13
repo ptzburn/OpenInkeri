@@ -10,8 +10,8 @@ import { paths } from '~/router';
 // redirected to /sign-in before any of the section renders. The server
 // functions check the session themselves too (src/lib/users.ts).
 export const route = {
-  preload: ({ location }) => {
-    void requireUser(location.pathname);
+  preload: () => {
+    void requireUser();
     void getUsers();
   },
 } satisfies RouteDefinition;
@@ -19,7 +19,7 @@ export const route = {
 // A layout route: pairing users.tsx with the users/ directory nests every
 // page inside it under this component.
 export default function UsersLayout(props: RouteSectionProps) {
-  const me = createMemo(() => requireUser(props.location.pathname));
+  const me = createMemo(() => requireUser());
   const users = createMemo(() => getUsers());
 
   return (

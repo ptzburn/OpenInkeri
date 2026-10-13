@@ -52,31 +52,15 @@ export function forwardCookies(headers: Headers): void {
   for (const cookie of headers.getSetCookie()) response.headers.append('set-cookie', cookie);
 }
 
-// Headers a call through the handler needs from the browser's request:
-// the session cookie, Origin for the CSRF check, and the client IP and
-// user agent for rate limiting and the session record.
-const FORWARDED = ['cookie', 'origin', 'referer', 'user-agent', 'cf-connecting-ip'];
-
 /**
- * POSTs to a better-auth endpoint (e.g. '/sign-in/social') through its HTTP
- * handler, as the browser would. Calling auth.api.* directly would skip the
- * handler's rate limiting and origin check, which server functions need:
- * they are public URLs. Cookies on the result are forwarded to the response.
+ * The browser's request headers, for auth.api.* calls from server functions:
+ * better-auth reads the session cookie, client IP and user agent from them.
+ * Pass `returnHeaders: true` and hand the result's headers to forwardCookies.
+ *
+ * auth.api.* skips better-auth's rate limiter and origin check (both live in
+ * its HTTP router). Server functions are covered by Solid's own CSRF check;
+ * anything that takes a redirect target from the request must validate it.
  */
-export async function callAuth(path: string, body: object = {}): Promise<Response> {
-  const request = event().request;
-  const headers = new Headers({ 'content-type': 'application/json' });
-  for (const name of FORWARDED) {
-    const value = request.headers.get(name);
-    if (value) headers.set(name, value);
-  }
-  const response = await auth.handler(
-    new Request(new URL(`/api/auth${path}`, request.url), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    }),
-  );
-  forwardCookies(response.headers);
-  return response;
+export function requestHeaders(): Headers {
+  return event().request.headers;
 }
