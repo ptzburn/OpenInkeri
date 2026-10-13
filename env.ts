@@ -12,9 +12,10 @@ import * as v from 'valibot';
 // baked into the bundle. Generated types land in solid-env.d.ts.
 export default {
   server: {
-    // Comma-separated, newest first — see src/server/session.ts for the
-    // rotation story. Generate one: `openssl rand -base64 32`.
-    SESSION_SECRET: v.pipe(v.string(), v.minLength(32)),
+    // Signs and encrypts better-auth's session cookies and tokens (see
+    // src/server/auth.ts). Generate one: `openssl rand -base64 32`.
+    // Changing it signs everyone out.
+    BETTER_AUTH_SECRET: v.pipe(v.string(), v.minLength(32)),
   },
   client: {
     VITE_APP_NAME: v.optional(v.pipe(v.string(), v.minLength(1)), 'Solid App'),

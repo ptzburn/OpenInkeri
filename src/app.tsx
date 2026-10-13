@@ -2,6 +2,7 @@ import { Title } from '@solidjs/meta';
 import { Loading } from 'solid-js';
 // Typed client env, validated and baked in at build time (see env.ts).
 import { env } from 'virtual:env/client';
+import AccountMenu from './components/account-menu';
 import { paths, Router } from './router';
 import './app.css';
 
@@ -19,6 +20,9 @@ export default function App() {
             <a class="btn btn-ghost aria-[current=page]:btn-active" href={paths.users()}>
               Пользователи
             </a>
+            <div class="ml-auto">
+              <AccountMenu />
+            </div>
           </nav>
           <div class="mx-auto max-w-3xl px-4 py-12 text-center">
             <Loading

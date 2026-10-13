@@ -1,26 +1,21 @@
 import { Title } from '@solidjs/meta';
 import type { RouteDefinition } from '@solidjs/router';
-import { For, Show, createMemo } from 'solid-js';
+import { Show, createMemo } from 'solid-js';
 
 import Counter from '../components/counter';
-import { getCurrentUser, getUsers, login, logout } from '../lib/users';
+import { getCurrentUser } from '../lib/account';
 import logo from '../logo.svg';
 
 // The preload starts these fetches as navigation begins — and it doubles as
 // the page's single-flight manifest: after a mutation, the server reruns it
 // to put the refreshed data on the action response itself.
 export const route = {
-  preload: () => {
-    void getCurrentUser();
-    void getUsers();
-  },
+  preload: () => void getCurrentUser(),
 } satisfies RouteDefinition;
 
 export default function Home() {
-  // Server-function reads: the signed-in user comes off the session cookie
-  // (see src/server/session.ts); the user list feeds the sign-in form.
+  // A server-function read: the signed-in user, or null.
   const me = createMemo(() => getCurrentUser());
-  const users = createMemo(() => getUsers());
 
   return (
     <main>
@@ -39,30 +34,27 @@ export default function Home() {
         </code>{' '}
         and save to reload.
       </p>
-      {/* The session pillar: login/logout are actions posting to server
-          functions — plain form posts, so they work before hydration too. */}
+      {/* The signed-in user comes from the session the middleware read
+          (see src/middleware.ts); signing in happens on /sign-in. */}
       <Show
         when={me()}
         fallback={
-          <form action={login} method="post" class="join my-6">
-            <select name="id" class="select join-item w-auto" aria-label="User">
-              <For each={users()}>{(user) => <option value={user.id}>{user.name}</option>}</For>
-            </select>
-            <button type="submit" class="btn btn-primary join-item">
+          <p class="my-6">
+            <a class="link link-primary" href="/sign-in">
               Sign in
-            </button>
-          </form>
+            </a>{' '}
+            or{' '}
+            <a class="link link-primary" href="/sign-up">
+              create an account
+            </a>
+            .
+          </p>
         }
       >
         {(user) => (
-          <form action={logout} method="post" class="my-6 flex items-center justify-center gap-3">
-            <span>
-              Signed in as <strong>{user().name}</strong>.
-            </span>
-            <button type="submit" class="btn btn-outline btn-sm">
-              Sign out
-            </button>
-          </form>
+          <p class="my-6">
+            Signed in as <strong>{user().name}</strong>.
+          </p>
         )}
       </Show>
       <a

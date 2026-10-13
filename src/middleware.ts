@@ -12,6 +12,25 @@ import type { StartMiddleware } from '@solidjs/vite-plugin';
 import { createAPIHandler } from 'filesystem-routing/api';
 import routes from 'virtual:file-routes';
 
+import { auth, forwardCookies } from './server/auth';
+
+// Reads the session once per request and puts the user on event.locals,
+// where server functions, API routes and the page render all read it
+// (server functions called during the render get a copy). better-auth may
+// refresh the session cookie while reading it; those cookies are forwarded.
+// Its own endpoints read the session themselves, so they're skipped.
+const attachUser: StartMiddleware = async (event, next) => {
+  if (!new URL(event.request.url).pathname.startsWith('/api/auth/')) {
+    const { headers, response } = await auth.api.getSession({
+      headers: event.request.headers,
+      returnHeaders: true,
+    });
+    forwardCookies(headers);
+    event.locals.user = response?.user;
+  }
+  return next();
+};
+
 // createAPIHandler serves the GET/POST/... exports of route modules
 // (see src/routes/api) and passes everything else down the chain. It still
 // speaks the previous (request, next) shape and calls next() with no
@@ -20,4 +39,4 @@ const api = createAPIHandler(routes);
 
 const handleAPI: StartMiddleware = (event, next) => api(event.request, next);
 
-export default [handleAPI];
+export default [attachUser, handleAPI];

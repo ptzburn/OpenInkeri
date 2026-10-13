@@ -1,8 +1,9 @@
 import { Title } from '@solidjs/meta';
-import { type RouteDefinition, type RouteProps } from '@solidjs/router';
+import { type RouteDefinition, type RouteProps, useSubmissions } from '@solidjs/router';
 import { Show, createMemo, isPending } from 'solid-js';
 
-import { getCurrentUser, getUser, renameUser } from '../../lib/users';
+import { getCurrentUser } from '../../lib/account';
+import { getUser, renameMe } from '../../lib/users';
 
 // The preload starts these fetches as navigation begins — and it doubles as
 // the page's single-flight manifest: after the rename mutation, the server
@@ -19,35 +20,44 @@ export default function User(props: RouteProps<'/users/:id'>) {
   // boundary (in app.tsx) shows its fallback until the promises settle.
   const user = createMemo(() => getUser(props.params.id));
   const me = createMemo(() => getCurrentUser());
+  const renames = useSubmissions(renameMe);
+  const error = () => (renames.at(-1)?.error as { message?: string } | undefined)?.message;
 
   return (
-    <section class="transition-opacity" style={{ opacity: isPending(user) ? 0.5 : 1 }}>
-      <Title>{`User ${props.params.id} - Solid App`}</Title>
-      <h2 class="text-2xl font-semibold">{user().name}</h2>
-      <p class="mt-1 text-base-content/70">{user().title}</p>
-      {/* The mutation: a form posting to a server function action (works
-          before hydration too); the router revalidates queries when it
-          settles. The server checks the session — hiding the form when
-          signed out is just honest UI (see src/lib/users.ts). */}
-      <Show
-        when={me()}
-        fallback={
-          <p class="mt-6 text-base-content/70">Sign in on the home page to rename users.</p>
-        }
-      >
-        <form action={renameUser.with(props.params.id!)} method="post" class="join mt-6">
-          <input
-            name="name"
-            value={user().name}
-            required
-            class="input join-item"
-            aria-label="Name"
-          />
-          <button type="submit" class="btn btn-primary join-item">
-            Rename
-          </button>
-        </form>
-      </Show>
-    </section>
+    <Show when={user()} fallback={<p>No such user.</p>}>
+      {(shown) => (
+        <section class="transition-opacity" style={{ opacity: isPending(user) ? 0.5 : 1 }}>
+          <Title>{`${shown().name} - Solid App`}</Title>
+          <h2 class="text-2xl font-semibold">{shown().name}</h2>
+          <p class="mt-1 text-base-content/70">
+            Joined {new Date(shown().createdAt).toLocaleDateString('en')}
+          </p>
+          {/* Only on your own page: the server enforces that too, since
+              renameMe only ever renames the signed-in user. */}
+          <Show when={me()?.id === shown().id}>
+            <form action={renameMe} method="post" class="join mt-6">
+              <input
+                name="name"
+                value={shown().name}
+                required
+                maxlength={100}
+                class="input join-item"
+                aria-label="Name"
+              />
+              <button type="submit" class="btn btn-primary join-item">
+                Rename
+              </button>
+            </form>
+            <Show when={error()}>
+              {(message) => (
+                <p role="alert" class="mt-2 text-error">
+                  {message()}
+                </p>
+              )}
+            </Show>
+          </Show>
+        </section>
+      )}
+    </Show>
   );
 }

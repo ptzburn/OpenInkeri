@@ -1,4 +1,4 @@
-# Genealogy
+# OpenInkeri
 
 A SolidJS 2 app (`solid-js` 2.0 release candidate) with streaming SSR, deployed to Cloudflare Workers.
 
@@ -18,11 +18,11 @@ This project is developed only inside a dev container. A dev container is a read
 Open a terminal (Terminal on macOS, PowerShell on Windows) and run:
 
 ```bash
-git clone https://github.com/ptzburn/genealogy.git
-code genealogy
+git clone https://github.com/ptzburn/OpenInkeri.git
+code OpenInkeri
 ```
 
-If `code` isn't found, open VS Code and use **File → Open Folder…** to open the `genealogy` folder instead.
+If `code` isn't found, open VS Code and use **File → Open Folder…** to open the `OpenInkeri` folder instead.
 
 **3. Open it in the container**
 
@@ -45,11 +45,12 @@ Run these in the dev container's terminal:
 ```bash
 pnpm install            # also installs the git hooks (lefthook)
 cp .env.example .env
-openssl rand -base64 32 # paste the output as SESSION_SECRET in .env
+openssl rand -base64 32 # paste the output as BETTER_AUTH_SECRET in .env
+pnpm db:migrate         # create the local D1 database
 pnpm dev                # http://localhost:3060
 ```
 
-`.env` is git-ignored. `SESSION_SECRET` must be at least 32 characters; the server refuses to start without it. See [Typed environment variables](#typed-environment-variables) and [Sessions](#sessions) for details.
+`.env` is git-ignored. `BETTER_AUTH_SECRET` must be at least 32 characters; the server refuses to start without it. See [Typed environment variables](#typed-environment-variables) and [Authentication](#authentication) for details.
 
 ### Git hooks
 
@@ -67,7 +68,7 @@ git config --global user.email "you@example.com"
 
 ### Deploying
 
-Deploys are handled by Cloudflare Workers Builds, connected to this repo in the Cloudflare dashboard, so you normally don't deploy by hand. To deploy from your machine anyway, run `npx wrangler login` once (or set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env`), set the production secret with `npx wrangler secret put SESSION_SECRET`, then run `pnpm run deploy`.
+Deploys are handled by Cloudflare Workers Builds, connected to this repo in the Cloudflare dashboard, so you normally don't deploy by hand. To deploy from your machine anyway, run `npx wrangler login` once (or set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env`), set the production secret with `npx wrangler secret put BETTER_AUTH_SECRET`, then run `pnpm run deploy`. Deploys don't apply database migrations: run `pnpm db:migrate:remote` after deploying a change that adds one.
 
 ### Working with AI agents
 
@@ -101,14 +102,14 @@ The sections below come from the Solid `fullstack` template this project started
 
 - **Data loading through server functions** — `'use server'` functions the UI calls like local async functions (`src/lib/users.ts`).
 - **A single-flight mutation** — a `<form>` posting to an `action()` server function; the response carries the refreshed page data, so the UI updates in one round trip. Works before hydration too.
-- **Session cookie auth** — a signed cookie read and written by plain server functions (`src/server/session.ts`); sign in on the home page, and the rename mutation is authorized against it server-side.
-- **An API route** — uppercase method exports under `src/routes/api` answer HTTP requests (try `GET /api/users`).
+- **Email and password auth** — [better-auth](https://better-auth.com) on D1 (this project replaced the template's demo cookie session; see [Authentication](#authentication)).
+- **An API route** — uppercase method exports under `src/routes/api` answer HTTP requests (better-auth's endpoints live at `src/routes/api/auth/[...auth].ts`).
 
 **Deployment contract:** there is a server. `vite build` emits static client assets to `dist/client`, a request handler to `dist/server/server.js`, and — via `start: { node: true }` — a ready-to-run Node server at `dist/server/node.js` that `npm start` runs. Streaming SSR is the default posture — set `ssr: false` in `vite.config.ts` for a static shell + API server: pages render on the client while server functions, sessions, and API routes keep working. Same template, one boolean.
 
 ## Server functions
 
-A function marked `'use server'` always runs on the server. On the server it is a plain call; in the browser the compiler turns it into a typed fetch against the `/_server` endpoint — you never write the endpoint. Wrap reads in `query()` (cached per key, shared between preload and render) and writes in `action()`; both come from `@solidjs/router`. `src/lib/users.ts` is the whole data layer.
+A function marked `'use server'` always runs on the server. On the server it is a plain call; in the browser the compiler turns it into a typed fetch against the `/_server` endpoint — you never write the endpoint. Wrap reads in `query()` (cached per key, shared between preload and render) and writes in `action()`; both come from `@solidjs/router`. `src/lib/` holds the data layer (`account.ts` for auth, `users.ts` for the users pages).
 
 Inside a server function, `getRequestEvent()` (from `@solidjs/web`) is the current request — headers, `locals`, the mutable `response` head.
 
@@ -116,41 +117,38 @@ Inside a server function, `getRequestEvent()` (from `@solidjs/web`) is the curre
 
 The payoff the whole stack builds toward. When a form submits, the router sends the action call with a single-flight marker; on the server, after the mutation runs, the registered collector (`src/server-config.ts`) reruns the target route's `preload` and folds the refreshed `query()` data into the **same response**. The router seeds its cache from that envelope — no follow-up refetch, no stale frame in between.
 
-Watch the network tab while renaming a user: exactly one `POST /_server` — the heading _and_ the user list in the layout both update from that one response. Without single-flight that interaction is a POST followed by one GET per revalidated query.
+Watch the network tab while renaming yourself on your `/users/<id>` page: exactly one `POST /_server` — the heading _and_ the user list in the layout both update from that one response. Without single-flight that interaction is a POST followed by one GET per revalidated query.
 
 Two things make a route single-flight-complete, and both are already good practice: reads go through `query()`, and the route's `preload` touches every query the page renders (that is what the server reruns — `src/routes/users/[id].tsx` calls it "the page's single-flight manifest"). The no-JS fallback is the same machinery minus the envelope: the plain form POST runs the action and answers `303 See Other` back to the page, which re-renders with fresh data — one round trip there too.
 
-## Sessions
+## Authentication
 
-`src/server/session.ts` composes sessions from [`@remix-run/cookie`](https://www.npmjs.com/package/@remix-run/cookie) (signed HMAC-SHA256 on pure WebCrypto, secret rotation built in) over the request event: `getSession` parses and verifies the incoming request's cookie, `setSession`/`clearSession` append `Set-Cookie` to the outgoing response — from any server function, thrown redirects included. There is no Solid session API on purpose: cookies are a web standard, so sessions compose from a standard cookie library instead of a framework opinion.
+Email and password sign-up, sign-in and sign-out with [better-auth](https://better-auth.com), storing users and sessions in D1 through Drizzle. Email verification and password reset are not set up yet; they need an email provider.
 
-Semantics worth knowing (all covered by `src/server/session.test.ts`):
-
-- **Signed, not encrypted** — the payload is tamper-proof but client-readable; never put secrets in it, and keep it small (cookies cap at ~4KB).
-- **Expiry is enforced server-side** via an `exp` claim in the payload; the cookie's `Max-Age` is browser hygiene a client is free to ignore.
-- **Rotation**: `SESSION_SECRET` is comma-separated, newest first — the first entry signs, every entry verifies. Deploy `"new,old"`, drop `old` after a week.
-- `getSession()` returns `null` uniformly for absent, tampered, rotated-out, and expired cookies — and it reads the _request's_ cookie, so a `setSession` in the same request does not read back.
-
-The demo wires it as auth: `login`/`logout` actions write the cookie, `getCurrentUser` reads it, and `renameUser` checks it server-side — the UI hiding the form when signed out is cosmetic; the check in the server function is the real gate.
+- **`src/server/auth.ts`** — the better-auth instance. Options that shape the database schema live in `src/server/auth-options.ts`, so the `auth` CLI can load them (`pnpm auth:generate` writes `src/server/database/auth-schema.ts` via `auth.cli.ts`; then `pnpm db:generate` writes the migration).
+- **`src/middleware.ts`** — reads the session once per request and sets `event.locals.user`. A 5-minute signed cookie cache saves most requests a D1 lookup.
+- **`src/lib/account.ts`** — `signUp`, `signIn` and `signOut` as server functions behind router actions, so the forms on `/sign-up` and `/sign-in` work before JavaScript loads. They call better-auth through its HTTP handler (`callAuth`), not `auth.api.*`, so its rate limiting and origin check apply. `requireUser` guards pages and sends signed-out visitors to `/sign-in?next=…`.
+- **Passwords** are hashed with PBKDF2-SHA256 through Web Crypto at 100,000 iterations (`src/server/password.ts`), because better-auth's default scrypt runs as pure JavaScript on Workers and costs far more CPU.
+- **Rate limiting** applies in production only: 5 sign-ins and 3 sign-ups per IP per minute, counted in D1 so every Worker isolate shares the count.
 
 ## Typed environment variables
 
 `env.ts` at the project root declares every variable as a [Standard Schema](https://standardschema.dev) validator (valibot here; zod or arktype work identically — nothing is imported from the plugin). The plugin probes it automatically and serves two fully typed virtual modules; generated types land in `solid-env.d.ts`.
 
-- **`virtual:env/server`** — every var, **read from `process.env` when the server boots** and validated then: secrets rotate without a rebuild, platform-injected vars work, and no secret value exists in any build artifact. A misconfigured server fails at boot with a per-key report (delete `SESSION_SECRET` from `.env` and run `npm start` to see it). Importing this module from client code fails the build, naming the importer.
+- **`virtual:env/server`** — every var, **read from `process.env` when the server boots** and validated then: secrets rotate without a rebuild, platform-injected vars work, and no secret value exists in any build artifact. A misconfigured server fails at boot with a per-key report (delete `BETTER_AUTH_SECRET` from `.env` and run `npm start` to see it). Importing this module from client code fails the build, naming the importer.
 - **`virtual:env/client`** — the `VITE_`-prefixed vars, validated and **baked into the bundle** at build time (defaults applied, zero schema-library bytes shipped). The prefix is the line: client values are public, server values never leave the server.
 
 The plugin folds `.env` files into `process.env` for dev, build, and preview — no `loadEnv` boilerplate. Copy `.env.example` to `.env` to get started (`.env` is git-ignored); `npm start` picks it up via `--env-file-if-exists`, and deploy platforms provide the real environment.
 
 ## Server-only modules
 
-`src/server/db.ts` imports the `server-only` marker: if any code path would pull it into the client bundle, the build **fails at resolve time**, naming the importer — instead of silently shipping your data layer to the browser. (`client-only` marks the reverse.) The db module is the only file that knows the data source; swap the in-memory `Map` for a real database client and nothing else changes.
+`src/server/database/index.ts` and `src/server/auth.ts` import the `server-only` marker: if any code path would pull them into the client bundle, the build **fails at resolve time**, naming the importer — instead of silently shipping your data layer to the browser. (`client-only` marks the reverse.)
 
 ## Middleware and API routes
 
-`src/middleware.ts` (wired via `start.middleware` in `vite.config.ts`) exports a chain of event-first functions, `(event, next) => Response`, fronting every request — page renders, server function calls, and API routes alike. The request is `event.request`. `next()` takes no arguments; assign `event.request` before calling it to hand a different request downstream, and set `event.nonce` or `event.renderMode` on the event before `next()` when a request needs them (the page render runs inside it). The chain runs inside the request-event scope, so `getRequestEvent()` and the session helpers work there exactly as in application code.
+`src/middleware.ts` (wired via `start.middleware` in `vite.config.ts`) exports a chain of event-first functions, `(event, next) => Response`, fronting every request — page renders, server function calls, and API routes alike. The request is `event.request`. `next()` takes no arguments; assign `event.request` before calling it to hand a different request downstream, and set `event.nonce` or `event.renderMode` on the event before `next()` when a request needs them (the page render runs inside it). The chain runs inside the request-event scope, so `getRequestEvent()` works there exactly as in application code. Its first middleware reads the better-auth session and sets `event.locals.user`.
 
-A route module may export uppercase `GET`/`POST`/... handlers — an API route. A module with handlers but no default export is a route without a page (`src/routes/api/users.ts`). Handlers are dispatched by the `createAPIHandler` middleware; `fileRoutes({ httpMethods: true })` scans for them with one router serving both sides — handler modules, and the server-only code they import, never enter the client bundle. `createAPIHandler` still takes `(request, next)`, so the template adapts it onto the event-first chain.
+A route module may export uppercase `GET`/`POST`/... handlers — an API route. A module with handlers but no default export is a route without a page (`src/routes/api/auth/[...auth].ts`). Handlers are dispatched by the `createAPIHandler` middleware; `fileRoutes({ httpMethods: true })` scans for them with one router serving both sides — handler modules, and the server-only code they import, never enter the client bundle. `createAPIHandler` still takes `(request, next)`, so the template adapts it onto the event-first chain.
 
 ## File-system routing
 
@@ -160,21 +158,27 @@ Link preloading is opt-in. The router is created with `preloadLinks: intentPrelo
 
 ## Testing
 
-Two vitest projects, because they need different halves of the framework: `client` runs the DOM component tests from `basic` in jsdom, and `server` runs the session suite in node against the real server runtime — full request/response cycles through the same code paths production takes, with the plugin's env module stubbed (`vitest-env-server-stub.ts`).
+Two vitest projects, because they need different halves of the framework: `client` runs the DOM component tests from `basic` in jsdom, and `server` runs the server tests (password hashing) in node against the real server runtime — full request/response cycles through the same code paths production takes, with the plugin's env module stubbed (`vitest-env-server-stub.ts`).
 
 ## Development scripts
 
 Run these with pnpm (`pnpm <script>`; use `pnpm run deploy` for deploy, since `pnpm deploy` is a different pnpm command):
 
-| Script   | What it does                                                                                         |
-| -------- | ---------------------------------------------------------------------------------------------------- |
-| `dev`    | Dev server with streaming SSR, running in local workerd, at [localhost:3060](http://localhost:3060). |
-| `build`  | Builds client assets to `dist/client` and the Worker request handler to `dist/server`.               |
-| `serve`  | Previews the production build locally.                                                               |
-| `test`   | Runs both test projects (`client` component tests in jsdom, `server` session suite in node).         |
-| `check`  | Format check, lint (including the Solid 2 rules), and type check.                                    |
-| `lint`   | Lint only, for `src`.                                                                                |
-| `deploy` | Builds and deploys to Cloudflare Workers with wrangler.                                              |
+| Script              | What it does                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| `dev`               | Dev server with streaming SSR, running in local workerd, at [localhost:3060](http://localhost:3060).    |
+| `build`             | Builds client assets to `dist/client` and the Worker request handler to `dist/server`.                  |
+| `serve`             | Previews the production build locally.                                                                  |
+| `test`              | Runs both test projects (`client` component tests in jsdom, `server` tests in node).                    |
+| `check`             | Format check, lint (including the Solid 2 rules), and type check.                                       |
+| `lint`              | Lint only, for `src`.                                                                                   |
+| `deploy`            | Builds and deploys to Cloudflare Workers with wrangler.                                                 |
+| `db:generate`       | Writes a Drizzle migration to `drizzle/` from changes in `src/server/database/schema.ts`.               |
+| `db:migrate`        | Applies pending migrations to the local D1 database (in `.wrangler/`).                                  |
+| `db:migrate:remote` | Applies pending migrations to the production D1 database.                                               |
+| `cf-typegen`        | Regenerates `worker-configuration.d.ts` (binding and runtime types) after editing `wrangler.jsonc`.     |
+| `db:studio`         | Opens Drizzle Studio on the local D1 database (run `pnpm db:migrate` or `pnpm dev` first).              |
+| `auth:generate`     | Regenerates the better-auth tables in `src/server/database/auth-schema.ts` after changing auth options. |
 
 Learn more on the [Solid 2 docs](https://v2.solidjs.com) and come chat on the [Solid Discord](https://discord.com/invite/solidjs).
 
@@ -194,12 +198,12 @@ The default `{ fetch(request) }` export follows the Fetchable convention used by
 `dist/server/node.js` is the Node version of the same contract, emitted by the build. The platform recipes below own the server environment themselves, so they drop `start.node` from the `solid()` call. Any target needs exactly three things:
 
 1. **Serve `dist/client` statically**, and route everything else — pages, `/_server`, API routes — to `handleRequest`.
-2. **Provide the server env vars** (`SESSION_SECRET` here) in the process environment: the server bundle reads and validates them **at boot**, not at build time, so they come from the platform's env/secret settings — never from a build artifact. Client `VITE_` vars are the opposite: baked in at `vite build`, so set those on the build machine/CI.
+2. **Provide the server env vars** (`BETTER_AUTH_SECRET` here) in the process environment: the server bundle reads and validates them **at boot**, not at build time, so they come from the platform's env/secret settings — never from a build artifact. Client `VITE_` vars are the opposite: baked in at `vite build`, so set those on the build machine/CI.
 3. **Resolve the bundle's dependencies**: `dist/server` imports its npm deps (`solid-js`, `@solidjs/web`, `valibot`, ...) as bare specifiers rather than inlining them, so whatever runs or re-bundles it needs `node_modules` present — true in every recipe below. The bundle itself is pure web-standard code (no `node:` imports, no top-level `await`).
 
 ### Node
 
-The default — nothing to add. `start: { node: true }` in `vite.config.ts` makes the build emit `dist/server/node.js`: it serves `dist/client` statically (hashed assets under `assets/` as `Cache-Control: public, max-age=31536000, immutable`, everything else `must-revalidate`) and hands every other request to `handleRequest`. `npm run build`, then `npm start` runs it (loading `.env` if present; real deployments set the environment instead). Any node host (a VPS, Fly.io, Railway, ...) that runs `node dist/server/node.js` with `PORT` (and optionally `HOST`) and `SESSION_SECRET` set is done. The entry speaks plain HTTP — terminate TLS and compress at the reverse proxy or CDN in front of it.
+The default — nothing to add. `start: { node: true }` in `vite.config.ts` makes the build emit `dist/server/node.js`: it serves `dist/client` statically (hashed assets under `assets/` as `Cache-Control: public, max-age=31536000, immutable`, everything else `must-revalidate`) and hands every other request to `handleRequest`. `npm run build`, then `npm start` runs it (loading `.env` if present; real deployments set the environment instead). Any node host (a VPS, Fly.io, Railway, ...) that runs `node dist/server/node.js` with `PORT` (and optionally `HOST`) and `BETTER_AUTH_SECRET` set is done. The entry speaks plain HTTP — terminate TLS and compress at the reverse proxy or CDN in front of it.
 
 The file also exports `listener` (the `(req, res)` function), `createListener({ static?, event? })`, and `serve({ port, host, static, event })`, so it composes with an existing server — e.g. `app.use(listener)` in Express, or `createListener({ static: false })` behind Express's own static handling.
 
@@ -267,9 +271,9 @@ The Cloudflare plugin adopts the `ssr` environment and resolves its virtual Fetc
 
 ```bash
 $ npm run build
-$ echo "SESSION_SECRET=..." > .dev.vars    # local dev secrets
+$ echo "BETTER_AUTH_SECRET=..." > .dev.vars    # local dev secrets
 $ npx wrangler dev                          # local workerd — no account needed
-$ npx wrangler secret put SESSION_SECRET    # production secret
+$ npx wrangler secret put BETTER_AUTH_SECRET    # production secret
 $ npx wrangler deploy
 ```
 
@@ -306,6 +310,6 @@ command = "npm run build"
 publish = "dist/client"
 ```
 
-The plugin generates the catch-all function, gives static files precedence, preserves streaming, and emulates Netlify platform features during `vite dev`. Set `SESSION_SECRET` in the site's environment settings. No handwritten Netlify Function or Netlify CLI is required.
+The plugin generates the catch-all function, gives static files precedence, preserves streaming, and emulates Netlify platform features during `vite dev`. Set `BETTER_AUTH_SECRET` in the site's environment settings. No handwritten Netlify Function or Netlify CLI is required.
 
 ## This project was created with the [Solid CLI](https://github.com/solidjs-community/solid-cli)
