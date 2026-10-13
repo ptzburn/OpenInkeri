@@ -9,8 +9,8 @@ import { getCurrentUser } from '~/lib/account';
 import { paths } from '~/router';
 
 // The drawer's sidebar: the app name, the navigation and, at the bottom, the
-// account corner. Links only signed-in users can open stay hidden from
-// everyone else; the pages and server functions guard themselves anyway.
+// account corner. Admin-only links stay hidden from everyone else; the pages
+// and server functions guard themselves anyway.
 export default function Sidebar() {
   const user = createMemo(() => getCurrentUser());
 
@@ -29,7 +29,7 @@ export default function Sidebar() {
             </a>
           </li>
           <Loading>
-            <Show when={user()}>
+            <Show when={user()?.isAdmin}>
               <li>
                 <a class="aria-[current=page]:menu-active" href={paths.users()}>
                   <Team class="size-5" aria-hidden="true" />

@@ -22,6 +22,18 @@ export const auth = betterAuth({
   socialProviders: {
     github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
   },
+  databaseHooks: {
+    user: {
+      create: {
+        // Whoever signs up while the user table is still empty becomes the
+        // admin, so a fresh deployment needs no CLI step to get one.
+        before: async (user) => {
+          if ((await db.$count(schema.user)) > 0) return;
+          return { data: { ...user, role: 'admin' } };
+        },
+      },
+    },
+  },
   // GitHub's access token is stored on the account row; encrypt it with the
   // secret so a database leak doesn't hand out working tokens.
   account: { encryptOAuthTokens: true },
@@ -39,6 +51,11 @@ export const auth = betterAuth({
 });
 
 export type User = typeof auth.$Infer.Session.user;
+
+/** Whether the admin plugin counts this user as an admin (role may be a comma list). */
+export function isAdmin(user: User): boolean {
+  return user.role?.split(',').includes('admin') ?? false;
+}
 
 function event(): RequestEvent & { response: ResponseStub } {
   const e = getRequestEvent();
