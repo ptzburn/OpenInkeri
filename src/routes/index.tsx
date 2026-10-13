@@ -2,9 +2,10 @@ import { Title } from '@solidjs/meta';
 import type { RouteDefinition } from '@solidjs/router';
 import { Show, createMemo } from 'solid-js';
 
-import Counter from '../components/counter';
-import { getCurrentUser } from '../lib/account';
-import logo from '../logo.svg';
+import Counter from '~/components/counter';
+import { getCurrentUser } from '~/lib/account';
+import logo from '~/logo.svg';
+import { paths } from '~/router';
 
 // The preload starts these fetches as navigation begins — and it doubles as
 // the page's single-flight manifest: after a mutation, the server reruns it
@@ -40,14 +41,9 @@ export default function Home() {
         when={me()}
         fallback={
           <p class="my-6">
-            <a class="link link-primary" href="/sign-in">
-              Sign in
-            </a>{' '}
-            or{' '}
-            <a class="link link-primary" href="/sign-up">
-              create an account
+            <a class="link link-primary" href={paths['sign-in']()}>
+              Sign in with GitHub
             </a>
-            .
           </p>
         }
       >

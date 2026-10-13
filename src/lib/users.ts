@@ -9,12 +9,13 @@
 import { action, query } from '@solidjs/router';
 import { getRequestEvent, redirect, respond } from '@solidjs/web';
 
-import { callAuth } from '../server/auth';
-import { db } from '../server/database';
+import { paths } from '~/router';
+import { auth, forwardCookies, requestHeaders } from '~/server/auth';
+import { db } from '~/server/database';
 
 function signedIn() {
   const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect('/sign-in?next=%2Fusers');
+  if (!user) throw redirect(paths['sign-in']());
   return user;
 }
 
@@ -40,14 +41,25 @@ export const getUser = query(async (id: string) => {
 /** Renames the signed-in user; nobody can rename anyone else. */
 export const renameMe = action(async (form: FormData) => {
   'use server';
-  signedIn();
+  const user = signedIn();
   const raw = form.get('name');
   const name = typeof raw === 'string' ? raw.trim() : '';
   if (!name || name.length > 100) {
     throw respond({ message: 'Enter a name of 1–100 characters.' }, { status: 400 });
   }
-  const response = await callAuth('/update-user', { name });
-  if (!response.ok) {
-    throw respond({ message: 'Could not save the name. Try again.' }, { status: response.status });
+  try {
+    const { headers } = await auth.api.updateUser({
+      body: { name },
+      headers: requestHeaders(),
+      returnHeaders: true,
+    });
+    // The session cookie cache carries the name; this refreshes it.
+    forwardCookies(headers);
+    // The single-flight refresh reads the user from this request's locals
+    // (getCurrentUser), so give it the new name too.
+    getRequestEvent()!.locals.user = { ...user, name };
+  } catch (error) {
+    console.error('Renaming the user failed', error);
+    throw respond({ message: 'Could not save the name. Try again.' }, { status: 500 });
   }
 }, 'rename-me');

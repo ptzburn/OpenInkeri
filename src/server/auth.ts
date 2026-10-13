@@ -1,6 +1,6 @@
 // The better-auth instance, as a server-only module. Schema-shaping options
 // live in ./auth-options.ts so the CLI can load them; this file adds what
-// needs the Worker: the D1 database, the secret, and waitUntil.
+// needs the Worker: the D1 database, the secrets, and waitUntil.
 import 'server-only';
 import { getRequestEvent } from '@solidjs/web';
 import type { RequestEvent, ResponseStub } from '@solidjs/web';
@@ -17,6 +17,14 @@ export const auth = betterAuth({
   ...authOptions,
   secret: env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: 'sqlite', schema }),
+  // GitHub is the only way in: its first sign-in creates the account. The
+  // OAuth app's callback URL is <origin>/api/auth/callback/github.
+  socialProviders: {
+    github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
+  },
+  // GitHub's access token is stored on the account row; encrypt it with the
+  // secret so a database leak doesn't hand out working tokens.
+  account: { encryptOAuthTokens: true },
   session: {
     // Keep the session in a signed cookie for 5 minutes, so most requests
     // skip the D1 lookup. A revoked session can live on for that long.
@@ -44,31 +52,15 @@ export function forwardCookies(headers: Headers): void {
   for (const cookie of headers.getSetCookie()) response.headers.append('set-cookie', cookie);
 }
 
-// Headers a call through the handler needs from the browser's request:
-// the session cookie, Origin for the CSRF check, and the client IP and
-// user agent for rate limiting and the session record.
-const FORWARDED = ['cookie', 'origin', 'referer', 'user-agent', 'cf-connecting-ip'];
-
 /**
- * POSTs to a better-auth endpoint (e.g. '/sign-in/email') through its HTTP
- * handler, as the browser would. Calling auth.api.* directly would skip the
- * handler's rate limiting and origin check, which server functions need:
- * they are public URLs. Cookies on the result are forwarded to the response.
+ * The browser's request headers, for auth.api.* calls from server functions:
+ * better-auth reads the session cookie, client IP and user agent from them.
+ * Pass `returnHeaders: true` and hand the result's headers to forwardCookies.
+ *
+ * auth.api.* skips better-auth's rate limiter and origin check (both live in
+ * its HTTP router). Server functions are covered by Solid's own CSRF check;
+ * anything that takes a redirect target from the request must validate it.
  */
-export async function callAuth(path: string, body: object = {}): Promise<Response> {
-  const request = event().request;
-  const headers = new Headers({ 'content-type': 'application/json' });
-  for (const name of FORWARDED) {
-    const value = request.headers.get(name);
-    if (value) headers.set(name, value);
-  }
-  const response = await auth.handler(
-    new Request(new URL(`/api/auth${path}`, request.url), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    }),
-  );
-  forwardCookies(response.headers);
-  return response;
+export function requestHeaders(): Headers {
+  return event().request.headers;
 }

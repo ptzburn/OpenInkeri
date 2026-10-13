@@ -16,9 +16,9 @@
       "database_name": "openinkeri",
       // No database_id: `wrangler deploy` provisions the database on first
       // deploy and links it by name. Local dev uses a SQLite file in .wrangler/.
-      // Drizzle 1.0 writes one folder per migration (drizzle/<name>/migration.sql).
-      "migrations_dir": "drizzle",
-      "migrations_pattern": "drizzle/*/migration.sql",
+      // Drizzle 1.0 writes one folder per migration (migrations/<name>/migration.sql).
+      "migrations_dir": "src/server/database/migrations",
+      "migrations_pattern": "src/server/database/migrations/*/migration.sql",
     },
   ],
 }

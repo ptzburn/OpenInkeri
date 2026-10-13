@@ -1,24 +1,20 @@
-import { useLocation } from '@solidjs/router';
 import { Loading, Show, createMemo } from 'solid-js';
 
-import { getCurrentUser, signOut } from '../lib/account';
+import { getCurrentUser, signOut } from '~/lib/account';
+import { paths } from '~/router';
 
 // The navbar's account corner: the user's name and Sign out, or a Sign in
-// link that brings them back to this page afterwards. The read is the same
+// link. The read is the same
 // cached query the pages use, so it costs no extra request.
 export default function AccountMenu() {
   const user = createMemo(() => getCurrentUser());
-  const location = useLocation();
 
   return (
     <Loading fallback={<span class="loading loading-dots loading-sm" />}>
       <Show
         when={user()}
         fallback={
-          <a
-            class="btn btn-ghost aria-[current=page]:btn-active"
-            href={`/sign-in?next=${encodeURIComponent(location.pathname + location.search)}`}
-          >
+          <a class="btn btn-ghost aria-[current=page]:btn-active" href={paths['sign-in']()}>
             Sign in
           </a>
         }
