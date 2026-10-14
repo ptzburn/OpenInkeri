@@ -7,9 +7,11 @@ import type { BetterAuthOptions } from 'better-auth';
 import { admin } from 'better-auth/plugins';
 
 export const authOptions = {
-  // Derive the origin from the request, but only for these hosts. Add the
-  // custom domain here when there is one.
-  baseURL: { allowedHosts: ['localhost:3060', 'openinkeri.*.workers.dev'] },
+  // Derive the origin from the request, but only for these hosts: local
+  // dev, the workers.dev URL, and the custom domain (routes in wrangler.jsonc).
+  baseURL: {
+    allowedHosts: ['localhost:3060', 'openinkeri.*.workers.dev', 'openinkeri.hokkanen.io'],
+  },
   rateLimit: {
     // Workers isolates don't share memory, so the default in-memory store
     // would count per isolate. D1 keeps one count for every request.

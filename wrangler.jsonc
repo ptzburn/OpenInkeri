@@ -6,6 +6,11 @@
   "compatibility_date": "2026-10-06",
   // node:async_hooks for the per-request scope; Worker vars via process.env.
   "compatibility_flags": ["nodejs_compat"],
+  // The production hostname. Deploy creates the DNS record and certificate
+  // (hokkanen.io is a zone on this account). The workers.dev URL stays on.
+  // A new hostname also goes in baseURL.allowedHosts (src/server/auth-options.ts)
+  // and needs its own GitHub OAuth app (one callback URL per app).
+  "routes": [{ "pattern": "openinkeri.hokkanen.io", "custom_domain": true }],
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",

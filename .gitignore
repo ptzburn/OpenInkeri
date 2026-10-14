@@ -9,6 +9,10 @@ app.config.timestamp_*.js
 # Environment
 .env
 .env*.local
+# Other env files (e.g. .env.prod with the production secrets for
+# `wrangler deploy --secrets-file`); only the example is tracked.
+.env.*
+!.env.example
 .dev.vars*
 
 # dependencies
