@@ -5,13 +5,16 @@ import Team from '~icons/ri/team-line';
 import { env } from 'virtual:env/client';
 
 import AccountMenu from '~/components/account-menu';
+import LanguageSwitcher from '~/components/language-switcher';
 import ThemeSwitcher from '~/components/theme-switcher';
 import { getCurrentUser } from '~/lib/account';
+import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
-// The drawer's sidebar: the app name with the theme toggle, the navigation
-// and, at the bottom, the account corner. Admin-only links stay hidden from
-// everyone else; the pages and server functions guard themselves anyway.
+// The drawer's sidebar: the app name with the language and theme toggles,
+// the navigation and, at the bottom, the account corner. Admin-only links
+// stay hidden from everyone else; the pages and server functions guard
+// themselves anyway.
 export default function Sidebar() {
   const user = createMemo(() => getCurrentUser());
 
@@ -21,16 +24,19 @@ export default function Sidebar() {
         <a href={paths()} class="text-xl font-bold">
           {env.VITE_APP_NAME}
         </a>
-        <ThemeSwitcher />
+        <div class="flex">
+          <LanguageSwitcher />
+          <ThemeSwitcher />
+        </div>
       </div>
       {/* The router marks a link data-active on its page and the pages under
           it (Home only on itself), so Users stays lit on /users/:id. */}
-      <nav aria-label="Main" class="grow">
+      <nav aria-label={m.sidebar_nav_label()} class="grow">
         <ul class="menu w-full gap-1">
           <li>
             <a class="data-active:menu-active" href={paths()}>
               <Map class="size-5" aria-hidden="true" />
-              Home
+              {m.sidebar_home()}
             </a>
           </li>
           <Loading>
@@ -38,7 +44,7 @@ export default function Sidebar() {
               <li>
                 <a class="data-active:menu-active" href={paths.users()}>
                   <Team class="size-5" aria-hidden="true" />
-                  Users
+                  {m.users_title()}
                 </a>
               </li>
             </Show>

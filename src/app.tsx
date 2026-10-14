@@ -5,6 +5,7 @@ import MenuIcon from '~icons/ri/menu-line';
 import { env } from 'virtual:env/client';
 
 import Sidebar from './components/sidebar';
+import { m } from './paraglide/messages.js';
 import { Router } from './router';
 import './app.css';
 
@@ -27,7 +28,11 @@ export default function App() {
             />
             <div class="drawer-content flex min-h-dvh flex-col">
               <header class="navbar bg-base-200 lg:hidden">
-                <label for="app-drawer" aria-label="Open menu" class="btn btn-square btn-ghost">
+                <label
+                  for="app-drawer"
+                  aria-label={m.app_open_menu()}
+                  class="btn btn-square btn-ghost"
+                >
                   <MenuIcon class="size-6" aria-hidden="true" />
                 </label>
                 <span class="px-2 text-lg font-bold">{env.VITE_APP_NAME}</span>
@@ -35,7 +40,7 @@ export default function App() {
               <Loading
                 fallback={
                   <main class="grid flex-1 place-items-center">
-                    <span class="loading loading-spinner loading-lg" aria-label="Loading" />
+                    <span class="loading loading-spinner loading-lg" aria-label={m.app_loading()} />
                   </main>
                 }
               >
@@ -49,7 +54,7 @@ export default function App() {
                 if ((event.target as Element).closest('a')) drawer!.checked = false;
               }}
             >
-              <label for="app-drawer" aria-label="Close menu" class="drawer-overlay" />
+              <label for="app-drawer" aria-label={m.app_close_menu()} class="drawer-overlay" />
               <Sidebar />
             </div>
           </div>

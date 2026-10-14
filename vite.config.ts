@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { fileRoutes } from 'filesystem-routing/vite';
 import { cloudflare } from '@cloudflare/vite-plugin';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import { defineConfig, lazyPlugins } from 'vite-plus';
 import solid from '@solidjs/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
@@ -18,13 +19,15 @@ export default defineConfig({
       'worker-configuration.d.ts',
       'src/server/database/migrations/**',
       'src/server/database/auth-schema.ts',
+      // Compiled from messages/ by the Paraglide plugin on every dev/build start.
+      'src/paraglide/**',
       // Vendored from github.com/better-auth/skills; keep byte-identical for `npx skills update`.
       '.claude/skills/*-best-practices/**',
     ],
   },
   lint: {
     jsPlugins: [{ name: 'vite-plus', specifier: 'vite-plus/oxlint-plugin' }, 'eslint-plugin-solid'],
-    ignorePatterns: ['**/*.gen.*', 'dist', 'worker-configuration.d.ts'],
+    ignorePatterns: ['**/*.gen.*', 'dist', 'worker-configuration.d.ts', 'src/paraglide'],
     settings: solidV2.settings,
     rules: { ...solidV2.rules, 'vite-plus/prefer-vite-plus-imports': 'error' },
     options: { typeAware: true, typeCheck: true },
@@ -41,6 +44,10 @@ export default defineConfig({
     // @iconify-json/<collection> dev dependency (Remix Icon: ri); browse at
     // https://icones.js.org.
     icons({ compiler: 'solid' }),
+    // Compiles project.inlang + messages/*.json into src/paraglide (messages
+    // as tree-shakable functions, runtime, server middleware). The compiler
+    // options are in project.inlang/paraglide.config.ts.
+    paraglideVitePlugin({ project: './project.inlang' }),
     solid({
       start: {
         middleware: './src/middleware.ts',

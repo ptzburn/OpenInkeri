@@ -76,6 +76,23 @@ Skills: `.claude/skills/` has better-auth's feature skills (`better-auth-securit
 
 Docs: the `better-auth` MCP server (in `.mcp.json`) searches the documentation; prefer it. Otherwise `https://better-auth.com/docs/llms.txt` is the index for the 1.7 line, and every page has a Markdown variant (append `.md`, e.g. `https://better-auth.com/docs/adapters/drizzle.md`). When the docs and the installed types disagree, the types in `node_modules/better-auth` win.
 
+## Paraglide JS (i18n)
+
+Translations are an inlang project compiled by Paraglide JS (`@inlang/paraglide-js`, with `@inlang/cli` for checks). Paraglide ships no agent skill or MCP server; its version-matched docs are two generated READMEs. Both are git-ignored, so search tools may skip them; read them directly before localization work:
+
+- `project.inlang/README.md` — the inlang project: settings, checks, machine translation, editors.
+- `src/paraglide/README.md` — the compiled output: `m.*`, the runtime, strategies, markup.
+
+Rules for this app:
+
+- **Messages:** edit `messages/{locale}.json`. Locales are `ru` (the base), `en` and `fi`, set in `project.inlang/settings.json`; their order is the language switcher's order. Every key goes in all three files. Keys are snake_case, prefixed by area (`app_open_menu`, `sidebar_language`). Never edit `src/paraglide/`: it is generated and git-ignored. `paraglideVitePlugin` (vite.config.ts) regenerates it on every dev/build start, and `pnpm check` runs `paraglide-js compile` before type checking, so a fresh clone and CI have it too. Restart the dev server if a new key has no `m.*` function. `pnpm check:i18n` reports missing translations and unused messages.
+- **Using them:** `import { m } from '~/paraglide/messages.js'` and call `m.key()` / `m.key({ name })` in JSX or computations. They are plain functions, not signals: `setLocale()` (from `~/paraglide/runtime.js`) writes the cookie and reloads the page, so nothing needs to react to a locale change. Don't make locale reactive with `setLocale(…, { reload: false })` or `overwriteSetLocale`.
+- **Locale detection:** `strategy: ['cookie', 'preferredLanguage', 'baseLocale']` in `project.inlang/paraglide.config.ts`, the one place for compiler options (the Vite plugin and the CLI both read it): the `PARAGLIDE_LOCALE` cookie, then `Accept-Language`, then `ru`. The language switcher (`src/components/language-switcher.tsx`, in the sidebar header) calls `setLocale`, which writes the cookie and reloads. There are no locale URL prefixes; adding the `url` strategy means wiring the router's URLs through `localizeHref`/`deLocalizeUrl` (see the i18n routing doc). Keep to strategies the server can read on the first request (no `localStorage`), or SSR and hydration disagree.
+- **Server:** `detectLocale` in `src/middleware.ts` runs first and wraps the rest of the chain in `paraglideMiddleware`, so `getLocale()` and `m.*` use the request's locale in the document (`<html lang>`), the render, server functions and API routes. It relies on AsyncLocalStorage (`nodejs_compat` in wrangler.jsonc); never set `disableAsyncLocalStorage`.
+- **Markup in messages:** don't install `@inlang/paraglide-js-solid` — it is built on Solid 1 (`solid-js ^1.8` peer). Render `m.key.parts()` yourself.
+
+Docs: `https://paraglidejs.com/llms.txt` indexes the HTML site. The Markdown sources are in `github.com/opral/paraglide-js` under `docs/` (e.g. `docs/middleware.md`, `docs/strategy.md`, `docs/i18n-routing.md`, `docs/markup.md`); fetch them with `gh api repos/opral/paraglide-js/contents/docs/<page>.md --jq .content | base64 -d`. The repo has no release tags, so those track `main`; when they disagree with the installed version, the generated READMEs and the types in `src/paraglide/*.d.ts` win. There is no SolidStart guide; the Vite and middleware pages apply.
+
 ## Reactive diagnostics — capture evidence instead of guessing
 
 Use these whenever you are debugging reactivity (something doesn't update, updates too often, or is slow) or verifying a change didn't regress update granularity:
