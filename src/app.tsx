@@ -4,7 +4,9 @@ import MenuIcon from '~icons/ri/menu-line';
 // Typed client env, validated and baked in at build time (see env.ts).
 import { env } from 'virtual:env/client';
 
+import LanguageSwitcher from './components/language-switcher';
 import Sidebar from './components/sidebar';
+import ThemeSwitcher from './components/theme-switcher';
 import { m } from './paraglide/messages.js';
 import { Router } from './router';
 import './app.css';
@@ -27,15 +29,23 @@ export default function App() {
               ref={(el) => (drawer = el)}
             />
             <div class="drawer-content flex min-h-dvh flex-col">
-              <header class="navbar bg-base-200 lg:hidden">
-                <label
-                  for="app-drawer"
-                  aria-label={m.app_open_menu()}
-                  class="btn btn-square btn-ghost"
-                >
-                  <MenuIcon class="size-6" aria-hidden="true" />
-                </label>
-                <span class="px-2 text-lg font-bold">{env.VITE_APP_NAME}</span>
+              {/* Below lg the menu button and app name open the sidebar over
+                  the page; from lg up the sidebar shows the name itself. */}
+              <header class="navbar border-b border-base-300">
+                <div class="navbar-start">
+                  <label
+                    for="app-drawer"
+                    aria-label={m.app_open_menu()}
+                    class="btn btn-square btn-ghost lg:hidden"
+                  >
+                    <MenuIcon class="size-6" aria-hidden="true" />
+                  </label>
+                  <span class="px-2 text-lg font-bold lg:hidden">{env.VITE_APP_NAME}</span>
+                </div>
+                <div class="navbar-end">
+                  <LanguageSwitcher />
+                  <ThemeSwitcher />
+                </div>
               </header>
               <Loading
                 fallback={

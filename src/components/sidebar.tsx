@@ -5,29 +5,24 @@ import Team from '~icons/ri/team-line';
 import { env } from 'virtual:env/client';
 
 import AccountMenu from '~/components/account-menu';
-import LanguageSwitcher from '~/components/language-switcher';
-import ThemeSwitcher from '~/components/theme-switcher';
 import { getCurrentUser } from '~/lib/account';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
-// The drawer's sidebar: the app name with the language and theme toggles,
-// the navigation and, at the bottom, the account corner. Admin-only links
-// stay hidden from everyone else; the pages and server functions guard
-// themselves anyway.
+// The drawer's sidebar: the app name, the navigation and, at the bottom,
+// the account corner. Admin-only links stay hidden from everyone else; the
+// pages and server functions guard themselves anyway.
 export default function Sidebar() {
   const user = createMemo(() => getCurrentUser());
 
   return (
-    <aside class="flex min-h-full w-64 flex-col bg-base-200">
-      <div class="flex items-center justify-between py-3 pr-3 pl-6">
+    <aside class="flex min-h-full w-64 flex-col border-r border-base-300 bg-base-200">
+      {/* As tall as the header beside it (navbar: min-h-16), with the same
+          bottom border, so one line runs under both. */}
+      <div class="flex min-h-16 items-center border-b border-base-300 px-6">
         <a href={paths()} class="text-xl font-bold">
           {env.VITE_APP_NAME}
         </a>
-        <div class="flex">
-          <LanguageSwitcher />
-          <ThemeSwitcher />
-        </div>
       </div>
       {/* The router marks a link data-active on its page and the pages under
           it (Home only on itself), so Users stays lit on /users/:id. */}
