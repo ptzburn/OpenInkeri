@@ -512,7 +512,6 @@ for (const r of body) {
     id,
     source_id: SOURCE_ID,
     section_id: sectionId,
-    entry_no: value(cells[3]),
     status: lost ? 'lost' : 'ok',
     date: baptismDate,
     place_text: placeText,

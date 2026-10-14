@@ -13,7 +13,6 @@ const { getRecords } = vi.hoisted(() => {
   const size = 50;
   const entries = Array.from({ length: 120 }, (_, i) => ({
     id: i + 1,
-    entryNo: String(i + 1),
     lost: false,
     baptismDate: '1895-03-12',
     birthDate: '1895-03',
@@ -49,8 +48,9 @@ function renderAt(url: string) {
   ));
 }
 
-const entryNumbers = (container: HTMLElement) =>
-  [...container.querySelectorAll('tbody tr td:first-child')].map((el) => el.textContent);
+// The child column's names; English shows the Finnish form when there is one.
+const childNames = (container: HTMLElement) =>
+  [...container.querySelectorAll('tbody tr .font-medium')].map((el) => el.textContent);
 
 afterEach(() => {
   cleanup();
@@ -60,7 +60,7 @@ afterEach(() => {
 describe('/records', () => {
   test('shows the first page, with the dates and names of each entry', async () => {
     const { container } = renderAt('/records');
-    await waitFor(() => expect(entryNumbers(container)).toHaveLength(50));
+    await waitFor(() => expect(childNames(container)).toHaveLength(50));
     expect(getRecords).toHaveBeenLastCalledWith('', 1);
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
     const first = container.querySelector('tbody tr')!;
@@ -75,7 +75,7 @@ describe('/records', () => {
 
   test('pages through ?page, and the ends have no link onward', async () => {
     const { container } = renderAt('/records?page=3');
-    await waitFor(() => expect(entryNumbers(container)[0]).toBe('101'));
+    await waitFor(() => expect(childNames(container)[0]).toBe('Ребёнок 101'));
     expect(screen.getByText('Page 3 of 3')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Previous' })).toHaveAttribute(
       'href',
@@ -86,13 +86,13 @@ describe('/records', () => {
 
   test('searching goes back to the first page, without diagnostics', async () => {
     const { container } = renderAt('/records?page=2');
-    await waitFor(() => expect(entryNumbers(container)[0]).toBe('51'));
+    await waitFor(() => expect(childNames(container)[0]).toBe('Ребёнок 51'));
     const input = screen.getByRole('searchbox', { name: 'Search records' });
 
     const { artifact } = await captureArtifact(
       async () => {
         fireEvent.input(input, { target: { value: 'мария' } });
-        await waitFor(() => expect(entryNumbers(container)).toEqual(['2']));
+        await waitFor(() => expect(childNames(container)).toEqual(['Maria']));
         flush();
       },
       { scenario: 'records-search' },

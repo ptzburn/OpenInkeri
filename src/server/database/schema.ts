@@ -169,7 +169,6 @@ export const record = snakeCase.table(
       .references(() => source.id, { onDelete: 'restrict' }),
     sectionId: integer().references(() => sourceSection.id, { onDelete: 'set null' }),
     page: text(), // as numbered in the source: "221об"
-    entryNo: text(), // the source's own number, if any
     status: text({ enum: recordStatuses }).default('ok').notNull(),
     date: text(), // baptism, wedding or death date; the list's date for lists
     // For the map's timeline: grouping by place and year needs no date parsing.

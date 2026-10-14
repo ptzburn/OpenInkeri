@@ -62,7 +62,6 @@
   "records_search_placeholder": "Имя или деревня",
   "records_no_match": "Нет записей по запросу «{search}».",
   "records_empty": "Записей пока нет.",
-  "records_col_entry_no": "№",
   "records_col_born": "Рождение",
   "records_col_baptised": "Крещение",
   "records_col_child": "Ребёнок",

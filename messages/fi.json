@@ -62,7 +62,6 @@
   "records_search_placeholder": "Nimi tai kylä",
   "records_no_match": "Haulla ”{search}” ei löytynyt merkintöjä.",
   "records_empty": "Merkintöjä ei vielä ole.",
-  "records_col_entry_no": "Nro",
   "records_col_born": "Syntynyt",
   "records_col_baptised": "Kastettu",
   "records_col_child": "Lapsi",

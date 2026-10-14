@@ -43,7 +43,7 @@ export const getRecords = query(async (search: string, page: number) => {
     orderBy: { id: 'asc' },
     limit: RECORDS_PAGE_SIZE,
     offset: (current - 1) * RECORDS_PAGE_SIZE,
-    columns: { id: true, entryNo: true, status: true, date: true, placeText: true, note: true },
+    columns: { id: true, status: true, date: true, placeText: true, note: true },
     with: {
       place: { columns: { nameRu: true, nameFi: true } },
       baptism: {
@@ -64,7 +64,6 @@ export const getRecords = query(async (search: string, page: number) => {
     pages,
     records: rows.map((r) => ({
       id: r.id,
-      entryNo: r.entryNo,
       lost: r.status === 'lost',
       baptismDate: r.date,
       birthDate: r.baptism?.birthDate ?? null,

@@ -118,7 +118,6 @@ export default function Records() {
             <table class="table table-sm">
               <thead>
                 <tr>
-                  <th>{m.records_col_entry_no()}</th>
                   <th>{m.records_col_born()}</th>
                   <th>{m.records_col_baptised()}</th>
                   <th>{m.records_col_child()}</th>
@@ -198,7 +197,6 @@ function PageLink(props: {
 function RecordTableRow(props: { row: RecordRow }) {
   return (
     <tr class={props.row.lost ? 'text-base-content/50' : undefined}>
-      <td class="tabular-nums">{props.row.entryNo}</td>
       <td class="tabular-nums whitespace-nowrap">{formatPartialDate(props.row.birthDate)}</td>
       <td class="tabular-nums whitespace-nowrap">{formatPartialDate(props.row.baptismDate)}</td>
       <td>
