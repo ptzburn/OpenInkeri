@@ -2,23 +2,13 @@ import { Title } from '@solidjs/meta';
 import { useSearchParams } from '@solidjs/router';
 import type { JSX } from '@solidjs/web';
 import { defineFileRoute } from '@solidjs/router/fs';
-import {
-  For,
-  Show,
-  createEffect,
-  createMemo,
-  createSignal,
-  isPending,
-  onSettled,
-  untrack,
-} from 'solid-js';
+import { For, Show, createEffect, createMemo, isPending, onSettled, untrack } from 'solid-js';
 import { env } from 'virtual:env/client';
 import PreviousIcon from '~icons/ri/arrow-left-s-line';
 import NextIcon from '~icons/ri/arrow-right-s-line';
 import EditIcon from '~icons/ri/pencil-line';
 import SearchIcon from '~icons/ri/search-line';
 
-import BaptismEditDialog from '~/components/baptism-edit-dialog';
 import { getCurrentUser } from '~/lib/account';
 
 import { formatPartialDate } from '~/lib/format';
@@ -44,7 +34,7 @@ const kindLabels: Record<RecordKind, () => string> = {
 // Signed-in users only: getRecords redirects a signed-out visitor to
 // sign-in (src/lib/records.ts). ?kind= is the kind of record, ?q= the search
 // and ?page= the page, so all survive reloads and can be shared.
-export const route = defineFileRoute('/records', {
+export const route = defineFileRoute('/records/', {
   search: stringParams('kind', 'q', 'page'),
   preload: ({ location }) => {
     const { kind, q, page } = location.query;
@@ -69,11 +59,10 @@ export default function Records() {
     (): Promise<RecordList> => getRecords(kind(), search.q ?? '', pageNumber(search.page)),
     { name: 'records-list' },
   );
-  // Admins edit baptisms in a dialog; the server functions check the role
-  // again, so this only decides what is offered.
+  // Admins edit baptisms on their edit page; the server functions check the
+  // role again, so this only decides what is offered.
   const me = createMemo(() => getCurrentUser(), { name: 'records-me' });
   const canEdit = () => !!me()?.isAdmin && kind() === 'baptisms';
-  const [editing, setEditing] = createSignal<number | null>(null, { name: 'records-editing' });
 
   // Searching as you type, like the users list (src/routes/users.tsx): once
   // typing pauses, replacing the history entry, and back to the first page.
@@ -190,7 +179,14 @@ export default function Records() {
                   {(row) => (
                     <RecordTableRow
                       row={row()}
-                      onEdit={canEdit() ? () => setEditing(row().id) : undefined}
+                      // The link carries the list's place, to return to it.
+                      editHref={
+                        canEdit()
+                          ? paths
+                              .records(row().id)
+                              .edit({ kind: search.kind, q: search.q, page: search.page })
+                          : undefined
+                      }
                     />
                   )}
                 </For>
@@ -225,9 +221,6 @@ export default function Records() {
           </Show>
         </Show>
       </div>
-      <Show when={me()?.isAdmin}>
-        <BaptismEditDialog recordId={editing()} onClose={() => setEditing(null)} />
-      </Show>
     </main>
   );
 }
@@ -258,7 +251,7 @@ function PageLink(props: {
   );
 }
 
-function RecordTableRow(props: { row: RecordRow; onEdit?: () => void }) {
+function RecordTableRow(props: { row: RecordRow; editHref?: string }) {
   return (
     <tr class={props.row.lost ? 'text-base-content/50' : undefined}>
       <td class="tabular-nums whitespace-nowrap">{formatPartialDate(props.row.birthDate)}</td>
@@ -274,17 +267,16 @@ function RecordTableRow(props: { row: RecordRow; onEdit?: () => void }) {
             <span class="text-base-content/60 italic">{m.records_stillborn()}</span>
           </Show>
           <span class="font-medium">{localName(props.row.child)}</span>
-          <Show when={props.onEdit}>
-            {(edit) => (
-              <button
-                type="button"
+          <Show when={props.editHref}>
+            {(href) => (
+              <a
+                href={href()}
                 class="btn btn-square btn-ghost btn-xs"
                 aria-label={m.record_edit_open()}
                 title={m.record_edit_open()}
-                onClick={() => edit()()}
               >
                 <EditIcon class="size-4" aria-hidden="true" />
-              </button>
+              </a>
             )}
           </Show>
           <Show when={props.row.multipleBirth}>

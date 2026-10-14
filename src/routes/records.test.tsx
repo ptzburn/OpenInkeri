@@ -112,15 +112,6 @@ vi.mock('~/lib/record-edit', async () => {
   };
 });
 
-// jsdom has <dialog> without showModal/close; enough of them for the dialog.
-HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
-  this.open = true;
-};
-HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
-  this.open = false;
-  this.dispatchEvent(new Event('close'));
-};
-
 function renderAt(url: string) {
   window.history.replaceState(null, '', url);
   return render(() => (
@@ -219,70 +210,110 @@ describe('/records', () => {
 });
 
 describe('editing a baptism', () => {
+  // The edit page for record 2 (Maria's), opened from the list's edit link.
   async function openMaria() {
     me.current = { isAdmin: true };
     const { container } = renderAt(`/records?q=${encodeURIComponent('мария')}`);
     await waitFor(() => expect(childNames(container)).toEqual(['Maria']));
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit record' }));
-    const dialog = screen.getByRole('dialog', { hidden: true }) as HTMLDialogElement;
-    await waitFor(() => expect(dialog).toHaveTextContent('Normal'));
-    return dialog;
+    fireEvent.click(await screen.findByRole('link', { name: 'Edit record' }));
+    await screen.findByRole('heading', { level: 1, name: 'Edit record' });
+    await waitFor(() => expect(field('status')).toBeTruthy());
+    return document.querySelector('main form') as HTMLFormElement;
   }
-  const field = (dialog: HTMLElement, name: string) =>
-    dialog.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
+  const field = (name: string) =>
+    document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
 
-  test('only admins get the edit button', async () => {
+  test('opening the edit page from the list causes no diagnostics', async () => {
+    // A first visit loads the edit page's code behind the spinner (in the
+    // app the server renders a direct visit); the capture is the click.
+    await openMaria();
+    cleanup();
+
+    me.current = { isAdmin: true };
     const { container } = renderAt(`/records?q=${encodeURIComponent('мария')}`);
     await waitFor(() => expect(childNames(container)).toEqual(['Maria']));
-    expect(screen.queryByRole('button', { name: 'Edit record' })).toBeNull();
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(await screen.findByRole('link', { name: 'Edit record' }));
+        await waitFor(() => expect(field('father.nameRu')).toHaveValue('Иоанн Адамов Варис'));
+        flush();
+      },
+      { scenario: 'record-edit-open' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+  });
+
+  test('only admins get the edit link', async () => {
+    const { container } = renderAt(`/records?q=${encodeURIComponent('мария')}`);
+    await waitFor(() => expect(childNames(container)).toEqual(['Maria']));
+    expect(screen.queryByRole('link', { name: 'Edit record' })).toBeNull();
+  });
+
+  test("the edit link carries the list's place", async () => {
+    me.current = { isAdmin: true };
+    const { container } = renderAt(`/records?q=${encodeURIComponent('мария')}`);
+    await waitFor(() => expect(childNames(container)).toEqual(['Maria']));
+    expect(await screen.findByRole('link', { name: 'Edit record' })).toHaveAttribute(
+      'href',
+      `/records/2/edit?q=${encodeURIComponent('мария')}`,
+    );
   });
 
   test('opens with the record as stored, dates as the page shows them', async () => {
-    const dialog = await openMaria();
-    expect(dialog.open).toBe(true);
-    expect(field(dialog, 'date')).toHaveValue('12.3.1895');
-    expect(field(dialog, 'birthDate')).toHaveValue('3.1895');
-    expect(field(dialog, 'placeId')).toHaveValue('1');
-    expect(field(dialog, 'placeText')).toHaveValue('Горкка');
-    expect(field(dialog, 'officiantId')).toHaveValue('7');
-    expect(field(dialog, 'location')).toHaveValue('pastorate');
-    expect(field(dialog, 'multipleBirth')).toHaveValue('2');
-    expect(field(dialog, 'child.sex')).toHaveValue('female');
-    expect(field(dialog, 'father.nameRu')).toHaveValue('Иоанн Адамов Варис');
+    await openMaria();
+    expect(window.location.pathname).toBe('/records/2/edit');
+    expect(field('date')).toHaveValue('12.3.1895');
+    expect(field('birthDate')).toHaveValue('3.1895');
+    expect(field('placeId')).toHaveValue('1');
+    expect(field('placeText')).toHaveValue('Горкка');
+    expect(field('officiantId')).toHaveValue('7');
+    expect(field('location')).toHaveValue('pastorate');
+    expect(field('multipleBirth')).toHaveValue('2');
+    expect(field('child.sex')).toHaveValue('female');
+    expect(field('father.nameRu')).toHaveValue('Иоанн Адамов Варис');
+    expect(field('child.givenRu')).toHaveValue('Мария');
     // No mother yet: her fields are there, empty, to add her.
-    expect(field(dialog, 'mother.nameRu')).toHaveValue('');
+    expect(field('mother.nameRu')).toHaveValue('');
   });
 
-  test('saves the form with the version it was loaded at, then closes', async () => {
-    const dialog = await openMaria();
-    fireEvent.input(field(dialog, 'mother.nameRu'), { target: { value: 'Анна' } });
-    fireEvent.change(field(dialog, 'placeId'), { target: { value: '2' } });
-    fireEvent.submit(dialog.querySelector('form:not([method=dialog])')!);
+  test('saves with the version it was loaded at, then returns to the list', async () => {
+    const form = await openMaria();
+    fireEvent.input(field('mother.nameRu'), { target: { value: 'Анна' } });
+    fireEvent.change(field('placeId'), { target: { value: '2' } });
+    fireEvent.submit(form);
 
-    await waitFor(() => expect(dialog.open).toBe(false));
-    const [form] = editing.saved;
-    expect(form.get('id')).toBe('2');
-    expect(form.get('version')).toBe('4');
-    expect(form.get('mother.nameRu')).toBe('Анна');
-    expect(form.get('placeId')).toBe('2');
-    expect(form.get('date')).toBe('12.3.1895');
+    await waitFor(() => expect(window.location.pathname).toBe('/records'));
+    expect(window.location.search).toBe(`?q=${encodeURIComponent('мария')}`);
+    const [saved] = editing.saved;
+    expect(saved.get('id')).toBe('2');
+    expect(saved.get('version')).toBe('4');
+    expect(saved.get('mother.nameRu')).toBe('Анна');
+    expect(saved.get('placeId')).toBe('2');
+    expect(saved.get('date')).toBe('12.3.1895');
   });
 
-  test('a refused save stays open, says why and marks the fields', async () => {
+  test('a refused save stays, says why and marks the fields', async () => {
     editing.failWith = { message: 'Check the marked fields.', fields: ['date'] };
-    const dialog = await openMaria();
-    fireEvent.submit(dialog.querySelector('form:not([method=dialog])')!);
+    const form = await openMaria();
+    fireEvent.submit(form);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Check the marked fields.');
-    expect(dialog.open).toBe(true);
-    expect(field(dialog, 'date')).toHaveAttribute('aria-invalid', 'true');
-    expect(field(dialog, 'birthDate')).not.toHaveAttribute('aria-invalid');
+    expect(window.location.pathname).toBe('/records/2/edit');
+    expect(field('date')).toHaveAttribute('aria-invalid', 'true');
+    expect(field('birthDate')).not.toHaveAttribute('aria-invalid');
   });
 
-  test('Cancel closes without saving', async () => {
-    const dialog = await openMaria();
-    fireEvent.click(screen.getAllByRole('button', { name: 'Cancel', hidden: true })[0]!);
-    await waitFor(() => expect(dialog.open).toBe(false));
+  test('Cancel and the back link return to the list unsaved', async () => {
+    await openMaria();
+    const back = `/records?q=${encodeURIComponent('мария')}`;
+    expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute('href', back);
+    expect(screen.getByRole('link', { name: 'Back to records' })).toHaveAttribute('href', back);
     expect(editing.saved).toEqual([]);
+  });
+
+  test('says so for an id that cannot be a record, without asking the server', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/abc/edit');
+    expect(await screen.findByText('The record no longer exists.')).toBeInTheDocument();
   });
 });

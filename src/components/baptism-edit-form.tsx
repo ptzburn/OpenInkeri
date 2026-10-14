@@ -1,6 +1,6 @@
 import { useAction } from '@solidjs/router';
 import type { JSX } from '@solidjs/web';
-import { For, Loading, Show, createEffect, createMemo, createSignal } from 'solid-js';
+import { For, Show, createMemo, createSignal } from 'solid-js';
 
 import { PARTIAL_DATE_PATTERN, formatPartialDate } from '~/lib/format';
 import {
@@ -41,58 +41,23 @@ const nameParts = [
   ['maiden', m.record_edit_maiden],
 ] as const;
 
-/**
- * The admin's dialog for editing one baptism record. It opens whenever
- * `recordId` is set and calls `onClose` when it closes (Cancel, Escape, a
- * click outside, or a save).
- */
-export default function BaptismEditDialog(props: { recordId: number | null; onClose: () => void }) {
-  let dialog: HTMLDialogElement | undefined;
-  createEffect(
-    () => props.recordId,
-    (id) => {
-      if (id && !dialog?.open) dialog?.showModal();
-      if (!id && dialog?.open) dialog.close();
-    },
-    { name: 'baptism-edit-dialog-open' },
-  );
-
-  return (
-    <dialog
-      ref={(el) => (dialog = el)}
-      class="modal"
-      aria-labelledby="baptism-edit-title"
-      onClose={() => props.onClose()}
-    >
-      <div class="modal-box w-11/12 max-w-4xl">
-        <h2 id="baptism-edit-title" class="mb-4 text-lg font-bold">
-          {m.record_edit_title()}
-        </h2>
-        <Show when={props.recordId}>
-          {(id) => (
-            <Loading
-              fallback={<span class="loading loading-spinner" aria-label={m.app_loading()} />}
-            >
-              <EditForm id={id()} onDone={() => dialog?.close()} />
-            </Loading>
-          )}
-        </Show>
-      </div>
-      {/* A click outside the box closes the dialog. */}
-      <form method="dialog" class="modal-backdrop">
-        <button>{m.record_edit_cancel()}</button>
-      </form>
-    </dialog>
-  );
-}
-
 function asEditError(error: unknown): EditError {
   return error && typeof error === 'object' && 'message' in error
     ? (error as EditError)
     : { message: m.record_edit_failed() };
 }
 
-function EditForm(props: { id: number; onDone: () => void }) {
+/**
+ * The admin's form for one baptism record: the record, its baptism details
+ * and its child, father and mother. `onSaved` runs after a save; Cancel
+ * goes to `cancelHref`. A save the server refuses keeps the form as typed,
+ * says why and marks the fields at fault.
+ */
+export default function BaptismEditForm(props: {
+  id: number;
+  onSaved: () => void;
+  cancelHref: string;
+}) {
   const record = createMemo((): Promise<BaptismEdit> => getBaptismEdit(props.id), {
     name: 'baptism-edit',
   });
@@ -117,7 +82,7 @@ function EditForm(props: { id: number; onDone: () => void }) {
             setSaving(true);
             try {
               await save(data);
-              props.onDone();
+              props.onSaved();
             } catch (failure) {
               setError(asEditError(failure));
             } finally {
@@ -128,138 +93,147 @@ function EditForm(props: { id: number; onDone: () => void }) {
           <input type="hidden" name="id" value={r.id} />
           <input type="hidden" name="version" value={r.version} />
 
-          <Section title={m.record_edit_record()}>
-            <Select
-              name="status"
-              label={m.record_edit_status()}
-              value={r.status}
-              options={recordStatuses.map((s) => ({ value: s, label: statusLabels[s]() }))}
-              invalid={invalid('status')}
-            />
-            <DateInput
-              name="date"
-              label={m.records_col_baptised()}
-              value={r.date}
-              invalid={invalid('date')}
-            />
-            <DateInput
-              name="birthDate"
-              label={m.records_col_born()}
-              value={r.baptism?.birthDate}
-              invalid={invalid('birthDate')}
-            />
-            <Select
-              name="placeId"
-              label={m.record_edit_village()}
-              value={r.placeId}
-              none={m.record_edit_none()}
-              options={(options()?.places ?? []).map((place) => ({
-                value: place.id,
-                label:
-                  place.parish && place.parish !== place.name
-                    ? `${place.name} (${place.parish})`
-                    : place.name,
-              }))}
-              invalid={invalid('placeId')}
-            />
-            <TextInput
-              name="placeText"
-              label={`${m.record_edit_village()}: ${m.record_edit_as_written()}`}
-              value={r.placeText}
-              invalid={invalid('placeText')}
-            />
-            <label class="fieldset sm:col-span-2">
-              <span class="fieldset-legend">{m.records_col_note()}</span>
-              <textarea
-                name="note"
-                rows={3}
-                class={['textarea w-full', invalid('note') && 'textarea-error']}
-                aria-invalid={invalid('note') ? 'true' : undefined}
-              >
-                {r.note ?? ''}
-              </textarea>
-            </label>
-          </Section>
+          {/* Two columns from xl up: the record and its baptism beside the
+              people it names. */}
+          <div class="grid items-start gap-8 xl:grid-cols-2">
+            <div class="flex flex-col gap-6">
+              <Section title={m.record_edit_record()}>
+                <Select
+                  name="status"
+                  label={m.record_edit_status()}
+                  value={r.status}
+                  options={recordStatuses.map((s) => ({ value: s, label: statusLabels[s]() }))}
+                  invalid={invalid('status')}
+                />
+                <DateInput
+                  name="date"
+                  label={m.records_col_baptised()}
+                  value={r.date}
+                  invalid={invalid('date')}
+                />
+                <DateInput
+                  name="birthDate"
+                  label={m.records_col_born()}
+                  value={r.baptism?.birthDate}
+                  invalid={invalid('birthDate')}
+                />
+                <Select
+                  name="placeId"
+                  label={m.record_edit_village()}
+                  value={r.placeId}
+                  none={m.record_edit_none()}
+                  options={(options()?.places ?? []).map((place) => ({
+                    value: place.id,
+                    label:
+                      place.parish && place.parish !== place.name
+                        ? `${place.name} (${place.parish})`
+                        : place.name,
+                  }))}
+                  invalid={invalid('placeId')}
+                />
+                <TextInput
+                  name="placeText"
+                  label={`${m.record_edit_village()}: ${m.record_edit_as_written()}`}
+                  value={r.placeText}
+                  invalid={invalid('placeText')}
+                />
+                <label class="fieldset sm:col-span-2">
+                  <span class="fieldset-legend">{m.records_col_note()}</span>
+                  <textarea
+                    name="note"
+                    rows={3}
+                    class={['textarea w-full', invalid('note') && 'textarea-error']}
+                    aria-invalid={invalid('note') ? 'true' : undefined}
+                  >
+                    {r.note ?? ''}
+                  </textarea>
+                </label>
+              </Section>
 
-          <Section title={m.record_edit_baptism()}>
-            <Select
-              name="officiantId"
-              label={m.record_edit_officiant()}
-              value={r.baptism?.officiantId}
-              none={m.record_edit_none()}
-              options={(options()?.clergy ?? []).map((c) => ({ value: c.id, label: c.name }))}
-              invalid={invalid('officiantId')}
-            />
-            <TextInput
-              name="officiantText"
-              label={`${m.record_edit_officiant()}: ${m.record_edit_as_written()}`}
-              value={r.baptism?.officiantText}
-              invalid={invalid('officiantText')}
-            />
-            <Select
-              name="location"
-              label={m.record_edit_location()}
-              value={r.baptism?.location}
-              none={m.record_edit_none()}
-              options={baptismLocations.map((l) => ({ value: l, label: locationLabels[l]() }))}
-              invalid={invalid('location')}
-            />
-            <DateInput
-              name="emergencyDate"
-              label={m.record_edit_emergency()}
-              value={r.baptism?.emergencyDate}
-              invalid={invalid('emergencyDate')}
-            />
-            <Select
-              name="multipleBirth"
-              label={m.record_edit_multiple_birth()}
-              value={r.baptism?.multipleBirth}
-              none={m.record_edit_single()}
-              options={[
-                { value: 2, label: m.records_twins() },
-                { value: 3, label: m.records_triplets() },
-              ]}
-              invalid={invalid('multipleBirth')}
-            />
-            <div class="flex flex-col justify-end gap-2 pb-2">
-              <Checkbox
-                name="illegitimate"
-                label={m.records_illegitimate()}
-                checked={r.baptism?.illegitimate ?? false}
-              />
-              <Checkbox
-                name="stillborn"
-                label={m.records_stillborn()}
-                checked={r.baptism?.stillborn ?? false}
-              />
+              <Section title={m.record_edit_baptism()}>
+                <Select
+                  name="officiantId"
+                  label={m.record_edit_officiant()}
+                  value={r.baptism?.officiantId}
+                  none={m.record_edit_none()}
+                  options={(options()?.clergy ?? []).map((c) => ({ value: c.id, label: c.name }))}
+                  invalid={invalid('officiantId')}
+                />
+                <TextInput
+                  name="officiantText"
+                  label={`${m.record_edit_officiant()}: ${m.record_edit_as_written()}`}
+                  value={r.baptism?.officiantText}
+                  invalid={invalid('officiantText')}
+                />
+                <Select
+                  name="location"
+                  label={m.record_edit_location()}
+                  value={r.baptism?.location}
+                  none={m.record_edit_none()}
+                  options={baptismLocations.map((l) => ({ value: l, label: locationLabels[l]() }))}
+                  invalid={invalid('location')}
+                />
+                <DateInput
+                  name="emergencyDate"
+                  label={m.record_edit_emergency()}
+                  value={r.baptism?.emergencyDate}
+                  invalid={invalid('emergencyDate')}
+                />
+                <Select
+                  name="multipleBirth"
+                  label={m.record_edit_multiple_birth()}
+                  value={r.baptism?.multipleBirth}
+                  none={m.record_edit_single()}
+                  options={[
+                    { value: 2, label: m.records_twins() },
+                    { value: 3, label: m.records_triplets() },
+                  ]}
+                  invalid={invalid('multipleBirth')}
+                />
+                <div class="flex flex-col justify-end gap-2 pb-2">
+                  <Checkbox
+                    name="illegitimate"
+                    label={m.records_illegitimate()}
+                    checked={r.baptism?.illegitimate ?? false}
+                  />
+                  <Checkbox
+                    name="stillborn"
+                    label={m.records_stillborn()}
+                    checked={r.baptism?.stillborn ?? false}
+                  />
+                </div>
+              </Section>
             </div>
-          </Section>
 
-          <section class="flex flex-col gap-3">
-            <h3 class="font-semibold">{m.record_edit_people()}</h3>
-            <p class="text-sm text-base-content/60">{m.record_edit_remove_hint()}</p>
-            <For each={editedRoles}>
-              {(role) => <PersonFields role={role} person={r.people[role]} invalid={invalid} />}
-            </For>
-          </section>
+            <section class="flex flex-col gap-3">
+              <h2 class="text-lg font-semibold">{m.record_edit_people()}</h2>
+              <p class="text-sm text-base-content/60">{m.record_edit_remove_hint()}</p>
+              <For each={editedRoles}>
+                {(role) => <PersonFields role={role} person={r.people[role]} invalid={invalid} />}
+              </For>
+            </section>
+          </div>
 
-          <Show when={error()}>
-            {(shown) => (
-              <div role="alert" class="alert alert-error alert-soft">
-                {shown().message}
-              </div>
-            )}
-          </Show>
-          <div class="modal-action">
-            <button type="button" class="btn" onClick={() => props.onDone()}>
-              {m.record_edit_cancel()}
-            </button>
-            <button type="submit" class="btn btn-primary" disabled={saving()}>
-              <Show when={saving()}>
-                <span class="loading loading-spinner loading-sm" aria-hidden="true" />
-              </Show>
-              {m.record_edit_save()}
-            </button>
+          {/* Kept in view at the bottom of the window while scrolling. */}
+          <div class="sticky bottom-0 -mx-4 flex flex-col gap-3 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8">
+            <Show when={error()}>
+              {(shown) => (
+                <div role="alert" class="alert alert-error alert-soft">
+                  {shown().message}
+                </div>
+              )}
+            </Show>
+            <div class="flex justify-end gap-2">
+              <a href={props.cancelHref} class="btn">
+                {m.record_edit_cancel()}
+              </a>
+              <button type="submit" class="btn btn-primary" disabled={saving()}>
+                <Show when={saving()}>
+                  <span class="loading loading-spinner loading-sm" aria-hidden="true" />
+                </Show>
+                {m.record_edit_save()}
+              </button>
+            </div>
           </div>
         </form>
       )}
@@ -327,9 +301,9 @@ function PersonFields(props: {
       {/* The parts are what search and display use; the import split them
           from the names as written, so they are where a misread split is
           fixed. */}
-      <details class="mt-2">
-        <summary class="cursor-pointer text-sm">{m.record_edit_name_parts()}</summary>
-        <div class="mt-2 grid grid-cols-[auto_1fr_1fr] items-center gap-x-3 gap-y-2">
+      <div class="mt-3">
+        <p class="mb-2 text-sm font-medium">{m.record_edit_name_parts()}</p>
+        <div class="grid grid-cols-[auto_1fr_1fr] items-center gap-x-3 gap-y-2">
           <span />
           <span class="text-xs text-base-content/60">{m.record_edit_part_ru()}</span>
           <span class="text-xs text-base-content/60">{m.record_edit_part_fi()}</span>
@@ -353,7 +327,7 @@ function PersonFields(props: {
             )}
           </For>
         </div>
-      </details>
+      </div>
     </fieldset>
   );
 }
@@ -361,7 +335,7 @@ function PersonFields(props: {
 function Section(props: { title: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col gap-1">
-      <h3 class="font-semibold">{props.title}</h3>
+      <h2 class="text-lg font-semibold">{props.title}</h2>
       <div class="grid gap-x-4 sm:grid-cols-2">{props.children}</div>
     </section>
   );
