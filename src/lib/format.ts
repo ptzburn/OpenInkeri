@@ -28,6 +28,30 @@ export function formatPartialDate(date: string | null | undefined): string {
     .join('.');
 }
 
+/**
+ * The reverse of formatPartialDate: '12.3.1895', '3.1895' or '1895' (leading
+ * zeros allowed) as stored, '1895-03-12'. '' is null; anything else, or a
+ * day the month doesn't have, is undefined.
+ */
+export function parsePartialDate(text: string): string | null | undefined {
+  const value = text.trim();
+  if (!value) return null;
+  const match = /^(?:(?:(\d{1,2})\.)?(\d{1,2})\.)?(\d{4})$/.exec(value);
+  if (!match) return undefined;
+  const [, day, month, year] = match;
+  if (!month) return year;
+  const m = Number(month);
+  if (m < 1 || m > 12) return undefined;
+  const ym = `${year}-${String(m).padStart(2, '0')}`;
+  if (!day) return ym;
+  const d = Number(day);
+  const days = new Date(Date.UTC(Number(year), m, 0)).getUTCDate();
+  return d >= 1 && d <= days ? `${ym}-${String(d).padStart(2, '0')}` : undefined;
+}
+
+/** The input pattern for partial dates (HTML pattern attribute). */
+export const PARTIAL_DATE_PATTERN = String.raw`(\d{1,2}\.)?(\d{1,2}\.)?\d{4}`;
+
 // The browser and system a user agent names, in the order to test them:
 // Edge and Opera also say Chrome, Chrome also says Safari, and Android also
 // says Linux.

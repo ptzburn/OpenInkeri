@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vite-plus/test';
 
-import { describeUserAgent, formatDate, formatPartialDate } from './format';
+import { describeUserAgent, formatDate, formatPartialDate, parsePartialDate } from './format';
 
 describe('formatDate', () => {
   test('writes day.month.year without leading zeros', () => {
@@ -20,6 +20,24 @@ describe('formatPartialDate', () => {
     expect(formatPartialDate('1895-03')).toBe('3.1895');
     expect(formatPartialDate('1895')).toBe('1895');
     expect(formatPartialDate(null)).toBe('');
+  });
+});
+
+describe('parsePartialDate', () => {
+  test('reads day.month.year, month.year or a year', () => {
+    expect(parsePartialDate('2.3.1895')).toBe('1895-03-02');
+    expect(parsePartialDate(' 02.03.1895 ')).toBe('1895-03-02');
+    expect(parsePartialDate('3.1895')).toBe('1895-03');
+    expect(parsePartialDate('1895')).toBe('1895');
+    expect(parsePartialDate(formatPartialDate('1895-12-31'))).toBe('1895-12-31');
+  });
+
+  test('is null when empty and undefined when unreadable', () => {
+    expect(parsePartialDate('')).toBeNull();
+    expect(parsePartialDate('31.2.1895')).toBeUndefined();
+    expect(parsePartialDate('13.1895')).toBeUndefined();
+    expect(parsePartialDate('3ю5')).toBeUndefined();
+    expect(parsePartialDate('1895-03-02')).toBeUndefined();
   });
 });
 

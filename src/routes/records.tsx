@@ -2,11 +2,24 @@ import { Title } from '@solidjs/meta';
 import { useSearchParams } from '@solidjs/router';
 import type { JSX } from '@solidjs/web';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createEffect, createMemo, isPending, onSettled, untrack } from 'solid-js';
+import {
+  For,
+  Show,
+  createEffect,
+  createMemo,
+  createSignal,
+  isPending,
+  onSettled,
+  untrack,
+} from 'solid-js';
 import { env } from 'virtual:env/client';
 import PreviousIcon from '~icons/ri/arrow-left-s-line';
 import NextIcon from '~icons/ri/arrow-right-s-line';
+import EditIcon from '~icons/ri/pencil-line';
 import SearchIcon from '~icons/ri/search-line';
+
+import BaptismEditDialog from '~/components/baptism-edit-dialog';
+import { getCurrentUser } from '~/lib/account';
 
 import { formatPartialDate } from '~/lib/format';
 import { type RecordKind, isRecordKind, recordKinds } from '~/lib/record-kinds';
@@ -56,6 +69,11 @@ export default function Records() {
     (): Promise<RecordList> => getRecords(kind(), search.q ?? '', pageNumber(search.page)),
     { name: 'records-list' },
   );
+  // Admins edit baptisms in a dialog; the server functions check the role
+  // again, so this only decides what is offered.
+  const me = createMemo(() => getCurrentUser(), { name: 'records-me' });
+  const canEdit = () => !!me()?.isAdmin && kind() === 'baptisms';
+  const [editing, setEditing] = createSignal<number | null>(null, { name: 'records-editing' });
 
   // Searching as you type, like the users list (src/routes/users.tsx): once
   // typing pauses, replacing the history entry, and back to the first page.
@@ -169,7 +187,12 @@ export default function Records() {
                 {/* Keyed by id: a row already shown keeps its DOM across pages
                     and searches. */}
                 <For each={list()?.records ?? []} keyed={(row) => row.id}>
-                  {(row) => <RecordTableRow row={row()} />}
+                  {(row) => (
+                    <RecordTableRow
+                      row={row()}
+                      onEdit={canEdit() ? () => setEditing(row().id) : undefined}
+                    />
+                  )}
                 </For>
               </tbody>
             </table>
@@ -202,6 +225,9 @@ export default function Records() {
           </Show>
         </Show>
       </div>
+      <Show when={me()?.isAdmin}>
+        <BaptismEditDialog recordId={editing()} onClose={() => setEditing(null)} />
+      </Show>
     </main>
   );
 }
@@ -232,7 +258,7 @@ function PageLink(props: {
   );
 }
 
-function RecordTableRow(props: { row: RecordRow }) {
+function RecordTableRow(props: { row: RecordRow; onEdit?: () => void }) {
   return (
     <tr class={props.row.lost ? 'text-base-content/50' : undefined}>
       <td class="tabular-nums whitespace-nowrap">{formatPartialDate(props.row.birthDate)}</td>
@@ -248,6 +274,19 @@ function RecordTableRow(props: { row: RecordRow }) {
             <span class="text-base-content/60 italic">{m.records_stillborn()}</span>
           </Show>
           <span class="font-medium">{localName(props.row.child)}</span>
+          <Show when={props.onEdit}>
+            {(edit) => (
+              <button
+                type="button"
+                class="btn btn-square btn-ghost btn-xs"
+                aria-label={m.record_edit_open()}
+                title={m.record_edit_open()}
+                onClick={() => edit()()}
+              >
+                <EditIcon class="size-4" aria-hidden="true" />
+              </button>
+            )}
+          </Show>
           <Show when={props.row.multipleBirth}>
             {(count) => (
               <span class="badge shrink-0 badge-soft badge-sm whitespace-nowrap badge-info">

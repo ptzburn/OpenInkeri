@@ -7,3 +7,15 @@ export type RecordKind = (typeof recordKinds)[number];
 
 export const isRecordKind = (value: unknown): value is RecordKind =>
   recordKinds.includes(value as RecordKind);
+
+// Other values with a fixed set of options, which the edit form offers too.
+export const recordStatuses = ['ok', 'lost', 'illegible'] as const;
+export const baptismLocations = [
+  'pastorate',
+  'church',
+  'chapel',
+  'village',
+  'home',
+  'other',
+] as const;
+export const sexes = ['male', 'female'] as const;

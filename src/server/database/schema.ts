@@ -6,7 +6,7 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, real, snakeCase, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
-import { recordKinds } from '../../lib/record-kinds';
+import { baptismLocations, recordKinds, recordStatuses, sexes } from '../../lib/record-kinds';
 import { user } from './auth-schema';
 
 export * from './auth-schema';
@@ -156,7 +156,7 @@ export const sourceSection = snakeCase.table(
   (t) => [index('source_section_source_idx').on(t.sourceId)],
 );
 
-export const recordStatuses = ['ok', 'lost', 'illegible'] as const;
+export { recordStatuses };
 
 // One entry in a source: a baptism, a wedding, a death, or one household or
 // farm in a list. Kind-specific columns live in the record_* tables below
@@ -193,14 +193,7 @@ export const record = snakeCase.table(
   ],
 );
 
-export const baptismLocations = [
-  'pastorate',
-  'church',
-  'chapel',
-  'village',
-  'home',
-  'other',
-] as const;
+export { baptismLocations };
 
 export const recordBaptism = snakeCase.table(
   'record_baptism',
@@ -245,7 +238,7 @@ export const recordHolding = snakeCase.table('record_holding', {
 
 // --- People ---------------------------------------------------------------------
 
-export const sexes = ['male', 'female'] as const;
+export { sexes };
 
 // A researched identity: the personas an admin decided are the same person.
 export const person = snakeCase.table('person', {
