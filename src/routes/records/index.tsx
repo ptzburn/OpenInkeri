@@ -10,7 +10,6 @@ import EditIcon from '~icons/ri/pencil-line';
 import SearchIcon from '~icons/ri/search-line';
 
 import { getCurrentUser } from '~/lib/account';
-
 import { formatPartialDate } from '~/lib/format';
 import { type RecordKind, isRecordKind, recordKinds } from '~/lib/record-kinds';
 import { type RecordList, type RecordRow, getRecords } from '~/lib/records';
@@ -103,11 +102,14 @@ export default function Records() {
         <h1 class="text-2xl font-bold">{m.records_title()}</h1>
         <span class="badge badge-sm">{list()?.total}</span>
       </header>
-      {/* The router marks the current kind's link aria-current="page". */}
+      {/* Every tab links to /records, so the current one is marked by kind. */}
       <nav aria-label={m.records_kinds_label()} class="tabs tabs-border overflow-x-auto">
         <For each={recordKinds}>
           {(k) => (
-            <a href={link(k)} class={['tab gap-2 whitespace-nowrap', k === kind() && 'tab-active']}>
+            <a
+              href={link(k)}
+              class={['tab gap-2 whitespace-nowrap', { 'tab-active': k === kind() }]}
+            >
               {kindLabels[k]()}
               <span class="badge badge-sm">{list()?.counts[k] ?? ''}</span>
             </a>
@@ -170,6 +172,11 @@ export default function Records() {
                   <th>{m.records_col_mother()}</th>
                   <th>{m.records_col_village()}</th>
                   <th>{m.records_col_note()}</th>
+                  <Show when={canEdit()}>
+                    <th>
+                      <span class="sr-only">{m.records_col_actions()}</span>
+                    </th>
+                  </Show>
                 </tr>
               </thead>
               <tbody>
@@ -267,18 +274,6 @@ function RecordTableRow(props: { row: RecordRow; editHref?: string }) {
             <span class="text-base-content/60 italic">{m.records_stillborn()}</span>
           </Show>
           <span class="font-medium">{localName(props.row.child)}</span>
-          <Show when={props.editHref}>
-            {(href) => (
-              <a
-                href={href()}
-                class="btn btn-square btn-ghost btn-xs"
-                aria-label={m.record_edit_open()}
-                title={m.record_edit_open()}
-              >
-                <EditIcon class="size-4" aria-hidden="true" />
-              </a>
-            )}
-          </Show>
           <Show when={props.row.multipleBirth}>
             {(count) => (
               <span class="badge shrink-0 badge-soft badge-sm whitespace-nowrap badge-info">
@@ -311,6 +306,21 @@ function RecordTableRow(props: { row: RecordRow; editHref?: string }) {
       <td class="max-w-64 truncate text-base-content/70" title={props.row.note ?? undefined}>
         {props.row.note}
       </td>
+      {/* Admins only: the record's edit link, in its own narrow column. */}
+      <Show when={props.editHref}>
+        {(href) => (
+          <td class="w-0 text-right">
+            <a
+              href={href()}
+              class="btn btn-square btn-ghost btn-xs"
+              aria-label={m.record_edit_open()}
+              title={m.record_edit_open()}
+            >
+              <EditIcon class="size-4" aria-hidden="true" />
+            </a>
+          </td>
+        )}
+      </Show>
     </tr>
   );
 }

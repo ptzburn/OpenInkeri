@@ -131,5 +131,6 @@
   "record_edit_conflict": "Joku muu muutti merkintää sillä välin. Sulje ikkuna ja avaa se uudelleen nähdäksesi muutokset.",
   "record_edit_missing": "Merkintää ei enää ole.",
   "record_edit_failed": "Tallennus epäonnistui. Yritä uudelleen.",
-  "record_edit_back": "Takaisin merkintöihin"
+  "record_edit_back": "Takaisin merkintöihin",
+  "records_col_actions": "Toiminnot"
 }

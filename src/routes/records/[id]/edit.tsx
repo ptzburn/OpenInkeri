@@ -1,5 +1,5 @@
 import { Title } from '@solidjs/meta';
-import { type RouteProps, useNavigate, useSearchParams } from '@solidjs/router';
+import { type RouteProps, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { Show } from 'solid-js';
 import { env } from 'virtual:env/client';
@@ -34,7 +34,6 @@ export const route = defineFileRoute('/records/:id/edit', {
 
 export default function EditRecord(props: RouteProps<'/records/:id/edit'>) {
   const [search] = useSearchParams(paths.records);
-  const navigate = useNavigate();
   const listHref = () => paths.records({ kind: search.kind, q: search.q, page: search.page });
   const id = () => recordId(props.params.id);
 
@@ -50,8 +49,8 @@ export default function EditRecord(props: RouteProps<'/records/:id/edit'>) {
         {(shown) => (
           <BaptismEditForm
             id={shown()}
+            returnTo={{ kind: search.kind, q: search.q, page: search.page }}
             cancelHref={listHref()}
-            onSaved={() => navigate(listHref())}
           />
         )}
       </Show>

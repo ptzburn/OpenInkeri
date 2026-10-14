@@ -1,6 +1,6 @@
-import { useAction } from '@solidjs/router';
+import { useSubmissions } from '@solidjs/router';
 import type { JSX } from '@solidjs/web';
-import { For, Show, createMemo, createSignal } from 'solid-js';
+import { For, Show, createMemo } from 'solid-js';
 
 import { PARTIAL_DATE_PATTERN, formatPartialDate } from '~/lib/format';
 import {
@@ -41,21 +41,23 @@ const nameParts = [
   ['maiden', m.record_edit_maiden],
 ] as const;
 
-function asEditError(error: unknown): EditError {
-  return error && typeof error === 'object' && 'message' in error
-    ? (error as EditError)
-    : { message: m.record_edit_failed() };
+/** Where the records list was, to return there after saving. */
+export interface ListPlace {
+  kind?: string;
+  q?: string;
+  page?: string;
 }
 
 /**
  * The admin's form for one baptism record: the record, its baptism details
- * and its child, father and mother. `onSaved` runs after a save; Cancel
- * goes to `cancelHref`. A save the server refuses keeps the form as typed,
- * says why and marks the fields at fault.
+ * and its child, father and mother. It posts to the updateBaptism action
+ * (and works before JavaScript loads); a save redirects to the list at
+ * `returnTo`, and Cancel goes to `cancelHref`. A save the server refuses
+ * keeps the form as typed, says why and marks the fields at fault.
  */
 export default function BaptismEditForm(props: {
   id: number;
-  onSaved: () => void;
+  returnTo: ListPlace;
   cancelHref: string;
 }) {
   const record = createMemo((): Promise<BaptismEdit> => getBaptismEdit(props.id), {
@@ -64,32 +66,29 @@ export default function BaptismEditForm(props: {
   const options = createMemo((): Promise<EditOptions> => getEditOptions(), {
     name: 'edit-options',
   });
-  const save = useAction(updateBaptism);
-  const [error, setError] = createSignal<EditError | null>(null, { name: 'edit-error' });
-  const [saving, setSaving] = createSignal(false, { name: 'edit-saving' });
+  // This record's settled saves. A successful one redirects, so it never
+  // lands here: what's here are refusals, the latest one shown. Each new
+  // save clears them first (onSubmit runs as the action starts).
+  const submissions = useSubmissions(
+    updateBaptism,
+    ([form]) => form.get('id') === String(props.id),
+  );
+  updateBaptism.onSubmit(() => {
+    for (const submission of submissions) submission.clear();
+  });
+  const error = () => submissions.at(-1)?.error as EditError | undefined;
   const invalid = (field: string) => error()?.fields?.includes(field) ?? false;
 
   return (
-    // Keyed: each record (and each fresh read of it) gets a fresh form.
+    // Keyed: each record (and each fresh read of it) gets a fresh form. A
+    // refused save revalidates nothing, so what was typed stays.
     <Show when={record()} keyed fallback={<p>{m.record_edit_missing()}</p>}>
       {(r) => (
-        <form
-          class="flex flex-col gap-6"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            const data = new FormData(event.currentTarget);
-            setError(null);
-            setSaving(true);
-            try {
-              await save(data);
-              props.onSaved();
-            } catch (failure) {
-              setError(asEditError(failure));
-            } finally {
-              setSaving(false);
-            }
-          }}
-        >
+        // While a save is in flight the router marks the form aria-busy.
+        <form method="post" action={updateBaptism} class="group flex flex-col gap-6">
+          <input type="hidden" name="returnKind" value={props.returnTo.kind ?? ''} />
+          <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
+          <input type="hidden" name="returnPage" value={props.returnTo.page ?? ''} />
           <input type="hidden" name="id" value={r.id} />
           <input type="hidden" name="version" value={r.version} />
 
@@ -142,7 +141,7 @@ export default function BaptismEditForm(props: {
                   <textarea
                     name="note"
                     rows={3}
-                    class={['textarea w-full', invalid('note') && 'textarea-error']}
+                    class={['textarea w-full', { 'textarea-error': invalid('note') }]}
                     aria-invalid={invalid('note') ? 'true' : undefined}
                   >
                     {r.note ?? ''}
@@ -227,10 +226,14 @@ export default function BaptismEditForm(props: {
               <a href={props.cancelHref} class="btn">
                 {m.record_edit_cancel()}
               </a>
-              <button type="submit" class="btn btn-primary" disabled={saving()}>
-                <Show when={saving()}>
-                  <span class="loading loading-spinner loading-sm" aria-hidden="true" />
-                </Show>
+              <button
+                type="submit"
+                class="btn btn-primary group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
+              >
+                <span
+                  class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
+                  aria-hidden="true"
+                />
                 {m.record_edit_save()}
               </button>
             </div>
@@ -354,7 +357,7 @@ function TextInput(props: {
         name={props.name}
         value={props.value ?? ''}
         maxlength={2000}
-        class={['input w-full', props.invalid && 'input-error']}
+        class={['input w-full', { 'input-error': props.invalid }]}
         aria-invalid={props.invalid ? 'true' : undefined}
       />
     </label>
@@ -377,7 +380,7 @@ function DateInput(props: {
         value={formatPartialDate(props.value)}
         pattern={PARTIAL_DATE_PATTERN}
         inputmode="numeric"
-        class={['input w-full', props.invalid && 'input-error']}
+        class={['input w-full', { 'input-error': props.invalid }]}
         aria-invalid={props.invalid ? 'true' : undefined}
       />
       <span class="label">{m.record_edit_date_hint()}</span>
@@ -403,7 +406,7 @@ function Select(props: {
       <span class="fieldset-legend">{props.label}</span>
       <select
         name={props.name}
-        class={['select w-full', props.invalid && 'select-error']}
+        class={['select w-full', { 'select-error': props.invalid }]}
         aria-invalid={props.invalid ? 'true' : undefined}
       >
         <Show when={props.none}>

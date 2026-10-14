@@ -1,5 +1,5 @@
 // Editing a baptism record: server functions for admins only. The edit
-// dialog (src/components/baptism-edit-dialog.tsx) reads a record with
+// page's form (src/components/baptism-edit-form.tsx) reads a record with
 // getBaptismEdit and the places and clergy to choose from with
 // getEditOptions, and saves through updateBaptism.
 //
@@ -13,7 +13,7 @@ import { and, eq } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { parsePartialDate } from '~/lib/format';
-import { baptismLocations, recordStatuses, sexes } from '~/lib/record-kinds';
+import { baptismLocations, recordKinds, recordStatuses, sexes } from '~/lib/record-kinds';
 import { recordSearchText } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -21,7 +21,7 @@ import { isAdmin } from '~/server/auth';
 import { db } from '~/server/database';
 import { changeLog, persona, record, recordBaptism } from '~/server/database/schema';
 
-/** The roles the dialog edits, one person each. */
+/** The roles the edit form edits, one person each. */
 export const editedRoles = ['child', 'father', 'mother'] as const;
 export type EditedRole = (typeof editedRoles)[number];
 
@@ -39,7 +39,7 @@ export const nameFields = [
   'maidenFi',
 ] as const;
 
-// The read functions' results, spelled out: the dialog's types feed the
+// The read functions' results, spelled out: the edit page's types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
 // circular (see AccountData in ./account.ts).
 export interface BaptismEditPerson extends Record<(typeof nameFields)[number], string | null> {
@@ -109,7 +109,7 @@ const personaColumns = {
   origin: true,
 } as const;
 
-// A baptism as the dialog edits it, and as change_log records it.
+// A baptism as the edit form edits it, and as change_log records it.
 async function loadBaptism(id: number) {
   return db.query.record.findFirst({
     where: { id },
@@ -130,7 +130,7 @@ async function loadBaptism(id: number) {
   });
 }
 
-/** One baptism record for the edit dialog, or null if there is none. */
+/** One baptism record for the edit page, or null if there is none. */
 export const getBaptismEdit = query(async (id: number): Promise<BaptismEditData | null> => {
   'use server';
   adminOnly();
@@ -208,6 +208,11 @@ const personFields = (role: EditedRole) => ({
 });
 
 const form = v.object({
+  // Where the list was (kind, search, page), to return there after saving.
+  // The redirect is built from these, never taken whole from the request.
+  returnKind: v.optional(v.picklist(recordKinds)),
+  returnQ: v.optional(v.pipe(v.string(), v.maxLength(200))),
+  returnPage: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,5}$/))),
   id: v.pipe(v.string(), v.transform(Number), recordId),
   version: v.pipe(v.string(), v.transform(Number), v.number(), v.integer()),
   status: v.picklist(recordStatuses),
@@ -247,12 +252,19 @@ function personValues(input: Record<string, unknown>, role: EditedRole) {
   };
 }
 
+// A refused save changed nothing: it revalidates no query, so the page
+// keeps the form as the admin typed it (by default an action's response
+// revalidates every query, which would reload the record into the form).
+const refuse = (error: EditError, status: number) => respond(error, { status, revalidate: [] });
+
 /**
- * Saves the edit dialog's form over a baptism record. Refused, with the
- * fields at fault, when a value doesn't read; and when the record changed
- * since the dialog loaded it (its version moved on), so one admin's save
- * doesn't silently undo another's. The check reads the version just before
- * the batch, so two saves within the same moment could still both pass.
+ * Saves the edit page's form over a baptism record, then redirects to the
+ * records list where the admin came from (the redirect revalidates, so the
+ * list shows the change). Refused, with the fields at fault, when a value
+ * doesn't read; and when the record changed since the page loaded it (its
+ * version moved on), so one admin's save doesn't silently undo another's.
+ * The check reads the version just before the batch, so two saves within
+ * the same moment could still both pass.
  *
  * A person whose fields are all emptied is removed from the record; one
  * given a name where there was none is added.
@@ -267,18 +279,16 @@ export const updateBaptism = action(async (formData: FormData) => {
         parsed.issues.map((issue) => issue.path?.[0]?.key).filter((key) => typeof key === 'string'),
       ),
     ];
-    throw respond({ message: m.record_edit_invalid(), fields } satisfies EditError, {
-      status: 400,
-    });
+    throw refuse({ message: m.record_edit_invalid(), fields }, 400);
   }
   const input = parsed.output as typeof parsed.output & Record<string, unknown>;
 
   const before = await loadBaptism(input.id);
   if (!before || before.source.kind !== 'baptisms') {
-    throw respond({ message: m.record_edit_missing() } satisfies EditError, { status: 404 });
+    throw refuse({ message: m.record_edit_missing() }, 404);
   }
   if (before.version !== input.version) {
-    throw respond({ message: m.record_edit_conflict() } satisfies EditError, { status: 409 });
+    throw refuse({ message: m.record_edit_conflict() }, 409);
   }
 
   const now = new Date();
@@ -333,7 +343,7 @@ export const updateBaptism = action(async (formData: FormData) => {
       .onConflictDoUpdate({ target: recordBaptism.recordId, set: baptism }),
   );
 
-  // search_text: every name in the record (people this dialog doesn't edit,
+  // search_text: every name in the record (people the form doesn't edit,
   // like a lay baptizer, too), the village as written and its place's name.
   const placeName = input.placeId
     ? (await db.query.place.findFirst({ where: { id: input.placeId }, columns: { nameRu: true } }))
@@ -381,6 +391,13 @@ export const updateBaptism = action(async (formData: FormData) => {
     await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
   } catch (error) {
     console.error('Saving a baptism failed', error);
-    throw respond({ message: m.record_edit_failed() } satisfies EditError, { status: 500 });
+    throw refuse({ message: m.record_edit_failed() }, 500);
   }
+  throw redirect(
+    paths.records({
+      kind: input.returnKind === 'baptisms' ? undefined : input.returnKind, // the default
+      q: input.returnQ || undefined,
+      page: input.returnPage,
+    }),
+  );
 }, 'update-baptism');

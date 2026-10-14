@@ -95,6 +95,7 @@ const { me, editing } = vi.hoisted(() => {
 vi.mock('~/lib/account', () => ({ getCurrentUser: vi.fn(async () => me.current) }));
 vi.mock('~/lib/record-edit', async () => {
   const { action } = await import('@solidjs/router');
+  const { redirect } = await import('@solidjs/web');
   return {
     editedRoles: ['child', 'father', 'mother'],
     getBaptismEdit: vi.fn(async (id: number) => (id === 2 ? editing.record() : null)),
@@ -105,9 +106,22 @@ vi.mock('~/lib/record-edit', async () => {
       ],
       clergy: [{ id: 7, name: 'Берг' }],
     })),
+    // Like the server: a refusal throws its error; a save redirects to the
+    // list place the form carried.
     updateBaptism: action(async (form: FormData) => {
       editing.saved.push(form);
       if (editing.failWith) throw editing.failWith;
+      const back = new URLSearchParams();
+      for (const [field, key] of [
+        ['returnKind', 'kind'],
+        ['returnQ', 'q'],
+        ['returnPage', 'page'],
+      ] as const) {
+        const value = form.get(field);
+        if (typeof value === 'string' && value) back.set(key, value);
+      }
+      const query = back.toString();
+      throw redirect(query ? `/records?${query}` : '/records');
     }, 'update-baptism'),
   };
 });
@@ -247,6 +261,18 @@ describe('editing a baptism', () => {
     const { container } = renderAt(`/records?q=${encodeURIComponent('мария')}`);
     await waitFor(() => expect(childNames(container)).toEqual(['Maria']));
     expect(screen.queryByRole('link', { name: 'Edit record' })).toBeNull();
+    expect(screen.queryByRole('columnheader', { name: 'Actions' })).toBeNull();
+  });
+
+  test('the edit link has a column of its own, at the end of the row', async () => {
+    me.current = { isAdmin: true };
+    const { container } = renderAt(`/records?q=${encodeURIComponent('мария')}`);
+    await waitFor(() => expect(childNames(container)).toEqual(['Maria']));
+    const link = await screen.findByRole('link', { name: 'Edit record' });
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
+    const cell = link.closest('td')!;
+    expect(cell).toBe(cell.parentElement!.lastElementChild);
+    expect(cell).not.toHaveTextContent('Maria');
   });
 
   test("the edit link carries the list's place", async () => {
@@ -290,6 +316,7 @@ describe('editing a baptism', () => {
     expect(saved.get('mother.nameRu')).toBe('Анна');
     expect(saved.get('placeId')).toBe('2');
     expect(saved.get('date')).toBe('12.3.1895');
+    expect(saved.get('returnQ')).toBe('мария');
   });
 
   test('a refused save stays, says why and marks the fields', async () => {

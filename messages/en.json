@@ -131,5 +131,6 @@
   "record_edit_conflict": "Someone else changed this record meanwhile. Close the dialog and open it again to see their changes.",
   "record_edit_missing": "The record no longer exists.",
   "record_edit_failed": "Could not save. Try again.",
-  "record_edit_back": "Back to records"
+  "record_edit_back": "Back to records",
+  "records_col_actions": "Actions"
 }
