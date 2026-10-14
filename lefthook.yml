@@ -15,4 +15,4 @@ pre-commit:
 pre-push:
   jobs:
     - name: check
-      run: pnpm exec vp check
+      run: pnpm check

@@ -6,6 +6,7 @@ import { action, query } from '@solidjs/router';
 import { getRequestEvent, redirect, respond } from '@solidjs/web';
 
 import { paths } from '~/router';
+import { m } from '~/paraglide/messages.js';
 import { auth, forwardCookies, isAdmin, requestHeaders } from '~/server/auth';
 
 /** The signed-in user (set on the request by src/middleware.ts), or null. */
@@ -62,7 +63,7 @@ export const signInWithGitHub = action(async () => {
     console.error('GitHub sign-in failed to start', error);
   }
   if (!url) {
-    throw respond({ message: 'Could not reach GitHub. Try again.' } satisfies SignInError, {
+    throw respond({ message: m.sign_in_unreachable() } satisfies SignInError, {
       status: 502,
     });
   }

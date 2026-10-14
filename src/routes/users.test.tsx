@@ -43,7 +43,7 @@ const rowNames = (container: HTMLElement) =>
 // globals: false, so testing-library can't unmount between tests itself.
 afterEach(() => {
   cleanup();
-  getUsers.mockClear();
+  getUsers.mockReset(); // also back to the answers above
   delete gate.wait;
 });
 
@@ -106,6 +106,14 @@ describe('/users', () => {
     renderAt('/users?q=zzz');
     expect(await screen.findByText('No users match “zzz”.')).toBeInTheDocument();
     expect(screen.getByRole('searchbox')).toHaveValue('zzz');
+  });
+
+  test('renders without a list when the read redirects (the server side of a signed-out visit)', async () => {
+    // On the server, getUsers' redirect resolves the read to undefined.
+    getUsers.mockImplementation(async () => undefined as never);
+    const { container } = renderAt('/users');
+    expect(await screen.findByRole('heading', { name: 'Overview' })).toBeInTheDocument();
+    expect(rowNames(container)).toEqual([]);
   });
 
   test('leaving before the pause ends cancels the search', async () => {

@@ -5,7 +5,8 @@ import * as v from 'valibot';
 import SearchIcon from '~icons/ri/search-line';
 
 import UserAvatar from '~/components/user-avatar';
-import { getUsers } from '~/lib/users';
+import { type UserList, getUsers } from '~/lib/users';
+import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
 // Admins only: getUsers redirects a signed-out visitor to /sign-in and a
@@ -29,7 +30,9 @@ export const route = defineFileRoute('/users', {
 // /users/:id the user.
 export default function UsersLayout(props: RouteSectionProps) {
   const [search, setSearch] = useSearchParams(paths.users);
-  const list = createMemo(() => getUsers(search.q ?? ''), { name: 'users-list' });
+  const list = createMemo((): Promise<UserList> => getUsers(search.q ?? ''), {
+    name: 'users-list',
+  });
   const detail = useMatch(() => '/users/:id');
 
   // Searching as you type, once typing pauses; replace keeps each keystroke
@@ -70,9 +73,9 @@ export default function UsersLayout(props: RouteSectionProps) {
       >
         <header class="flex items-center gap-2 px-4 pt-6 pb-2">
           <h1 id="users-heading" class="text-2xl font-bold">
-            Users
+            {m.users_title()}
           </h1>
-          <span class="badge badge-sm">{list().total}</span>
+          <span class="badge badge-sm">{list()?.total}</span>
         </header>
         {/* A plain GET form, so searching works before JavaScript loads. */}
         <form
@@ -90,8 +93,8 @@ export default function UsersLayout(props: RouteSectionProps) {
               name="q"
               ref={(el) => (input = el)}
               value={initialSearch}
-              placeholder="Name, or email with @"
-              aria-label="Search users"
+              placeholder={m.users_search_placeholder()}
+              aria-label={m.users_search_label()}
               onInput={(event) => {
                 const value = event.currentTarget.value;
                 clearTimeout(typing);
@@ -107,15 +110,17 @@ export default function UsersLayout(props: RouteSectionProps) {
           style={{ opacity: isPending(list) ? 0.5 : 1 }}
         >
           <Show
-            when={list().users.length}
+            when={list()?.users.length}
             fallback={
-              <p class="px-4 py-6 text-center text-base-content/60">No users match “{search.q}”.</p>
+              <p class="px-4 py-6 text-center text-base-content/60">
+                {m.users_no_match({ search: search.q ?? '' })}
+              </p>
             }
           >
             <ul class="list p-2">
               {/* Keyed by id: each search returns new objects, and rows of users
                   already shown keep their DOM. */}
-              <For each={list().users} keyed={(user) => user.id}>
+              <For each={list()?.users ?? []} keyed={(user) => user.id}>
                 {(user) => (
                   <li>
                     <a
@@ -128,7 +133,7 @@ export default function UsersLayout(props: RouteSectionProps) {
                         <div class="truncate text-sm text-base-content/60">{user().email}</div>
                       </div>
                       <Show when={user().isAdmin}>
-                        <span class="badge badge-soft badge-sm">Admin</span>
+                        <span class="badge badge-soft badge-sm">{m.user_badge_admin()}</span>
                       </Show>
                     </a>
                   </li>

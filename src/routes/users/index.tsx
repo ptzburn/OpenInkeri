@@ -5,7 +5,8 @@ import { env } from 'virtual:env/client';
 
 import UserAvatar from '~/components/user-avatar';
 import { formatDate } from '~/lib/format';
-import { getUsers } from '~/lib/users';
+import { type UserList, getUsers } from '~/lib/users';
+import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
 // The overview counts everyone, whatever the list is searching for. Without
@@ -19,8 +20,8 @@ export const route = {
 // picked (from lg up; below that the layout shows only the list). Without an
 // index, /users would fall through to the [...404] catch-all.
 export default function UsersIndex() {
-  const list = createMemo(() => getUsers(''), { name: 'overview-list' });
-  const users = createMemo(() => list().users, { name: 'overview-users' });
+  const list = createMemo((): Promise<UserList> => getUsers(''), { name: 'overview-list' });
+  const users = createMemo(() => list()?.users ?? [], { name: 'overview-users' });
   const admins = createMemo(() => users().filter((user) => user.isAdmin).length, {
     name: 'overview-admins',
   });
@@ -32,24 +33,24 @@ export default function UsersIndex() {
 
   return (
     <section class="flex flex-1 flex-col gap-8 p-4 lg:p-8">
-      <Title>{`Users - ${env.VITE_APP_NAME}`}</Title>
-      <h2 class="text-2xl font-bold">Overview</h2>
+      <Title>{`${m.users_title()} - ${env.VITE_APP_NAME}`}</Title>
+      <h2 class="text-2xl font-bold">{m.users_overview()}</h2>
       <div class="stats stats-vertical self-start bg-base-200 sm:stats-horizontal">
         <div class="stat">
-          <div class="stat-title">Users</div>
+          <div class="stat-title">{m.users_title()}</div>
           <div class="stat-value">{users().length}</div>
         </div>
         <div class="stat">
-          <div class="stat-title">Admins</div>
+          <div class="stat-title">{m.users_stat_admins()}</div>
           <div class="stat-value">{admins()}</div>
         </div>
         <div class="stat">
-          <div class="stat-title">Banned</div>
+          <div class="stat-title">{m.users_stat_banned()}</div>
           <div class="stat-value">{banned()}</div>
         </div>
       </div>
       <div class="max-w-xl">
-        <h3 class="mb-2 text-lg font-semibold">Recently joined</h3>
+        <h3 class="mb-2 text-lg font-semibold">{m.users_recently_joined()}</h3>
         <ul class="list rounded-box bg-base-200">
           <For each={newest()}>
             {(user) => (

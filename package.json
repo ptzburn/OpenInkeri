@@ -11,13 +11,14 @@
     "serve": "vp preview",
     "test": "vp test",
     "lint": "vp lint src",
-    "check": "vp check",
+    "check": "paraglide-js compile --silent && vp check",
     "cf-typegen": "wrangler types --env-file=/dev/null",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:studio": "drizzle-kit studio",
-    "auth:generate": "auth generate --config auth.cli.ts --output src/server/database/auth-schema.ts --yes"
+    "auth:generate": "auth generate --config auth.cli.ts --output src/server/database/auth-schema.ts --yes",
+    "check:i18n": "inlang check --project ./project.inlang"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "1.7.7",
@@ -32,6 +33,8 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.63.1",
     "@iconify-json/ri": "^1.2.10",
+    "@inlang/cli": "^3.4.2",
+    "@inlang/paraglide-js": "^2.27.0",
     "@solidjs/diagnostics": "^2.0.0-rc.14",
     "@solidjs/start-devtools": "^1.0.0-next.4",
     "@solidjs/testing-library": "^1.0.0-beta.3",

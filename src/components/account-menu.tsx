@@ -4,6 +4,7 @@ import SignOutIcon from '~icons/ri/logout-box-r-line';
 
 import UserAvatar from '~/components/user-avatar';
 import { getCurrentUser, signOut } from '~/lib/account';
+import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
 // The sidebar's account corner: the user's avatar, name and Sign out, or a Sign in
@@ -22,7 +23,7 @@ export default function AccountMenu() {
             href={paths['sign-in']()}
           >
             <SignInIcon class="size-5" aria-hidden="true" />
-            Sign in
+            {m.account_sign_in()}
           </a>
         }
       >
@@ -30,7 +31,11 @@ export default function AccountMenu() {
           <form action={signOut} method="post" class="flex items-center gap-2">
             <UserAvatar name={current().name} image={current().image} class="w-8" />
             <span class="min-w-0 grow truncate font-medium">{current().name}</span>
-            <button type="submit" class="btn btn-square btn-ghost btn-sm" aria-label="Sign out">
+            <button
+              type="submit"
+              class="btn btn-square btn-ghost btn-sm"
+              aria-label={m.account_sign_out()}
+            >
               <SignOutIcon class="size-5" aria-hidden="true" />
             </button>
           </form>

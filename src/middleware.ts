@@ -12,7 +12,17 @@ import type { StartMiddleware } from '@solidjs/vite-plugin';
 import { createAPIHandler } from 'filesystem-routing/api';
 import routes from 'virtual:file-routes';
 
+import { paraglideMiddleware } from './paraglide/server.js';
 import { auth, forwardCookies } from './server/auth';
+
+// Detects the request's locale (see `strategy` in vite.config.ts) and runs
+// the rest of the chain in an AsyncLocalStorage scope, so getLocale() and
+// m.* return that locale anywhere downstream: the document, the streamed
+// render, server functions and API routes. Without the `url` strategy the
+// middleware never redirects or rewrites the URL, so the original request
+// goes on unchanged.
+const detectLocale: StartMiddleware = (event, next) =>
+  paraglideMiddleware(event.request, () => next());
 
 // Reads the session once per request and puts the user on event.locals,
 // where server functions, API routes and the page render all read it
@@ -39,4 +49,4 @@ const api = createAPIHandler(routes);
 
 const handleAPI: StartMiddleware = (event, next) => api(event.request, next);
 
-export default [attachUser, handleAPI];
+export default [detectLocale, attachUser, handleAPI];

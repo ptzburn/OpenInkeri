@@ -15,6 +15,7 @@ import UserAvatar from '~/components/user-avatar';
 import { getCurrentUser } from '~/lib/account';
 import { formatDate } from '~/lib/format';
 import { getUser, renameMe } from '~/lib/users';
+import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
 // The preload starts these fetches as navigation begins — and it doubles as
@@ -38,7 +39,7 @@ export default function User(props: RouteProps<'/users/:id'>) {
   const error = () => (renames.at(-1)?.error as { message?: string } | undefined)?.message;
 
   return (
-    <Show when={user()} fallback={<p class="p-6">No such user.</p>}>
+    <Show when={user()} fallback={<p class="p-6">{m.user_not_found()}</p>}>
       {(shown) => (
         <section
           class="flex flex-1 flex-col gap-6 p-4 transition-opacity lg:p-8"
@@ -49,7 +50,7 @@ export default function User(props: RouteProps<'/users/:id'>) {
               its search. */}
           <a href={paths.users({ q: search.q })} class="btn self-start btn-ghost btn-sm lg:hidden">
             <BackIcon class="size-4" aria-hidden="true" />
-            All users
+            {m.user_back()}
           </a>
           <header class="flex items-center gap-4">
             <UserAvatar name={shown().name} image={shown().image} class="w-20" />
@@ -57,13 +58,13 @@ export default function User(props: RouteProps<'/users/:id'>) {
               <h2 class="truncate text-2xl font-bold">{shown().name}</h2>
               <div class="mt-1 flex flex-wrap gap-1">
                 <Show when={shown().isAdmin}>
-                  <span class="badge badge-soft">Admin</span>
+                  <span class="badge badge-soft">{m.user_badge_admin()}</span>
                 </Show>
                 <Show when={shown().banned}>
-                  <span class="badge badge-soft badge-error">Banned</span>
+                  <span class="badge badge-soft badge-error">{m.user_badge_banned()}</span>
                 </Show>
                 <Show when={shown().isMe}>
-                  <span class="badge badge-outline">You</span>
+                  <span class="badge badge-outline">{m.user_badge_you()}</span>
                 </Show>
               </div>
             </div>
@@ -77,7 +78,7 @@ export default function User(props: RouteProps<'/users/:id'>) {
             </li>
             <li class="list-row items-center">
               <CalendarIcon class="size-5 text-base-content/60" aria-hidden="true" />
-              <span>Joined {formatDate(shown().createdAt)}</span>
+              <span>{m.user_joined({ date: formatDate(shown().createdAt) })}</span>
             </li>
           </ul>
           {/* Only on your own page: the server enforces that too, since
@@ -85,7 +86,7 @@ export default function User(props: RouteProps<'/users/:id'>) {
           <Show when={shown().isMe}>
             <form action={renameMe} method="post" class="max-w-xl">
               <fieldset class="fieldset">
-                <legend class="fieldset-legend">Display name</legend>
+                <legend class="fieldset-legend">{m.user_display_name()}</legend>
                 <div class="join">
                   <input
                     name="name"
@@ -93,10 +94,10 @@ export default function User(props: RouteProps<'/users/:id'>) {
                     required
                     maxlength={100}
                     class="input join-item w-full"
-                    aria-label="Name"
+                    aria-label={m.user_name()}
                   />
                   <button type="submit" class="btn btn-primary join-item">
-                    Rename
+                    {m.user_rename()}
                   </button>
                 </div>
                 <Show when={error()}>
