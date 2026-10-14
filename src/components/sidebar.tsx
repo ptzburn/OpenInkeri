@@ -23,11 +23,12 @@ export default function Sidebar() {
         </a>
         <ThemeSwitcher />
       </div>
-      {/* The router marks the matching link aria-current="page". */}
+      {/* The router marks a link data-active on its page and the pages under
+          it (Home only on itself), so Users stays lit on /users/:id. */}
       <nav aria-label="Main" class="grow">
         <ul class="menu w-full gap-1">
           <li>
-            <a class="aria-[current=page]:menu-active" href={paths()}>
+            <a class="data-active:menu-active" href={paths()}>
               <Map class="size-5" aria-hidden="true" />
               Home
             </a>
@@ -35,7 +36,7 @@ export default function Sidebar() {
           <Loading>
             <Show when={user()?.isAdmin}>
               <li>
-                <a class="aria-[current=page]:menu-active" href={paths.users()}>
+                <a class="data-active:menu-active" href={paths.users()}>
                   <Team class="size-5" aria-hidden="true" />
                   Users
                 </a>
