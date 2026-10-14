@@ -51,7 +51,11 @@ export default defineConfig({
     solid({
       start: {
         middleware: './src/middleware.ts',
-        // Only src/app.* is probed in lowercase; the document needs an explicit path.
+        // Explicit paths, not the plugin's probes: it tries src/App.* before
+        // src/app.* (and only src/Document.*), and on the case-insensitive
+        // macOS mount src/App.tsx "exists", so the generated entries would
+        // import a path Vite then fails to load.
+        app: './src/app.tsx',
         document: './src/document.tsx',
         // Typed env is on by convention: ./env.ts is probed automatically.
         // (Set `env: false` here to opt out.)
