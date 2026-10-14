@@ -31,7 +31,7 @@ export const route = {
 export default function User(props: RouteProps<'/users/:id'>) {
   // Server-function reads through memos — the surrounding <Loading>
   // boundary (in app.tsx) shows its fallback until the promises settle.
-  const user = createMemo(() => getUser(props.params.id));
+  const user = createMemo(() => getUser(props.params.id), { name: 'user' });
   const [search] = useSearchParams(paths.users);
   const renames = useSubmissions(renameMe);
   const error = () => (renames.at(-1)?.error as { message?: string } | undefined)?.message;

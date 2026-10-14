@@ -18,12 +18,16 @@ export const route = {
 // picked (from lg up; below that the layout shows only the list). Without an
 // index, /users would fall through to the [...404] catch-all.
 export default function UsersIndex() {
-  const list = createMemo(() => getUsers(''));
-  const users = createMemo(() => list().users);
-  const admins = createMemo(() => users().filter((user) => user.isAdmin).length);
-  const banned = createMemo(() => users().filter((user) => user.banned).length);
+  const list = createMemo(() => getUsers(''), { name: 'overview-list' });
+  const users = createMemo(() => list().users, { name: 'overview-users' });
+  const admins = createMemo(() => users().filter((user) => user.isAdmin).length, {
+    name: 'overview-admins',
+  });
+  const banned = createMemo(() => users().filter((user) => user.banned).length, {
+    name: 'overview-banned',
+  });
   // getUsers lists the oldest first.
-  const newest = createMemo(() => users().slice(-5).reverse());
+  const newest = createMemo(() => users().slice(-5).reverse(), { name: 'overview-newest' });
 
   return (
     <section class="flex flex-1 flex-col gap-8 p-4 lg:p-8">

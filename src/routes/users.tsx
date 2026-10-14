@@ -1,6 +1,6 @@
 import { type RouteSectionProps, useMatch, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createEffect, createMemo, isPending, untrack } from 'solid-js';
+import { For, Show, createEffect, createMemo, isPending, onSettled, untrack } from 'solid-js';
 import * as v from 'valibot';
 import SearchIcon from '~icons/ri/search-line';
 
@@ -29,30 +29,35 @@ export const route = defineFileRoute('/users', {
 // /users/:id the user.
 export default function UsersLayout(props: RouteSectionProps) {
   const [search, setSearch] = useSearchParams(paths.users);
-  const list = createMemo(() => getUsers(search.q ?? ''));
+  const list = createMemo(() => getUsers(search.q ?? ''), { name: 'users-list' });
   const detail = useMatch(() => '/users/:id');
 
   // Searching as you type, once typing pauses; replace keeps each keystroke
   // out of the history. The value goes in untrimmed; getUsers trims it.
-  //
+  let typing: ReturnType<typeof setTimeout> | undefined;
+  const searchFor = (value: string) => {
+    clearTimeout(typing);
+    setSearch({ q: value || undefined }, { replace: true });
+  };
+  // A search still waiting when you leave the section must not fire: it
+  // would put ?q= on whatever page you went to.
+  onSettled(() => () => clearTimeout(typing));
+
   // The input is not bound to ?q: the URL catches up only once a search's
   // results arrive, and a bound value would then rewind whatever was typed
-  // meanwhile. It starts from ?q (rendered on the server too), and follows
-  // the URL only when the change came from elsewhere (back/forward, a link)
-  // while you aren't typing in it.
+  // meanwhile (latest() doesn't help: the router's search isn't a held
+  // signal it can see ahead of). It starts from ?q (rendered on the server
+  // too), and follows the URL only when the change came from elsewhere
+  // (back/forward, a link) while you aren't typing in it.
   let input: HTMLInputElement | undefined;
-  let typing: ReturnType<typeof setTimeout> | undefined;
   const initialSearch = untrack(() => search.q ?? '');
   createEffect(
     () => search.q ?? '',
     (q) => {
       if (input && document.activeElement !== input) input.value = q;
     },
+    { name: 'users-search-input' },
   );
-  const searchFor = (value: string) => {
-    clearTimeout(typing);
-    setSearch({ q: value || undefined }, { replace: true });
-  };
 
   return (
     <main class="flex flex-1 flex-col lg:flex-row">
@@ -108,19 +113,21 @@ export default function UsersLayout(props: RouteSectionProps) {
             }
           >
             <ul class="list p-2">
-              <For each={list().users}>
+              {/* Keyed by id: each search returns new objects, and rows of users
+                  already shown keep their DOM. */}
+              <For each={list().users} keyed={(user) => user.id}>
                 {(user) => (
                   <li>
                     <a
-                      href={paths.users(user.id, { q: search.q })}
+                      href={paths.users(user().id, { q: search.q })}
                       class="list-row items-center hover:bg-base-200 aria-[current=page]:bg-base-300"
                     >
-                      <UserAvatar name={user.name} image={user.image} class="w-10" />
+                      <UserAvatar name={user().name} image={user().image} class="w-10" />
                       <div class="min-w-0">
-                        <div class="truncate font-medium">{user.name}</div>
-                        <div class="truncate text-sm text-base-content/60">{user.email}</div>
+                        <div class="truncate font-medium">{user().name}</div>
+                        <div class="truncate text-sm text-base-content/60">{user().email}</div>
                       </div>
-                      <Show when={user.isAdmin}>
+                      <Show when={user().isAdmin}>
                         <span class="badge badge-soft badge-sm">Admin</span>
                       </Show>
                     </a>
