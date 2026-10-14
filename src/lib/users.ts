@@ -4,9 +4,12 @@
 // query() caches reads per key; action() marks writes, and the router
 // revalidates queries after an action settles.
 //
-// Every function checks the session itself: the route guard decides what
-// renders, but these are public URLs anyone can call. Listing and reading
-// users is for admins; renaming yourself only needs a session.
+// Every function checks the session itself, since these are public URLs
+// anyone can call. Listing and reading users is for admins; renaming
+// yourself only needs a session. The checks redirect (signed-out visitors to
+// sign-in, everyone else home), so the reads double as the users pages'
+// guard: the pages render straight away, their reads start together, and
+// no separate guard request runs ahead of them.
 import { action, query } from '@solidjs/router';
 import { getRequestEvent, redirect, respond } from '@solidjs/web';
 
@@ -22,7 +25,7 @@ function signedIn() {
 
 function adminOnly() {
   const user = signedIn();
-  if (!isAdmin(user)) throw respond({ message: 'Admins only.' }, { status: 403 });
+  if (!isAdmin(user)) throw redirect(paths());
   return user;
 }
 
@@ -75,13 +78,14 @@ export const getUsers = query(async (search: string) => {
   };
 }, 'users');
 
+/** One user, and whether it is the signed-in one (who may rename it). */
 export const getUser = query(async (id: string) => {
   'use server';
-  adminOnly();
+  const me = adminOnly();
   const user = await db.query.user.findFirst({ columns, where: { id } });
   if (!user) return null;
   const { role, ...rest } = user;
-  return { ...rest, isAdmin: isAdmin({ role }) };
+  return { ...rest, isAdmin: isAdmin({ role }), isMe: user.id === me.id };
 }, 'user');
 
 /** Renames the signed-in user; nobody can rename anyone else. */

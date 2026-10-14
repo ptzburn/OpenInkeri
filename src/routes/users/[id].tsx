@@ -22,6 +22,8 @@ import { paths } from '~/router';
 export const route = {
   preload: ({ params }) => {
     void getUser(params.id!);
+    // Not read on this page: listed so a rename refreshes the sidebar's
+    // name in the same response.
     void getCurrentUser();
   },
 } satisfies RouteDefinition;
@@ -30,7 +32,6 @@ export default function User(props: RouteProps<'/users/:id'>) {
   // Server-function reads through memos — the surrounding <Loading>
   // boundary (in app.tsx) shows its fallback until the promises settle.
   const user = createMemo(() => getUser(props.params.id));
-  const me = createMemo(() => getCurrentUser());
   const [search] = useSearchParams(paths.users);
   const renames = useSubmissions(renameMe);
   const error = () => (renames.at(-1)?.error as { message?: string } | undefined)?.message;
@@ -60,7 +61,7 @@ export default function User(props: RouteProps<'/users/:id'>) {
                 <Show when={shown().banned}>
                   <span class="badge badge-soft badge-error">Banned</span>
                 </Show>
-                <Show when={me()?.id === shown().id}>
+                <Show when={shown().isMe}>
                   <span class="badge badge-outline">You</span>
                 </Show>
               </div>
@@ -80,7 +81,7 @@ export default function User(props: RouteProps<'/users/:id'>) {
           </ul>
           {/* Only on your own page: the server enforces that too, since
               renameMe only ever renames the signed-in user. */}
-          <Show when={me()?.id === shown().id}>
+          <Show when={shown().isMe}>
             <form action={renameMe} method="post" class="max-w-xl">
               <fieldset class="fieldset">
                 <legend class="fieldset-legend">Display name</legend>
