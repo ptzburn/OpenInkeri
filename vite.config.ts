@@ -85,6 +85,14 @@ export default defineConfig({
           name: 'client',
           environment: 'jsdom',
           include: ['src/**/*.test.tsx'],
+          alias: [
+            // Validates the client env only: the server secrets the plugin's
+            // own module would demand aren't set in CI.
+            {
+              find: 'virtual:env/client',
+              replacement: fileURLToPath(new URL('./vitest-env-client-stub.ts', import.meta.url)),
+            },
+          ],
         },
       },
       {
