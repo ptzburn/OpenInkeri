@@ -13,6 +13,7 @@ import MailIcon from '~icons/ri/mail-line';
 
 import UserAvatar from '~/components/user-avatar';
 import { getCurrentUser } from '~/lib/account';
+import { formatDate } from '~/lib/format';
 import { getUser, renameMe } from '~/lib/users';
 import { paths } from '~/router';
 
@@ -76,7 +77,7 @@ export default function User(props: RouteProps<'/users/:id'>) {
             </li>
             <li class="list-row items-center">
               <CalendarIcon class="size-5 text-base-content/60" aria-hidden="true" />
-              <span>Joined {new Date(shown().createdAt).toLocaleDateString('en')}</span>
+              <span>Joined {formatDate(shown().createdAt)}</span>
             </li>
           </ul>
           {/* Only on your own page: the server enforces that too, since

@@ -4,6 +4,7 @@ import { For, createMemo } from 'solid-js';
 import { env } from 'virtual:env/client';
 
 import UserAvatar from '~/components/user-avatar';
+import { formatDate } from '~/lib/format';
 import { getUsers } from '~/lib/users';
 import { paths } from '~/router';
 
@@ -56,9 +57,7 @@ export default function UsersIndex() {
                 <a href={paths.users(user.id)} class="list-row items-center hover:bg-base-300">
                   <UserAvatar name={user.name} image={user.image} class="w-8" />
                   <span class="truncate font-medium">{user.name}</span>
-                  <span class="text-sm text-base-content/60">
-                    {new Date(user.createdAt).toLocaleDateString('en')}
-                  </span>
+                  <span class="text-sm text-base-content/60">{formatDate(user.createdAt)}</span>
                 </a>
               </li>
             )}
