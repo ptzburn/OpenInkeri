@@ -71,7 +71,13 @@ git config --global user.email "you@example.com"
 
 ### Deploying
 
-Deploys are handled by Cloudflare Workers Builds, connected to this repo in the Cloudflare dashboard, so you normally don't deploy by hand. To deploy from your machine anyway, run `npx wrangler login` once (or set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env`), set the production secrets with `npx wrangler secret put BETTER_AUTH_SECRET` (and the same for `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`), then run `pnpm run deploy`. Deploys don't apply database migrations: run `pnpm db:migrate:remote` after deploying a change that adds one.
+Production is the `openinkeri` Worker at https://openinkeri.hokkanen.io, with the `openinkeri` D1 database. GitHub Actions deploys it (`.github/workflows/ci.yml`): every push to `main` that passes the checks, tests and build records the database's Time Travel bookmark, applies pending migrations (`pnpm db:migrate:remote`), then deploys the Worker. The workflow needs two repository secrets, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+
+Migrations run before the new code goes live, so the code already running must keep working on the new schema. Add tables and nullable or defaulted columns first; rename or drop only in a later release, once no deployed code uses the old shape. Review generated SQL in the pull request; [CLAUDE.md](CLAUDE.md) lists what needs extra care on D1.
+
+To undo a bad migration, restore the database to the bookmark in that run's log: `pnpm exec wrangler d1 time-travel restore DB --bookmark=<bookmark>`. This overwrites the database, including every write since the bookmark; usually a new migration that fixes forward is better. Roll back the Worker with `pnpm exec wrangler rollback`.
+
+The Worker's secrets (`BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`; production has its own GitHub OAuth app with the callback `https://openinkeri.hokkanen.io/api/auth/callback/github`) live on Cloudflare and survive deploys. Change one with `pnpm exec wrangler secret put <NAME>`. To deploy by hand, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env` (or run `npx wrangler login`), then `pnpm db:migrate:remote` and `pnpm run deploy`.
 
 ### Working with AI agents
 

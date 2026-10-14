@@ -1,4 +1,6 @@
-# Checks only — deploys are handled by Cloudflare Workers Builds.
+# Checks every push and pull request. A push to main that passes them also
+# deploys: restore point, then migrations, then the Worker (see README,
+# "Deploying"). The Cloudflare token and account id are repository secrets.
 name: CI
 
 on:
@@ -8,7 +10,9 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded pull request runs, but never a deploy on main: it could
+  # stop between the migrations and the Worker upload.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -26,3 +30,17 @@ jobs:
       - run: pnpm run check
       - run: pnpm exec vp test run
       - run: pnpm run build
+      # Deploy: pushes to main only, after everything above passed. The
+      # steps run in order and stop at the first failure (bash -e): the
+      # database's Time Travel bookmark first (this log then holds the
+      # command to restore it), then pending migrations, then the Worker.
+      # The token is set on this step alone, out of reach of install scripts.
+      - name: Deploy (restore point, migrations, Worker)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm exec wrangler d1 time-travel info DB
+          pnpm db:migrate:remote
+          pnpm exec wrangler deploy
