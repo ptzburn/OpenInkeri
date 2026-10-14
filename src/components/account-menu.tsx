@@ -7,8 +7,8 @@ import { getCurrentUser, signOut } from '~/lib/account';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
-// The sidebar's account corner: the user's avatar, name and Sign out, or a Sign in
-// link. The read is the same cached query the pages use, so it costs no
+// The sidebar's account corner: the user's avatar and name (a link to their
+// account page) and Sign out, or a Sign in link. The read is the same cached query the pages use, so it costs no
 // extra request.
 export default function AccountMenu() {
   const user = createMemo(() => getCurrentUser());
@@ -29,8 +29,14 @@ export default function AccountMenu() {
       >
         {(current) => (
           <form action={signOut} method="post" class="flex items-center gap-2">
-            <UserAvatar name={current().name} image={current().image} class="w-8" />
-            <span class="min-w-0 grow truncate font-medium">{current().name}</span>
+            <a
+              href={paths.account()}
+              title={m.account_title()}
+              class="btn min-w-0 grow justify-start btn-ghost px-1 aria-[current=page]:btn-active"
+            >
+              <UserAvatar name={current().name} image={current().image} class="w-8" />
+              <span class="truncate font-medium">{current().name}</span>
+            </a>
             <button
               type="submit"
               class="btn btn-square btn-ghost btn-sm"

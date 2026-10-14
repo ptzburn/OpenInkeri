@@ -14,3 +14,33 @@ const dateFormat = new Intl.DateTimeFormat('fi', {
 export function formatDate(date: Date | string | number): string {
   return dateFormat.format(new Date(date));
 }
+
+// The browser and system a user agent names, in the order to test them:
+// Edge and Opera also say Chrome, Chrome also says Safari, and Android also
+// says Linux.
+const browsers: [RegExp, string][] = [
+  [/Edg\//, 'Edge'],
+  [/OPR\//, 'Opera'],
+  [/Firefox\//, 'Firefox'],
+  [/Chrome\//, 'Chrome'],
+  [/Safari\//, 'Safari'],
+];
+const systems: [RegExp, string][] = [
+  [/Windows/, 'Windows'],
+  [/iPhone|iPad/, 'iOS'],
+  [/Mac OS X|Macintosh/, 'macOS'],
+  [/Android/, 'Android'],
+  [/CrOS/, 'ChromeOS'],
+  [/Linux/, 'Linux'],
+];
+
+/**
+ * A short name for the device a session signed in from, such as
+ * "Firefox, macOS", or undefined when the user agent names neither.
+ */
+export function describeUserAgent(userAgent: string | null | undefined): string | undefined {
+  if (!userAgent) return undefined;
+  const find = (list: [RegExp, string][]) => list.find(([test]) => test.test(userAgent))?.[1];
+  const parts = [find(browsers), find(systems)].filter(Boolean);
+  return parts.length ? parts.join(', ') : undefined;
+}

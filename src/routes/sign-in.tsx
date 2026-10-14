@@ -4,7 +4,7 @@ import { Show } from 'solid-js';
 import { env } from 'virtual:env/client';
 import GitHub from '~icons/ri/github-fill';
 
-import { type SignInError, signInWithGitHub } from '~/lib/account';
+import { type ActionError, signInWithGitHub } from '~/lib/account';
 import { m } from '~/paraglide/messages.js';
 
 export default function SignIn() {
@@ -13,7 +13,7 @@ export default function SignIn() {
   // Either the action failed before leaving for GitHub, or better-auth sent
   // the user back here with ?error=<code> after the round trip.
   const error = () =>
-    (submissions.at(-1)?.error as SignInError | undefined)?.message ??
+    (submissions.at(-1)?.error as ActionError | undefined)?.message ??
     (search.error ? m.sign_in_incomplete() : undefined);
 
   return (
