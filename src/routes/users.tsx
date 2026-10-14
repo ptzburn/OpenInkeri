@@ -1,10 +1,10 @@
 import { type RouteSectionProps, useMatch, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createEffect, createMemo, isPending, onSettled, untrack } from 'solid-js';
-import * as v from 'valibot';
 import SearchIcon from '~icons/ri/search-line';
 
 import UserAvatar from '~/components/user-avatar';
+import { stringParams } from '~/lib/search';
 import { type UserList, getUsers } from '~/lib/users';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -16,7 +16,7 @@ import { paths } from '~/router';
 // ?q= holds the list's search, so a search survives reloads, can be shared,
 // and stays put while you open users from its results.
 export const route = defineFileRoute('/users', {
-  search: v.object({ q: v.fallback(v.optional(v.string()), undefined) }),
+  search: stringParams('q'),
   preload: ({ location }) => {
     const q = location.query.q;
     void getUsers(typeof q === 'string' ? q : '');

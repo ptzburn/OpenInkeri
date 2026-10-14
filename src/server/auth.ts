@@ -6,6 +6,7 @@ import { getRequestEvent } from '@solidjs/web';
 import type { RequestEvent, ResponseStub } from '@solidjs/web';
 import { drizzleAdapter } from '@better-auth/drizzle-adapter/relations-v2';
 import { betterAuth } from 'better-auth';
+import { APIError } from 'better-auth/api';
 import { waitUntil } from 'cloudflare:workers';
 import { env } from 'virtual:env/server';
 
@@ -34,6 +35,27 @@ export const auth = betterAuth({
       },
     },
   },
+  user: {
+    // Users can delete their own account (from the account page). Without a
+    // password, better-auth only allows it from a session signed in within
+    // the last day (session.freshAge), so a stolen old cookie can't do it.
+    deleteUser: {
+      enabled: true,
+      // The app must keep an admin: the last one can't leave. Admins are
+      // few, so filtering them in JS (role may be a comma list) is cheap.
+      beforeDelete: async (user) => {
+        const admins = (
+          await db.query.user.findMany({
+            columns: { id: true, role: true },
+            where: { role: { like: '%admin%' } },
+          })
+        ).filter(isAdmin);
+        if (admins.length === 1 && admins[0]!.id === user.id) {
+          throw new APIError('BAD_REQUEST', { message: 'The last admin', code: LAST_ADMIN });
+        }
+      },
+    },
+  },
   // GitHub's access token is stored on the account row; encrypt it with the
   // secret so a database leak doesn't hand out working tokens.
   account: { encryptOAuthTokens: true },
@@ -51,6 +73,9 @@ export const auth = betterAuth({
 });
 
 export type User = typeof auth.$Infer.Session.user;
+
+/** The error code deleteUser fails with when the last admin tries to leave. */
+export const LAST_ADMIN = 'LAST_ADMIN';
 
 /** Whether the admin plugin counts this user as an admin (role may be a comma list). */
 export function isAdmin(user: Pick<User, 'role'>): boolean {

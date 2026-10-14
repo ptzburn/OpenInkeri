@@ -1,33 +1,21 @@
 import { Title } from '@solidjs/meta';
-import {
-  type RouteDefinition,
-  type RouteProps,
-  useSearchParams,
-  useSubmissions,
-} from '@solidjs/router';
+import { type RouteDefinition, type RouteProps, useSearchParams } from '@solidjs/router';
 import { Show, createMemo, isPending } from 'solid-js';
 import { env } from 'virtual:env/client';
 import BackIcon from '~icons/ri/arrow-left-line';
 import CalendarIcon from '~icons/ri/calendar-line';
 import MailIcon from '~icons/ri/mail-line';
+import SettingsIcon from '~icons/ri/user-settings-line';
 
 import UserAvatar from '~/components/user-avatar';
-import { getCurrentUser } from '~/lib/account';
 import { formatDate } from '~/lib/format';
-import { getUser, renameMe } from '~/lib/users';
+import { getUser } from '~/lib/users';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
-// The preload starts these fetches as navigation begins — and it doubles as
-// the page's single-flight manifest: after the rename mutation, the server
-// reruns it to put the refreshed data on the action response itself.
+// The preload starts the fetch as navigation begins.
 export const route = {
-  preload: ({ params }) => {
-    void getUser(params.id!);
-    // Not read on this page: listed so a rename refreshes the sidebar's
-    // name in the same response.
-    void getCurrentUser();
-  },
+  preload: ({ params }) => void getUser(params.id!),
 } satisfies RouteDefinition;
 
 export default function User(props: RouteProps<'/users/:id'>) {
@@ -35,8 +23,6 @@ export default function User(props: RouteProps<'/users/:id'>) {
   // boundary (in app.tsx) shows its fallback until the promises settle.
   const user = createMemo(() => getUser(props.params.id), { name: 'user' });
   const [search] = useSearchParams(paths.users);
-  const renames = useSubmissions(renameMe);
-  const error = () => (renames.at(-1)?.error as { message?: string } | undefined)?.message;
 
   return (
     <Show when={user()} fallback={<p class="p-6">{m.user_not_found()}</p>}>
@@ -81,34 +67,12 @@ export default function User(props: RouteProps<'/users/:id'>) {
               <span>{m.user_joined({ date: formatDate(shown().createdAt) })}</span>
             </li>
           </ul>
-          {/* Only on your own page: the server enforces that too, since
-              renameMe only ever renames the signed-in user. */}
+          {/* Your own details are edited on the account page. */}
           <Show when={shown().isMe}>
-            <form action={renameMe} method="post" class="max-w-xl">
-              <fieldset class="fieldset">
-                <legend class="fieldset-legend">{m.user_display_name()}</legend>
-                <div class="join">
-                  <input
-                    name="name"
-                    value={shown().name}
-                    required
-                    maxlength={100}
-                    class="input join-item w-full"
-                    aria-label={m.user_name()}
-                  />
-                  <button type="submit" class="btn btn-primary join-item">
-                    {m.user_rename()}
-                  </button>
-                </div>
-                <Show when={error()}>
-                  {(message) => (
-                    <p role="alert" class="label text-error">
-                      {message()}
-                    </p>
-                  )}
-                </Show>
-              </fieldset>
-            </form>
+            <a href={paths.account()} class="btn self-start btn-sm">
+              <SettingsIcon class="size-4" aria-hidden="true" />
+              {m.account_manage()}
+            </a>
           </Show>
         </section>
       )}

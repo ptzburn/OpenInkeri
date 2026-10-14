@@ -23,7 +23,9 @@ The linter (`eslint-plugin-solid` v2 rules, configured in vite.config.ts) catche
 
 Imports: `~/x` is `src/x` (tsconfig `paths`, which Vite reads via `resolve.tsconfigPaths`). Use it instead of `../`; same-folder `./` imports stay relative. Files the drizzle-kit and `auth` CLIs load (`src/server/auth-options.ts`, `src/server/database/schema.ts` and what they import) stay on relative imports.
 
-Links and redirects: build app URLs with `paths` from `~/router` (typed from the file routes, e.g. `paths['sign-in']()`, `paths.users(id)`), not string literals. A route's search params get a schema through `export const route = defineFileRoute(path, { search })`; a field that can fail must `v.fallback` to undefined, because a failing schema leaves the raw strings in place.
+Links and redirects: build app URLs with `paths` from `~/router` (typed from the file routes, e.g. `paths['sign-in']()`, `paths.users(id)`), not string literals. A route's search params get a schema through `export const route = defineFileRoute(path, { search })`, built with `stringParams(...)` from `~/lib/search` (a hand-written Standard Schema: it never fails, so the raw strings a failing schema would leave in place never reach the page). Extend that helper for other shapes rather than reaching for Valibot.
+
+Validation: keep it on the server and keep validation libraries out of the browser bundle. Validate input with Valibot inside `'use server'` function bodies (the compiler drops those bodies, and imports only they use, from the client's copy of the module); browser-side checks are limited to HTML attributes (`required`, `maxlength`, `pattern`). Never import `valibot` from a module that runs in the browser (components, routes, shared `lib` code outside server-function bodies). `env.ts` is fine: it runs at build/boot, and the client gets only the validated values.
 
 ## Documentation (fetch on demand)
 

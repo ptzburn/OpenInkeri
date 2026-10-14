@@ -30,8 +30,12 @@ export default function App() {
             />
             <div class="drawer-content flex min-h-dvh flex-col">
               {/* Below lg the menu button and app name open the sidebar over
-                  the page; from lg up the sidebar shows the name itself. */}
-              <header class="navbar border-b border-base-300">
+                  the page; from lg up the sidebar shows the name itself.
+                  Sticky to the top as the page scrolls (the page is the
+                  scroller: drawer-content has no overflow of its own); its
+                  z-index stays under the drawer's 10, so the opened sidebar
+                  still covers it. */}
+              <header class="navbar sticky top-0 z-5 border-b border-base-300 bg-base-100">
                 <div class="navbar-start">
                   <label
                     for="app-drawer"

@@ -24,7 +24,8 @@ import { auth, forwardCookies } from './server/auth';
 const detectLocale: StartMiddleware = (event, next) =>
   paraglideMiddleware(event.request, () => next());
 
-// Reads the session once per request and puts the user on event.locals,
+// Reads the session once per request and puts the user (and the session's
+// id, which the account page uses to tell this device apart) on event.locals,
 // where server functions, API routes and the page render all read it
 // (server functions called during the render get a copy). better-auth may
 // refresh the session cookie while reading it; those cookies are forwarded.
@@ -37,6 +38,7 @@ const attachUser: StartMiddleware = async (event, next) => {
     });
     forwardCookies(headers);
     event.locals.user = response?.user;
+    event.locals.sessionId = response?.session.id;
   }
   return next();
 };

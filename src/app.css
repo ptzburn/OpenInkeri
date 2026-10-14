@@ -6,3 +6,20 @@
     light --default,
     dark;
 }
+
+/* While a form's action runs, the router marks the form aria-busy: dim its
+   buttons and ignore clicks, so a second submit can't start. */
+form[aria-busy] button {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* From lg up the header and the sidebar are pinned separately (each sticky
+   in its own container), and the page's bounce past either end moves them
+   apart. Stop the bounce there; below lg the sidebar is a drawer over the
+   page, and mobile keeps its bounce and pull-to-refresh. */
+@media (width >= 64rem) {
+  html {
+    overscroll-behavior-y: none;
+  }
+}
