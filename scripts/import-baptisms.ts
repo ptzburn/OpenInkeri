@@ -536,7 +536,7 @@ for (const r of body) {
     location_place_id: where.placeId,
     emergency_date: lay?.date ?? null,
     multiple_birth: /тройн/i.test(note) ? 3 : /двойн/i.test(note) ? 2 : null,
-    illegitimate: /незаконнорожд|вне брака/i.test(note),
+    illegitimate: /незаконнорожд|вне брака|внебрачн/i.test(note),
     stillborn,
   });
   if (lost) continue;
@@ -614,6 +614,32 @@ for (const r of body) {
       null,
     );
   }
+}
+
+// --- Search text ------------------------------------------------------------------
+
+// record.search_text, folded as foldForSearch/recordSearchText in
+// src/lib/search-text.ts do it (keep them in step): the entry's names in both
+// languages, the village as written and its canonical name.
+const fold = (text: string) => text.toLowerCase().replaceAll('ё', 'е').replace(/\s+/g, ' ').trim();
+const placeNames = new Map([...places.values()].map((p) => [p.id, p.nameRu]));
+const namesByRecord = new Map<number, string[]>();
+for (const p of personaRows) {
+  const names = namesByRecord.get(p.record_id as number) ?? [];
+  for (const name of [p.name_ru, p.name_fi]) if (typeof name === 'string') names.push(name);
+  namesByRecord.set(p.record_id as number, names);
+}
+for (const r of recordRows) {
+  const parts = [
+    ...(namesByRecord.get(r.id as number) ?? []),
+    r.place_text,
+    typeof r.place_id === 'number' ? placeNames.get(r.place_id) : null,
+  ];
+  r.search_text =
+    parts
+      .filter((part): part is string => typeof part === 'string' && part !== '')
+      .map(fold)
+      .join(' | ') || null;
 }
 
 // --- SQL --------------------------------------------------------------------------

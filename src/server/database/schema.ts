@@ -180,6 +180,10 @@ export const record = snakeCase.table(
     placeId: integer().references(() => place.id, { onDelete: 'set null' }),
     note: text(),
     raw: text({ mode: 'json' }).$type<Record<string, string>>(), // the original row, column by column
+    // The entry's names and places in one lowercase string (ё as е), for
+    // searching: SQLite's LIKE and lower() fold case only for ASCII, so
+    // Cyrillic is folded when the record is written. See ~/lib/search-text.
+    searchText: text(),
     ...audit(),
   },
   (t) => [

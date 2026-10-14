@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vite-plus/test';
 
-import { describeUserAgent, formatDate } from './format';
+import { describeUserAgent, formatDate, formatPartialDate } from './format';
 
 describe('formatDate', () => {
   test('writes day.month.year without leading zeros', () => {
@@ -11,6 +11,15 @@ describe('formatDate', () => {
   test('takes the calendar day in UTC', () => {
     expect(formatDate('2026-10-13T23:30:00Z')).toBe('13.10.2026');
     expect(formatDate('2026-10-13T00:30:00Z')).toBe('13.10.2026');
+  });
+});
+
+describe('formatPartialDate', () => {
+  test('writes only the parts the date has', () => {
+    expect(formatPartialDate('1895-03-02')).toBe('2.3.1895');
+    expect(formatPartialDate('1895-03')).toBe('3.1895');
+    expect(formatPartialDate('1895')).toBe('1895');
+    expect(formatPartialDate(null)).toBe('');
   });
 });
 

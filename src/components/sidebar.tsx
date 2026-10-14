@@ -1,4 +1,5 @@
 import { Loading, Show, createMemo } from 'solid-js';
+import Book from '~icons/ri/book-open-line';
 import Map from '~icons/ri/map-2-line';
 import Team from '~icons/ri/team-line';
 // Typed client env, validated and baked in at build time (see env.ts).
@@ -10,8 +11,8 @@ import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
 // The drawer's sidebar: the app name, the navigation and, at the bottom,
-// the account corner. Admin-only links stay hidden from everyone else; the
-// pages and server functions guard themselves anyway.
+// the account corner. Links for signed-in users, or for admins, stay hidden
+// from everyone else; the pages and server functions guard themselves anyway.
 export default function Sidebar() {
   const user = createMemo(() => getCurrentUser());
 
@@ -35,6 +36,14 @@ export default function Sidebar() {
             </a>
           </li>
           <Loading>
+            <Show when={user()}>
+              <li>
+                <a class="data-active:menu-active" href={paths.records()}>
+                  <Book class="size-5" aria-hidden="true" />
+                  {m.records_title()}
+                </a>
+              </li>
+            </Show>
             <Show when={user()?.isAdmin}>
               <li>
                 <a class="data-active:menu-active" href={paths.users()}>

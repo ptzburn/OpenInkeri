@@ -15,6 +15,19 @@ export function formatDate(date: Date | string | number): string {
   return dateFormat.format(new Date(date));
 }
 
+/**
+ * A record's date as stored (ISO 8601 cut to what the source says: '1895',
+ * '1895-03', '1895-03-12') in the same style: 12.3.1895, 3.1895, 1895.
+ */
+export function formatPartialDate(date: string | null | undefined): string {
+  if (!date) return '';
+  return date
+    .split('-')
+    .map((part) => String(Number(part)))
+    .reverse()
+    .join('.');
+}
+
 // The browser and system a user agent names, in the order to test them:
 // Edge and Opera also say Chrome, Chrome also says Safari, and Android also
 // says Linux.
