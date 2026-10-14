@@ -1,5 +1,10 @@
 import { Title } from '@solidjs/meta';
-import { type RouteDefinition, type RouteProps, useSubmissions } from '@solidjs/router';
+import {
+  type RouteDefinition,
+  type RouteProps,
+  useSearchParams,
+  useSubmissions,
+} from '@solidjs/router';
 import { Show, createMemo, isPending } from 'solid-js';
 import { env } from 'virtual:env/client';
 import BackIcon from '~icons/ri/arrow-left-line';
@@ -26,6 +31,7 @@ export default function User(props: RouteProps<'/users/:id'>) {
   // boundary (in app.tsx) shows its fallback until the promises settle.
   const user = createMemo(() => getUser(props.params.id));
   const me = createMemo(() => getCurrentUser());
+  const [search] = useSearchParams(paths.users);
   const renames = useSubmissions(renameMe);
   const error = () => (renames.at(-1)?.error as { message?: string } | undefined)?.message;
 
@@ -37,8 +43,9 @@ export default function User(props: RouteProps<'/users/:id'>) {
           style={{ opacity: isPending(user) ? 0.5 : 1 }}
         >
           <Title>{`${shown().name} - ${env.VITE_APP_NAME}`}</Title>
-          {/* Below lg the list is hidden while a user is open. */}
-          <a href={paths.users()} class="btn self-start btn-ghost btn-sm lg:hidden">
+          {/* Below lg the list is hidden while a user is open; back keeps
+              its search. */}
+          <a href={paths.users({ q: search.q })} class="btn self-start btn-ghost btn-sm lg:hidden">
             <BackIcon class="size-4" aria-hidden="true" />
             All users
           </a>

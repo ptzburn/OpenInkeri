@@ -38,11 +38,41 @@ const columns = {
   createdAt: true,
 } as const;
 
-export const getUsers = query(async () => {
+/**
+ * Lists users oldest first, through the admin plugin's listUsers (which
+ * checks admin rights against the session itself, and caps the list at 100).
+ * It searches one field: a search with an @ looks at emails, anything else
+ * at names; '' lists everyone. (The search is always a string: server
+ * function arguments travel as JSON, which has no undefined.)
+ */
+export const getUsers = query(async (search: string) => {
   'use server';
   adminOnly();
-  const users = await db.query.user.findMany({ columns, orderBy: { createdAt: 'asc' } });
-  return users.map(({ role, ...user }) => ({ ...user, isAdmin: isAdmin({ role }) }));
+  const value = search.trim();
+  const { users, total } = await auth.api.listUsers({
+    query: {
+      ...(value && {
+        searchValue: value,
+        searchField: value.includes('@') ? 'email' : 'name',
+        searchOperator: 'contains',
+      }),
+      sortBy: 'createdAt',
+      sortDirection: 'asc',
+    },
+    headers: requestHeaders(),
+  });
+  return {
+    users: users.map(({ id, name, email, image, role, banned, createdAt }) => ({
+      id,
+      name,
+      email,
+      image,
+      banned,
+      createdAt,
+      isAdmin: isAdmin({ role }),
+    })),
+    total,
+  };
 }, 'users');
 
 export const getUser = query(async (id: string) => {

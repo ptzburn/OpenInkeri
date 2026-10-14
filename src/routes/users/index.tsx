@@ -1,4 +1,5 @@
 import { Title } from '@solidjs/meta';
+import type { RouteDefinition } from '@solidjs/router';
 import { For, createMemo } from 'solid-js';
 import { env } from 'virtual:env/client';
 
@@ -6,12 +7,19 @@ import UserAvatar from '~/components/user-avatar';
 import { getUsers } from '~/lib/users';
 import { paths } from '~/router';
 
+// The overview counts everyone, whatever the list is searching for. Without
+// a search that is the layout's own read (same query key), so it costs no
+// extra request; with one, the preload starts it alongside the layout's.
+export const route = {
+  preload: () => void getUsers(''),
+} satisfies RouteDefinition;
+
 // The layout's index page: an overview beside the list until someone is
-// picked (from lg up; below that the layout shows only the list). It reads
-// the layout's cached query, so it costs no extra request. Without an index,
-// /users would fall through to the [...404] catch-all.
+// picked (from lg up; below that the layout shows only the list). Without an
+// index, /users would fall through to the [...404] catch-all.
 export default function UsersIndex() {
-  const users = createMemo(() => getUsers());
+  const list = createMemo(() => getUsers(''));
+  const users = createMemo(() => list().users);
   const admins = createMemo(() => users().filter((user) => user.isAdmin).length);
   const banned = createMemo(() => users().filter((user) => user.banned).length);
   // getUsers lists the oldest first.
