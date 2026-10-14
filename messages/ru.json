@@ -78,5 +78,12 @@
   "records_pagination_label": "Страницы",
   "records_page_of": "Страница {page} из {pages}",
   "records_previous": "Назад",
-  "records_next": "Вперёд"
+  "records_next": "Вперёд",
+  "records_kinds_label": "Тип записей",
+  "records_kind_baptisms": "Крещения",
+  "records_kind_marriages": "Венчания",
+  "records_kind_deaths": "Смерти",
+  "records_kind_households": "Проживание",
+  "records_kind_taxpayers": "Налогоплательщики",
+  "records_kind_empty": "Записей этого типа пока нет."
 }

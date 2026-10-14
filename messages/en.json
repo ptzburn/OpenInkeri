@@ -73,10 +73,17 @@
   "records_lost": "Lost",
   "records_twins": "Twins",
   "records_triplets": "Triplets",
-  "records_illegitimate": "Born out of wedlock",
+  "records_illegitimate": "Out of wedlock",
   "records_as_written": "In the source: {text}",
   "records_pagination_label": "Pages",
   "records_page_of": "Page {page} of {pages}",
   "records_previous": "Previous",
-  "records_next": "Next"
+  "records_next": "Next",
+  "records_kinds_label": "Record type",
+  "records_kind_baptisms": "Baptisms",
+  "records_kind_marriages": "Marriages",
+  "records_kind_deaths": "Deaths",
+  "records_kind_households": "Households",
+  "records_kind_taxpayers": "Taxpayers",
+  "records_kind_empty": "There are no records of this type yet."
 }

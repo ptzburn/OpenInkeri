@@ -6,6 +6,7 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, real, snakeCase, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
+import { recordKinds } from '../../lib/record-kinds';
 import { user } from './auth-schema';
 
 export * from './auth-schema';
@@ -122,7 +123,7 @@ export const clergy = snakeCase.table('clergy', {
 
 // --- Sources and records --------------------------------------------------------
 
-export const sourceKinds = ['baptisms', 'marriages', 'deaths', 'households', 'taxpayers'] as const;
+export const sourceKinds = recordKinds;
 
 // A register or list: one book, or one archival file.
 export const source = snakeCase.table(

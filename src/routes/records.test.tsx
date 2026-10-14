@@ -7,8 +7,8 @@ import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 import { Router } from '~/router';
 
 // The records page through the real router, with getRecords answering from
-// a made-up register of 120 entries, 50 a page, searched by child name the
-// way the server folds case.
+// a made-up baptism register of 120 entries, 50 a page, searched by child
+// name the way the server folds case. Other kinds have no records.
 const { getRecords } = vi.hoisted(() => {
   const size = 50;
   const entries = Array.from({ length: 120 }, (_, i) => ({
@@ -26,14 +26,17 @@ const { getRecords } = vi.hoisted(() => {
     mother: null,
     note: null,
   }));
-  const getRecords = vi.fn(async (search: string, page: number) => {
-    const found = entries.filter((e) =>
-      (e.child.ru ?? '').toLowerCase().includes(search.trim().toLowerCase()),
+  const counts = { baptisms: 120, marriages: 0, deaths: 0, households: 0, taxpayers: 0 };
+  const getRecords = vi.fn(async (kind: string, search: string, page: number) => {
+    const found = entries.filter(
+      (e) =>
+        kind === 'baptisms' &&
+        (e.child.ru ?? '').toLowerCase().includes(search.trim().toLowerCase()),
     );
     const pages = Math.max(1, Math.ceil(found.length / size));
     const current = Math.min(Math.max(1, page), pages);
     const records = found.slice((current - 1) * size, current * size).map((e) => ({ ...e }));
-    return { total: found.length, page: current, pages, records };
+    return { kind, counts, total: found.length, page: current, pages, records };
   });
   return { getRecords };
 });
@@ -61,7 +64,7 @@ describe('/records', () => {
   test('shows the first page, with the dates and names of each entry', async () => {
     const { container } = renderAt('/records');
     await waitFor(() => expect(childNames(container)).toHaveLength(50));
-    expect(getRecords).toHaveBeenLastCalledWith('', 1);
+    expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1);
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
     const first = container.querySelector('tbody tr')!;
     expect(first).toHaveTextContent('3.1895'); // born, month only
@@ -98,10 +101,34 @@ describe('/records', () => {
       { scenario: 'records-search' },
     );
     expect(artifact).toHaveNoDiagnostics();
-    expect(getRecords).toHaveBeenLastCalledWith('мария', 1);
+    expect(getRecords).toHaveBeenLastCalledWith('baptisms', 'мария', 1);
     expect(window.location.search).toBe(`?q=${encodeURIComponent('мария')}`);
     // One page of results: no pagination.
     expect(screen.queryByRole('navigation', { name: 'Pages' })).toBeNull();
+  });
+
+  test('switching the kind keeps the search and starts at the first page', async () => {
+    const { container } = renderAt(`/records?q=${encodeURIComponent('ребёнок')}&page=2`);
+    // Мария doesn't match, so page 2 starts one entry later.
+    await waitFor(() => expect(childNames(container)[0]).toBe('Ребёнок 52'));
+    const tabs = screen.getByRole('navigation', { name: 'Record type' });
+    const baptisms = screen.getByRole('link', { name: /Baptisms/ });
+    expect(baptisms).toHaveClass('tab-active');
+    expect(baptisms).toHaveTextContent('120');
+
+    fireEvent.click(screen.getByRole('link', { name: /Marriages/ }));
+    expect(await screen.findByText('There are no records of this type yet.')).toBeInTheDocument();
+    expect(getRecords).toHaveBeenLastCalledWith('marriages', 'ребёнок', 1);
+    expect(screen.getByRole('link', { name: /Marriages/ })).toHaveClass('tab-active');
+    expect(tabs.querySelectorAll('.tab')).toHaveLength(5);
+    // The search form sends the kind along, for searching before JavaScript.
+    expect(container.querySelector('input[type=hidden][name=kind]')).toHaveValue('marriages');
+  });
+
+  test('an unknown ?kind= shows baptisms', async () => {
+    const { container } = renderAt('/records?kind=nonsense');
+    await waitFor(() => expect(childNames(container)).toHaveLength(50));
+    expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1);
   });
 
   test('says when nothing matches', async () => {

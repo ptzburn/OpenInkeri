@@ -4,12 +4,14 @@
 // guard.
 import { query } from '@solidjs/router';
 import { getRequestEvent, redirect } from '@solidjs/web';
-import { sql } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
+import * as v from 'valibot';
 
+import { type RecordKind, recordKinds } from '~/lib/record-kinds';
 import { foldForSearch } from '~/lib/search-text';
 import { paths } from '~/router';
 import { db } from '~/server/database';
-import { record } from '~/server/database/schema';
+import { record, source } from '~/server/database/schema';
 
 export const RECORDS_PAGE_SIZE = 50;
 
@@ -20,26 +22,44 @@ function signedIn() {
 }
 
 /**
- * One page of records in register order, optionally narrowed to those whose
- * names or village contain `search` (case-insensitive, ё = е). `page` counts
- * from 1 and is clamped to the pages there are.
+ * One page of records of one kind, in register order, optionally narrowed to
+ * those whose names or village contain `search` (case-insensitive, ё = е).
+ * `page` counts from 1 and is clamped to the pages there are. Also returns
+ * how many records each kind has, whatever the search, for the kind tabs.
+ *
+ * Only baptisms have columns on the page yet: the other kinds' fields are
+ * read here once their registers are imported.
  */
-export const getRecords = query(async (search: string, page: number) => {
+export const getRecords = query(async (kind: RecordKind, search: string, page: number) => {
   'use server';
   signedIn();
+  kind = v.parse(v.picklist(recordKinds), kind);
   const folded = foldForSearch(search);
   // %, _ and \ in the search are literal characters, not patterns.
   const pattern = `%${folded.replace(/[\\%_]/g, '\\$&')}%`;
   // The relational query aliases its tables, so the filter takes the table
   // it is applied to.
-  const matches = (table: typeof record) => sql`${table.searchText} like ${pattern} escape '\\'`;
+  const filter = (table: typeof record) =>
+    and(
+      sql`${table.sourceId} in (select ${source.id} from ${source} where ${source.kind} = ${kind})`,
+      folded ? sql`${table.searchText} like ${pattern} escape '\\'` : undefined,
+    )!;
 
-  const total = await db.$count(record, folded ? matches(record) : undefined);
+  const totals = await db
+    .select({ kind: source.kind, records: count() })
+    .from(record)
+    .innerJoin(source, eq(record.sourceId, source.id))
+    .groupBy(source.kind);
+  const counts = Object.fromEntries(
+    recordKinds.map((k) => [k, totals.find((t) => t.kind === k)?.records ?? 0]),
+  ) as Record<RecordKind, number>;
+
+  const total = await db.$count(record, filter(record));
   const pages = Math.max(1, Math.ceil(total / RECORDS_PAGE_SIZE));
   const current = Math.min(Math.max(1, Math.trunc(page) || 1), pages);
 
   const rows = await db.query.record.findMany({
-    ...(folded && { where: { RAW: matches } }),
+    where: { RAW: filter },
     orderBy: { id: 'asc' },
     limit: RECORDS_PAGE_SIZE,
     offset: (current - 1) * RECORDS_PAGE_SIZE,
@@ -59,6 +79,8 @@ export const getRecords = query(async (search: string, page: number) => {
   };
 
   return {
+    kind,
+    counts,
     total,
     page: current,
     pages,

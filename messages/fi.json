@@ -78,5 +78,12 @@
   "records_pagination_label": "Sivut",
   "records_page_of": "Sivu {page}/{pages}",
   "records_previous": "Edellinen",
-  "records_next": "Seuraava"
+  "records_next": "Seuraava",
+  "records_kinds_label": "Merkintöjen tyyppi",
+  "records_kind_baptisms": "Kastetut",
+  "records_kind_marriages": "Vihityt",
+  "records_kind_deaths": "Kuolleet",
+  "records_kind_households": "Taloudet",
+  "records_kind_taxpayers": "Veronmaksajat",
+  "records_kind_empty": "Tämän tyypin merkintöjä ei vielä ole."
 }
