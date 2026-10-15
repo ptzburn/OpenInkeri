@@ -25,3 +25,12 @@ export function stringParams<const K extends string>(
     },
   };
 }
+
+/**
+ * A row id from a route param, or null when the param can't be one (then a
+ * page says so without asking the server).
+ */
+export function idParam(id: string | undefined): number | null {
+  const n = Number(id);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}

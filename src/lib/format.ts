@@ -1,4 +1,5 @@
 // Display formats shared by the pages.
+import { getLocale } from '~/paraglide/runtime.js';
 
 // Day.month.year, the Finnish way (13.10.2026, 1.2.2026). The calendar day is
 // taken in UTC: the server renders the page and the browser hydrates it, and
@@ -80,4 +81,14 @@ export function describeUserAgent(userAgent: string | null | undefined): string 
   const find = (list: [RegExp, string][]) => list.find(([test]) => test.test(userAgent))?.[1];
   const parts = [find(browsers), find(systems)].filter(Boolean);
   return parts.length ? parts.join(', ') : undefined;
+}
+
+/**
+ * A name in the reader's language: the Finnish form for en and fi when there
+ * is one, the Russian otherwise (and the Finnish when there is no Russian).
+ */
+export function localName(names: { ru: string | null; fi: string | null } | null): string {
+  if (!names) return '';
+  const ru = getLocale() === 'ru';
+  return (ru ? (names.ru ?? names.fi) : (names.fi ?? names.ru)) ?? '';
 }

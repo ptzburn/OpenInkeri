@@ -1,7 +1,68 @@
+import { type Action, useSubmissions } from '@solidjs/router';
 import { For, Show } from 'solid-js';
 
-// Fields the admins' edit forms share: a label above the control, and the
-// control marked when the server refused its value.
+import type { FormError } from '~/lib/forms';
+import { m } from '~/paraglide/messages.js';
+
+// What the admins' edit forms share: their refused saves, their fields (a
+// label above the control, marked when the server refused its value) and
+// the Save and Cancel bar.
+
+/**
+ * The latest refused save of one form, for an action whose forms post a
+ * FormError when refused. `isThisForm` picks this form's submissions out of
+ * the action's (by the row id it posted, say). A save that succeeds
+ * redirects, so it never lands here; each new save clears the old refusals
+ * as it starts.
+ */
+export function useFormErrors<U>(
+  action: Action<[FormData], U>,
+  isThisForm: (form: FormData) => boolean,
+) {
+  const submissions = useSubmissions(action, ([form]) => isThisForm(form));
+  action.onSubmit(() => {
+    for (const submission of submissions) submission.clear();
+  });
+  const error = () => submissions.at(-1)?.error as FormError | undefined;
+  /** Whether the latest refusal named this field. */
+  const invalid = (field: string) => error()?.fields?.includes(field) ?? false;
+  return { error, invalid };
+}
+
+/**
+ * The bottom of an edit form: why the last save was refused, Cancel (a link
+ * back) and Save. The form must have the `group` class: while a save is in
+ * flight the router marks it aria-busy, which shows the spinner and stops
+ * further clicks.
+ */
+export function FormActions(props: { error?: FormError; cancelHref: string; class?: string }) {
+  return (
+    <div class={['flex flex-col gap-3', props.class]}>
+      <Show when={props.error}>
+        {(error) => (
+          <div role="alert" class="alert alert-error alert-soft">
+            {error().message}
+          </div>
+        )}
+      </Show>
+      <div class="flex justify-end gap-2">
+        <a href={props.cancelHref} class="btn">
+          {m.form_cancel()}
+        </a>
+        <button
+          type="submit"
+          class="btn btn-primary group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
+        >
+          <span
+            class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
+            aria-hidden="true"
+          />
+          {m.form_save()}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function TextInput(props: {
   name: string;

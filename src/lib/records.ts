@@ -3,23 +3,16 @@
 // visitor is redirected to sign-in, which also makes the read the page's
 // guard.
 import { query } from '@solidjs/router';
-import { getRequestEvent, redirect } from '@solidjs/web';
 import { and, count, eq, sql } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { type RecordKind, recordKinds } from '~/lib/record-kinds';
 import { foldForSearch } from '~/lib/search-text';
-import { paths } from '~/router';
 import { db } from '~/server/database';
+import { signedIn } from '~/server/guards';
 import { record, source } from '~/server/database/schema';
 
 export const RECORDS_PAGE_SIZE = 50;
-
-function signedIn() {
-  const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect(paths['sign-in']());
-  return user;
-}
 
 /**
  * One page of records of one kind, in register order, optionally narrowed to

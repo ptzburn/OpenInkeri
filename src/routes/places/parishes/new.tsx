@@ -1,9 +1,7 @@
-import { Title } from '@solidjs/meta';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { Show, createMemo } from 'solid-js';
-import { env } from 'virtual:env/client';
-import BackIcon from '~icons/ri/arrow-left-line';
 
+import EditPage from '~/components/edit-page';
 import ParishEditForm from '~/components/parish-edit-form';
 import { requireAdmin } from '~/lib/account';
 import { m } from '~/paraglide/messages.js';
@@ -19,16 +17,14 @@ export default function NewParish() {
   const allowed = createMemo(() => requireAdmin(), { name: 'parish-new-admin' });
 
   return (
-    <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
-      <Title>{`${m.parish_new_title()} - ${env.VITE_APP_NAME}`}</Title>
-      <a href={paths.places.parishes()} class="btn self-start btn-ghost btn-sm">
-        <BackIcon class="size-4" aria-hidden="true" />
-        {m.parish_edit_back()}
-      </a>
-      <h1 class="text-2xl font-bold">{m.parish_new_title()}</h1>
+    <EditPage
+      title={m.parish_new_title()}
+      backHref={paths.places.parishes()}
+      backLabel={m.parish_edit_back()}
+    >
       <Show when={allowed()}>
         <ParishEditForm cancelHref={paths.places.parishes()} />
       </Show>
-    </main>
+    </EditPage>
   );
 }

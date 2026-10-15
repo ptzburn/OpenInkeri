@@ -4,15 +4,25 @@
 // entry in one D1 batch. (The parishes a place can pick from are
 // getParishes in ./places.ts.)
 import { action, query } from '@solidjs/router';
-import { getRequestEvent, redirect, respond } from '@solidjs/web';
+import { redirect } from '@solidjs/web';
 import { and, count, eq, isNotNull } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
-import { isAdmin } from '~/server/auth';
 import { db } from '~/server/database';
 import { changeLog, parish, place, source } from '~/server/database/schema';
+import {
+  fieldsAtFault,
+  line,
+  optionalId,
+  refuse,
+  requiredLine,
+  rowId,
+  text,
+  version,
+} from '~/server/forms';
+import { adminOnly, signedIn } from '~/server/guards';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -33,26 +43,6 @@ export interface ParishEditData {
   nameFi: string | null;
   note: string | null;
 }
-
-/** What a failed saveParish carries: a message, and the fields at fault. */
-export interface ParishError {
-  message: string;
-  fields?: string[];
-}
-
-function signedIn() {
-  const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect(paths['sign-in']());
-  return user;
-}
-
-function adminOnly() {
-  const user = signedIn();
-  if (!isAdmin(user)) throw redirect(paths());
-  return user;
-}
-
-const parishId = v.pipe(v.number(), v.integer(), v.minValue(1));
 
 /** Every parish, by Russian name, with how many places and registers belong to it. */
 export const getParishList = query(async (): Promise<ParishRow[]> => {
@@ -96,7 +86,7 @@ async function loadParish(id: number) {
 export const getParishEdit = query(async (id: number): Promise<ParishEditData | null> => {
   'use server';
   adminOnly();
-  return (await loadParish(v.parse(parishId, id))) ?? null;
+  return (await loadParish(v.parse(rowId, id))) ?? null;
 }, 'parish-edit');
 
 /** What a component's getParishEdit read holds (undefined while redirecting). */
@@ -104,34 +94,13 @@ export type ParishEdit = ParishEditData | null | undefined;
 
 // --- The form ----------------------------------------------------------------------
 
-const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
 const form = v.object({
-  // Empty for a new parish.
-  id: v.pipe(
-    v.optional(v.string(), ''),
-    v.transform((s) => (s === '' ? null : Number(s))),
-    v.nullable(parishId),
-  ),
-  version: v.pipe(v.optional(v.string(), '0'), v.transform(Number), v.number(), v.integer()),
-  nameRu: v.pipe(v.string(), v.transform(clean), v.minLength(1), v.maxLength(200)),
-  nameFi: v.pipe(
-    v.optional(v.string(), ''),
-    v.transform(clean),
-    v.maxLength(200),
-    v.transform((s) => s || null),
-  ),
-  // A note keeps its line breaks.
-  note: v.pipe(
-    v.optional(v.string(), ''),
-    v.trim(),
-    v.maxLength(2000),
-    v.transform((s) => s || null),
-  ),
+  id: optionalId, // empty for a new parish
+  version,
+  nameRu: requiredLine(),
+  nameFi: line(),
+  note: text,
 });
-
-// A refused save changed nothing: it revalidates no query, so the page
-// keeps the form as the admin typed it.
-const refuse = (error: ParishError, status: number) => respond(error, { status, revalidate: [] });
 
 /**
  * Creates a parish (no id in the form) or saves the edit page's form over
@@ -144,12 +113,7 @@ export const saveParish = action(async (formData: FormData) => {
   const user = adminOnly();
   const parsed = v.safeParse(form, Object.fromEntries(formData));
   if (!parsed.success) {
-    const fields = [
-      ...new Set(
-        parsed.issues.map((issue) => issue.path?.[0]?.key).filter((key) => typeof key === 'string'),
-      ),
-    ];
-    throw refuse({ message: m.place_edit_invalid(), fields }, 400);
+    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }
   const { id, version, ...fields } = parsed.output;
 
@@ -193,7 +157,7 @@ export const saveParish = action(async (formData: FormData) => {
     }
   } catch (error) {
     console.error('Saving a parish failed', error);
-    throw refuse({ message: m.place_edit_failed() }, 500);
+    throw refuse({ message: m.form_failed() }, 500);
   }
   throw redirect(paths.places.parishes());
 }, 'save-parish');

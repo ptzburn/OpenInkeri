@@ -2,20 +2,19 @@ import { Title } from '@solidjs/meta';
 import { useSearchParams } from '@solidjs/router';
 import type { JSX } from '@solidjs/web';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createEffect, createMemo, isPending, onSettled, untrack } from 'solid-js';
+import { For, Show, createMemo, isPending } from 'solid-js';
 import { env } from 'virtual:env/client';
 import PreviousIcon from '~icons/ri/arrow-left-s-line';
 import NextIcon from '~icons/ri/arrow-right-s-line';
-import EditIcon from '~icons/ri/pencil-line';
-import SearchIcon from '~icons/ri/search-line';
 
+import EditLinkCell from '~/components/edit-link-cell';
+import SearchBox from '~/components/search-box';
 import { getCurrentUser } from '~/lib/account';
-import { formatPartialDate } from '~/lib/format';
+import { formatPartialDate, localName } from '~/lib/format';
 import { type RecordKind, isRecordKind, recordKinds } from '~/lib/record-kinds';
 import { type RecordList, type RecordRow, getRecords } from '~/lib/records';
 import { stringParams } from '~/lib/search';
 import { m } from '~/paraglide/messages.js';
-import { getLocale } from '~/paraglide/runtime.js';
 import { paths } from '~/router';
 
 const pageNumber = (page: string | undefined) => Number(page) || 1;
@@ -42,15 +41,6 @@ export const route = defineFileRoute('/records/', {
   },
 });
 
-// A name in the reader's language: the Finnish form for en and fi when the
-// register gives one, the Russian otherwise.
-type Names = { ru: string | null; fi: string | null } | null;
-function localName(names: Names): string {
-  if (!names) return '';
-  const ru = getLocale() === 'ru';
-  return (ru ? (names.ru ?? names.fi) : (names.fi ?? names.ru)) ?? '';
-}
-
 export default function Records() {
   const [search, setSearch] = useSearchParams(paths.records);
   const kind = createMemo(() => kindOf(search.kind), { name: 'records-kind' });
@@ -63,27 +53,9 @@ export default function Records() {
   const me = createMemo(() => getCurrentUser(), { name: 'records-me' });
   const canEdit = () => !!me()?.isAdmin && kind() === 'baptisms';
 
-  // Searching as you type, like the users list (src/routes/users.tsx): once
-  // typing pauses, replacing the history entry, and back to the first page.
-  let typing: ReturnType<typeof setTimeout> | undefined;
-  const searchFor = (value: string) => {
-    clearTimeout(typing);
+  // A search goes in the URL in place of the current entry, from page 1.
+  const searchFor = (value: string) =>
     setSearch({ q: value || undefined, page: undefined }, { replace: true });
-  };
-  onSettled(() => () => clearTimeout(typing));
-
-  // The input follows ?q only when it changed elsewhere (back/forward, a
-  // link) while you aren't typing in it; see the users list for why it
-  // isn't bound.
-  let input: HTMLInputElement | undefined;
-  const initialSearch = untrack(() => search.q ?? '');
-  createEffect(
-    () => search.q ?? '',
-    (q) => {
-      if (input && document.activeElement !== input) input.value = q;
-    },
-    { name: 'records-search-input' },
-  );
 
   // Links keep the search; baptisms, the default kind, and page 1 stay out
   // of the URL.
@@ -116,36 +88,19 @@ export default function Records() {
           )}
         </For>
       </nav>
-      {/* A plain GET form, so searching works before JavaScript loads; it
-          carries the kind along. */}
-      <form
-        role="search"
+      {/* The search form carries the kind along. */}
+      <SearchBox
+        value={search.q}
+        onSearch={searchFor}
+        name="records-search-input"
+        label={m.records_search_label()}
+        placeholder={m.records_search_placeholder()}
         class="max-w-md"
-        onSubmit={(event) => {
-          event.preventDefault();
-          searchFor(new FormData(event.currentTarget).get('q') as string);
-        }}
       >
-        <label class="input w-full">
-          <SearchIcon class="size-4 opacity-50" aria-hidden="true" />
-          <input
-            type="search"
-            name="q"
-            ref={(el) => (input = el)}
-            value={initialSearch}
-            placeholder={m.records_search_placeholder()}
-            aria-label={m.records_search_label()}
-            onInput={(event) => {
-              const value = event.currentTarget.value;
-              clearTimeout(typing);
-              typing = setTimeout(() => searchFor(value), 300);
-            }}
-          />
-        </label>
         <Show when={kind() !== 'baptisms'}>
           <input type="hidden" name="kind" value={kind()} />
         </Show>
-      </form>
+      </SearchBox>
       <div class="transition-opacity" style={{ opacity: isPending(list) ? 0.5 : 1 }}>
         {/* Only baptisms have columns yet; the other kinds get theirs when
             their registers are imported. */}
@@ -306,21 +261,7 @@ function RecordTableRow(props: { row: RecordRow; editHref?: string }) {
       <td class="max-w-64 truncate text-base-content/70" title={props.row.note ?? undefined}>
         {props.row.note}
       </td>
-      {/* Admins only: the record's edit link, in its own narrow column. */}
-      <Show when={props.editHref}>
-        {(href) => (
-          <td class="w-0 text-right">
-            <a
-              href={href()}
-              class="btn btn-square btn-ghost btn-xs"
-              aria-label={m.record_edit_open()}
-              title={m.record_edit_open()}
-            >
-              <EditIcon class="size-4" aria-hidden="true" />
-            </a>
-          </td>
-        )}
-      </Show>
+      <EditLinkCell href={props.editHref} label={m.record_edit_open()} />
     </tr>
   );
 }

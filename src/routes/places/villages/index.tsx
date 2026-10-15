@@ -1,23 +1,23 @@
 import { Title } from '@solidjs/meta';
 import { useIsRouting, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createEffect, createMemo, isPending, onSettled, untrack } from 'solid-js';
+import { For, Show, createMemo, isPending } from 'solid-js';
 import { env } from 'virtual:env/client';
 import AddIcon from '~icons/ri/add-line';
 import CloseIcon from '~icons/ri/close-line';
 import MapIcon from '~icons/ri/map-pin-2-line';
-import EditIcon from '~icons/ri/pencil-line';
-import SearchIcon from '~icons/ri/search-line';
 
+import EditLinkCell from '~/components/edit-link-cell';
+import SearchBox from '~/components/search-box';
 import { kindLabels, statusLabels } from '~/components/place-labels';
 import PlacesTabs from '~/components/places-tabs';
 import { getCurrentUser } from '~/lib/account';
+import { localName } from '~/lib/format';
 import { mapLink } from '~/lib/place-kinds';
 import { type PlaceList, type PlaceRow, getPlaces } from '~/lib/places';
 import { stringParams } from '~/lib/search';
 import { foldForSearch } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
-import { getLocale } from '~/paraglide/runtime.js';
 import { paths } from '~/router';
 
 // Signed-in users only: getPlaces redirects a signed-out visitor to sign-in
@@ -28,13 +28,6 @@ export const route = defineFileRoute('/places/villages/', {
   search: stringParams('q', 'parish'),
   preload: () => void getPlaces(),
 });
-
-// A name in the reader's language: the Finnish form for en and fi when there
-// is one, the Russian otherwise.
-function localName(names: { ru: string; fi: string | null } | null): string {
-  if (!names) return '';
-  return getLocale() === 'ru' ? names.ru : (names.fi ?? names.ru);
-}
 
 // A few hundred places: the whole list comes at once and the search
 // narrows it here, by either name or any spelling (case-insensitive, ё = е).
@@ -74,25 +67,8 @@ export default function Villages() {
   const me = createMemo(() => getCurrentUser(), { name: 'villages-me' });
   const canEdit = () => !!me()?.isAdmin;
 
-  // Searching as you type, like the records list: once typing pauses,
-  // replacing the history entry. See the users list for why the input
-  // isn't bound to ?q.
-  let typing: ReturnType<typeof setTimeout> | undefined;
-  const searchFor = (value: string) => {
-    clearTimeout(typing);
-    setSearch({ q: value || undefined }, { replace: true });
-  };
-  onSettled(() => () => clearTimeout(typing));
-
-  let input: HTMLInputElement | undefined;
-  const initialSearch = untrack(() => search.q ?? '');
-  createEffect(
-    () => search.q ?? '',
-    (q) => {
-      if (input && document.activeElement !== input) input.value = q;
-    },
-    { name: 'villages-search-input' },
-  );
+  // A search goes in the URL in place of the current entry.
+  const searchFor = (value: string) => setSearch({ q: value || undefined }, { replace: true });
 
   return (
     <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
@@ -107,32 +83,16 @@ export default function Villages() {
         </Show>
       </header>
       <PlacesTabs current="villages" />
-      {/* A plain GET form, so searching works before JavaScript loads; it
-          carries the parish filter along. */}
-      <form
-        role="search"
+      {/* The search form carries the parish filter along. */}
+      <SearchBox
+        value={search.q}
+        onSearch={searchFor}
+        name="villages-search-input"
+        label={m.villages_search_label()}
+        placeholder={m.villages_search_placeholder()}
         class="flex flex-wrap items-center gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          searchFor(new FormData(event.currentTarget).get('q') as string);
-        }}
+        inputClass="max-w-md"
       >
-        <label class="input w-full max-w-md">
-          <SearchIcon class="size-4 opacity-50" aria-hidden="true" />
-          <input
-            type="search"
-            name="q"
-            ref={(el) => (input = el)}
-            value={initialSearch}
-            placeholder={m.villages_search_placeholder()}
-            aria-label={m.villages_search_label()}
-            onInput={(event) => {
-              const value = event.currentTarget.value;
-              clearTimeout(typing);
-              typing = setTimeout(() => searchFor(value), 300);
-            }}
-          />
-        </label>
         <Show when={search.parish}>
           {(parish) => (
             <>
@@ -151,7 +111,7 @@ export default function Villages() {
           )}
         </Show>
         <span class="badge badge-sm">{shown().length}</span>
-      </form>
+      </SearchBox>
 
       <div class="transition-opacity" style={{ opacity: busy() ? 0.5 : 1 }}>
         <Show
@@ -269,21 +229,7 @@ function PlaceTableRow(props: { place: PlaceRow; editHref?: string }) {
           </a>
         </Show>
       </td>
-      {/* Admins only: the village's edit link, in its own narrow column. */}
-      <Show when={props.editHref}>
-        {(href) => (
-          <td class="w-0 text-right">
-            <a
-              href={href()}
-              class="btn btn-square btn-ghost btn-xs"
-              aria-label={m.place_edit_open()}
-              title={m.place_edit_open()}
-            >
-              <EditIcon class="size-4" aria-hidden="true" />
-            </a>
-          </td>
-        )}
-      </Show>
+      <EditLinkCell href={props.editHref} label={m.place_edit_open()} />
     </tr>
   );
 }

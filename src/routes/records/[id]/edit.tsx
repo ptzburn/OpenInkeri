@@ -1,22 +1,13 @@
-import { Title } from '@solidjs/meta';
 import { type RouteProps, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { Show } from 'solid-js';
-import { env } from 'virtual:env/client';
-import BackIcon from '~icons/ri/arrow-left-line';
 
 import BaptismEditForm from '~/components/baptism-edit-form';
+import EditPage from '~/components/edit-page';
 import { getBaptismEdit, getEditOptions } from '~/lib/record-edit';
-import { stringParams } from '~/lib/search';
+import { idParam, stringParams } from '~/lib/search';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
-
-// A record id from the URL, or null when it can't be one (then the page says
-// so without asking the server).
-const recordId = (id: string | undefined) => {
-  const n = Number(id);
-  return Number.isInteger(n) && n > 0 ? n : null;
-};
 
 // Admins only: getBaptismEdit redirects anyone else (signed out to sign-in,
 // others home). The list's ?kind=, ?q= and ?page= ride along, so saving or
@@ -24,7 +15,7 @@ const recordId = (id: string | undefined) => {
 export const route = defineFileRoute('/records/:id/edit', {
   search: stringParams('kind', 'q', 'page'),
   preload: ({ params }) => {
-    const id = recordId(params.id);
+    const id = idParam(params.id);
     if (id) {
       void getBaptismEdit(id);
       void getEditOptions();
@@ -35,25 +26,18 @@ export const route = defineFileRoute('/records/:id/edit', {
 export default function EditRecord(props: RouteProps<'/records/:id/edit'>) {
   const [search] = useSearchParams(paths.records);
   const listHref = () => paths.records({ kind: search.kind, q: search.q, page: search.page });
-  const id = () => recordId(props.params.id);
 
   return (
-    <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
-      <Title>{`${m.record_edit_title()} - ${env.VITE_APP_NAME}`}</Title>
-      <a href={listHref()} class="btn self-start btn-ghost btn-sm">
-        <BackIcon class="size-4" aria-hidden="true" />
-        {m.record_edit_back()}
-      </a>
-      <h1 class="text-2xl font-bold">{m.record_edit_title()}</h1>
-      <Show when={id()} fallback={<p>{m.record_edit_missing()}</p>}>
-        {(shown) => (
+    <EditPage title={m.record_edit_title()} backHref={listHref()} backLabel={m.record_edit_back()}>
+      <Show when={idParam(props.params.id)} fallback={<p>{m.record_edit_missing()}</p>}>
+        {(id) => (
           <BaptismEditForm
-            id={shown()}
+            id={id()}
             returnTo={{ kind: search.kind, q: search.q, page: search.page }}
             cancelHref={listHref()}
           />
         )}
       </Show>
-    </main>
+    </EditPage>
   );
 }

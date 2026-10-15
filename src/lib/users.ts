@@ -10,23 +10,10 @@
 // as the users pages' guard: the pages render straight away, their reads
 // start together, and no separate guard request runs ahead of them.
 import { query } from '@solidjs/router';
-import { getRequestEvent, redirect } from '@solidjs/web';
 
-import { paths } from '~/router';
 import { auth, isAdmin, requestHeaders } from '~/server/auth';
 import { db } from '~/server/database';
-
-function signedIn() {
-  const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect(paths['sign-in']());
-  return user;
-}
-
-function adminOnly() {
-  const user = signedIn();
-  if (!isAdmin(user)) throw redirect(paths());
-  return user;
-}
+import { adminOnly } from '~/server/guards';
 
 // What the users pages show of someone; the raw role string stays on the
 // server, reduced to the one flag the UI needs.

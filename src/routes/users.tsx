@@ -1,8 +1,8 @@
 import { type RouteSectionProps, useMatch, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createEffect, createMemo, isPending, onSettled, untrack } from 'solid-js';
-import SearchIcon from '~icons/ri/search-line';
+import { For, Show, createMemo, isPending } from 'solid-js';
 
+import SearchBox from '~/components/search-box';
 import UserAvatar from '~/components/user-avatar';
 import { stringParams } from '~/lib/search';
 import { type UserList, getUsers } from '~/lib/users';
@@ -35,32 +35,8 @@ export default function UsersLayout(props: RouteSectionProps) {
   });
   const detail = useMatch(() => '/users/:id');
 
-  // Searching as you type, once typing pauses; replace keeps each keystroke
-  // out of the history. The value goes in untrimmed; getUsers trims it.
-  let typing: ReturnType<typeof setTimeout> | undefined;
-  const searchFor = (value: string) => {
-    clearTimeout(typing);
-    setSearch({ q: value || undefined }, { replace: true });
-  };
-  // A search still waiting when you leave the section must not fire: it
-  // would put ?q= on whatever page you went to.
-  onSettled(() => () => clearTimeout(typing));
-
-  // The input is not bound to ?q: the URL catches up only once a search's
-  // results arrive, and a bound value would then rewind whatever was typed
-  // meanwhile (latest() doesn't help: the router's search isn't a held
-  // signal it can see ahead of). It starts from ?q (rendered on the server
-  // too), and follows the URL only when the change came from elsewhere
-  // (back/forward, a link) while you aren't typing in it.
-  let input: HTMLInputElement | undefined;
-  const initialSearch = untrack(() => search.q ?? '');
-  createEffect(
-    () => search.q ?? '',
-    (q) => {
-      if (input && document.activeElement !== input) input.value = q;
-    },
-    { name: 'users-search-input' },
-  );
+  // A search goes in the URL in place of the current entry.
+  const searchFor = (value: string) => setSearch({ q: value || undefined }, { replace: true });
 
   return (
     <main class="flex flex-1 flex-col lg:flex-row">
@@ -77,32 +53,14 @@ export default function UsersLayout(props: RouteSectionProps) {
           </h1>
           <span class="badge badge-sm">{list()?.total}</span>
         </header>
-        {/* A plain GET form, so searching works before JavaScript loads. */}
-        <form
-          role="search"
+        <SearchBox
+          value={search.q}
+          onSearch={searchFor}
+          name="users-search-input"
+          label={m.users_search_label()}
+          placeholder={m.users_search_placeholder()}
           class="px-4 py-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            searchFor(new FormData(event.currentTarget).get('q') as string);
-          }}
-        >
-          <label class="input w-full">
-            <SearchIcon class="size-4 opacity-50" aria-hidden="true" />
-            <input
-              type="search"
-              name="q"
-              ref={(el) => (input = el)}
-              value={initialSearch}
-              placeholder={m.users_search_placeholder()}
-              aria-label={m.users_search_label()}
-              onInput={(event) => {
-                const value = event.currentTarget.value;
-                clearTimeout(typing);
-                typing = setTimeout(() => searchFor(value), 300);
-              }}
-            />
-          </label>
-        </form>
+        />
         {/* The router marks the selected user's link aria-current="page". */}
         <nav
           aria-labelledby="users-heading"

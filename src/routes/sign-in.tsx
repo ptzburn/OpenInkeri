@@ -1,14 +1,22 @@
 import { Title } from '@solidjs/meta';
 import { useSearchParams, useSubmissions } from '@solidjs/router';
+import { defineFileRoute } from '@solidjs/router/fs';
 import { Show } from 'solid-js';
 import { env } from 'virtual:env/client';
 import GitHub from '~icons/ri/github-fill';
 
 import { type ActionError, signInWithGitHub } from '~/lib/account';
+import { stringParams } from '~/lib/search';
 import { m } from '~/paraglide/messages.js';
+import { paths } from '~/router';
+
+// ?error= is the code better-auth sends back after a failed GitHub round trip.
+export const route = defineFileRoute('/sign-in', {
+  search: stringParams('error'),
+});
 
 export default function SignIn() {
-  const [search] = useSearchParams();
+  const [search] = useSearchParams(paths['sign-in']);
   const submissions = useSubmissions(signInWithGitHub);
   // Either the action failed before leaving for GitHub, or better-auth sent
   // the user back here with ?error=<code> after the round trip.

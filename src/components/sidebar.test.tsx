@@ -1,4 +1,7 @@
-import { cleanup, render, screen, waitFor } from '@solidjs/testing-library';
+import { flush } from 'solid-js';
+import { captureArtifact } from '@solidjs/diagnostics';
+import '@solidjs/diagnostics/vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import { Router } from '~/router';
@@ -32,6 +35,25 @@ const link = (name: string) => screen.findByRole('link', { name });
 afterEach(cleanup);
 
 describe('<Sidebar />', () => {
+  // The capture is a click once the sidebar has rendered: in the app the
+  // server renders it with the user already read, so a first mount in
+  // jsdom (its spinner flashing while the mocked read resolves) isn't what
+  // anyone sees.
+  test('following a link causes no diagnostics', async () => {
+    renderAt('/');
+    const records = await link('Records');
+    await waitFor(() => expect(records).not.toHaveAttribute('data-active'));
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(records);
+        await waitFor(() => expect(records).toHaveAttribute('data-active'));
+        flush();
+      },
+      { scenario: 'sidebar-navigate' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+  });
+
   test('Places stays active on both tabs and the edit pages', async () => {
     for (const url of ['/places/villages', '/places/parishes', '/places/villages/1/edit']) {
       renderAt(url);

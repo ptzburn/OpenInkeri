@@ -8,7 +8,7 @@
 // entry holding the record before and after. record.raw, the row as first
 // transcribed, is never edited.
 import { action, query } from '@solidjs/router';
-import { getRequestEvent, redirect, respond } from '@solidjs/web';
+import { redirect } from '@solidjs/web';
 import { and, eq } from 'drizzle-orm';
 import * as v from 'valibot';
 
@@ -17,9 +17,10 @@ import { baptismLocations, recordKinds, recordStatuses, sexes } from '~/lib/reco
 import { recordSearchText } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
-import { isAdmin } from '~/server/auth';
 import { db } from '~/server/database';
 import { changeLog, persona, record, recordBaptism } from '~/server/database/schema';
+import { fieldsAtFault, optionalId, refuse, rowId, text, version } from '~/server/forms';
+import { adminOnly } from '~/server/guards';
 
 /** The roles the edit form edits, one person each. */
 export const editedRoles = ['child', 'father', 'mother'] as const;
@@ -76,21 +77,6 @@ export interface EditOptionsData {
   clergy: { id: number; name: string }[];
 }
 
-/** What a failed updateBaptism carries: a message, and the fields at fault. */
-export interface EditError {
-  message: string;
-  fields?: string[];
-}
-
-function adminOnly() {
-  const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect(paths['sign-in']());
-  if (!isAdmin(user)) throw redirect(paths());
-  return user;
-}
-
-const recordId = v.pipe(v.number(), v.integer(), v.minValue(1));
-
 const personaColumns = {
   id: true,
   role: true,
@@ -134,7 +120,7 @@ async function loadBaptism(id: number) {
 export const getBaptismEdit = query(async (id: number): Promise<BaptismEditData | null> => {
   'use server';
   adminOnly();
-  const found = await loadBaptism(v.parse(recordId, id));
+  const found = await loadBaptism(v.parse(rowId, id));
   if (!found || found.source.kind !== 'baptisms') return null;
   const { source: _, personas, ...rest } = found;
   // The first person in each edited role (a record names one of each).
@@ -169,13 +155,6 @@ export type EditOptions = EditOptionsData | undefined;
 
 // --- The form ----------------------------------------------------------------------
 
-// A text field: trimmed, and null when empty.
-const text = v.pipe(
-  v.optional(v.string(), ''),
-  v.trim(),
-  v.maxLength(2000),
-  v.transform((s) => s || null),
-);
 // A date typed as on the page (12.3.1895, 3.1895, 1895), stored as ISO.
 const date = v.pipe(
   v.optional(v.string(), ''),
@@ -183,12 +162,7 @@ const date = v.pipe(
   v.check((d) => d !== undefined),
   v.transform((d) => d ?? null),
 );
-// A <select> of ids or of fixed values, where '' is "none".
-const ref = v.pipe(
-  v.optional(v.string(), ''),
-  v.transform((s) => (s === '' ? null : Number(s))),
-  v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1))),
-);
+// A <select> of fixed values, where '' is "none".
 const choice = <T extends readonly [string, ...string[]]>(options: T) =>
   v.pipe(
     v.optional(v.string(), ''),
@@ -213,16 +187,16 @@ const form = v.object({
   returnKind: v.optional(v.picklist(recordKinds)),
   returnQ: v.optional(v.pipe(v.string(), v.maxLength(200))),
   returnPage: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,5}$/))),
-  id: v.pipe(v.string(), v.transform(Number), recordId),
-  version: v.pipe(v.string(), v.transform(Number), v.number(), v.integer()),
+  id: v.pipe(v.string(), v.transform(Number), rowId),
+  version,
   status: v.picklist(recordStatuses),
   date,
   birthDate: date,
   emergencyDate: date,
-  placeId: ref,
+  placeId: optionalId,
   placeText: text,
   note: text,
-  officiantId: ref,
+  officiantId: optionalId,
   officiantText: text,
   location: choice(baptismLocations),
   multipleBirth: v.pipe(
@@ -252,11 +226,6 @@ function personValues(input: Record<string, unknown>, role: EditedRole) {
   };
 }
 
-// A refused save changed nothing: it revalidates no query, so the page
-// keeps the form as the admin typed it (by default an action's response
-// revalidates every query, which would reload the record into the form).
-const refuse = (error: EditError, status: number) => respond(error, { status, revalidate: [] });
-
 /**
  * Saves the edit page's form over a baptism record, then redirects to the
  * records list where the admin came from (the redirect revalidates, so the
@@ -274,12 +243,7 @@ export const updateBaptism = action(async (formData: FormData) => {
   const user = adminOnly();
   const parsed = v.safeParse(form, Object.fromEntries(formData));
   if (!parsed.success) {
-    const fields = [
-      ...new Set(
-        parsed.issues.map((issue) => issue.path?.[0]?.key).filter((key) => typeof key === 'string'),
-      ),
-    ];
-    throw refuse({ message: m.record_edit_invalid(), fields }, 400);
+    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }
   const input = parsed.output as typeof parsed.output & Record<string, unknown>;
 
@@ -391,7 +355,7 @@ export const updateBaptism = action(async (formData: FormData) => {
     await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
   } catch (error) {
     console.error('Saving a baptism failed', error);
-    throw refuse({ message: m.record_edit_failed() }, 500);
+    throw refuse({ message: m.form_failed() }, 500);
   }
   throw redirect(
     paths.records({

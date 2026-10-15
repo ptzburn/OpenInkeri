@@ -10,7 +10,7 @@ import { m } from '~/paraglide/messages.js';
 // (light). The server renders the saved choice; after that the checkbox owns
 // its state.
 export default function ThemeSwitcher() {
-  const saved = createMemo(() => getTheme());
+  const saved = createMemo(() => getTheme(), { name: 'saved-theme' });
 
   return (
     <label class="btn swap btn-circle swap-rotate btn-ghost" title={m.theme_toggle()}>

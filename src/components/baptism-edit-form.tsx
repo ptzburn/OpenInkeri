@@ -1,12 +1,10 @@
-import { useSubmissions } from '@solidjs/router';
 import type { JSX } from '@solidjs/web';
 import { For, Show, createMemo } from 'solid-js';
 
-import { Select, TextInput } from '~/components/form-fields';
+import { FormActions, Select, TextInput, useFormErrors } from '~/components/form-fields';
 import { PARTIAL_DATE_PATTERN, formatPartialDate } from '~/lib/format';
 import {
   type BaptismEdit,
-  type EditError,
   type EditOptions,
   type EditedRole,
   editedRoles,
@@ -67,18 +65,11 @@ export default function BaptismEditForm(props: {
   const options = createMemo((): Promise<EditOptions> => getEditOptions(), {
     name: 'edit-options',
   });
-  // This record's settled saves. A successful one redirects, so it never
-  // lands here: what's here are refusals, the latest one shown. Each new
-  // save clears them first (onSubmit runs as the action starts).
-  const submissions = useSubmissions(
+  // This form's refused saves (the latest shown, its fields marked).
+  const { error, invalid } = useFormErrors(
     updateBaptism,
-    ([form]) => form.get('id') === String(props.id),
+    (form) => form.get('id') === String(props.id),
   );
-  updateBaptism.onSubmit(() => {
-    for (const submission of submissions) submission.clear();
-  });
-  const error = () => submissions.at(-1)?.error as EditError | undefined;
-  const invalid = (field: string) => error()?.fields?.includes(field) ?? false;
 
   return (
     // Keyed: each record (and each fresh read of it) gets a fresh form. A
@@ -121,7 +112,7 @@ export default function BaptismEditForm(props: {
                   name="placeId"
                   label={m.record_edit_village()}
                   value={r.placeId}
-                  none={m.record_edit_none()}
+                  none={m.form_none()}
                   options={(options()?.places ?? []).map((place) => ({
                     value: place.id,
                     label:
@@ -155,7 +146,7 @@ export default function BaptismEditForm(props: {
                   name="officiantId"
                   label={m.record_edit_officiant()}
                   value={r.baptism?.officiantId}
-                  none={m.record_edit_none()}
+                  none={m.form_none()}
                   options={(options()?.clergy ?? []).map((c) => ({ value: c.id, label: c.name }))}
                   invalid={invalid('officiantId')}
                 />
@@ -169,7 +160,7 @@ export default function BaptismEditForm(props: {
                   name="location"
                   label={m.record_edit_location()}
                   value={r.baptism?.location}
-                  none={m.record_edit_none()}
+                  none={m.form_none()}
                   options={baptismLocations.map((l) => ({ value: l, label: locationLabels[l]() }))}
                   invalid={invalid('location')}
                 />
@@ -215,30 +206,11 @@ export default function BaptismEditForm(props: {
           </div>
 
           {/* Kept in view at the bottom of the window while scrolling. */}
-          <div class="sticky bottom-0 -mx-4 flex flex-col gap-3 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8">
-            <Show when={error()}>
-              {(shown) => (
-                <div role="alert" class="alert alert-error alert-soft">
-                  {shown().message}
-                </div>
-              )}
-            </Show>
-            <div class="flex justify-end gap-2">
-              <a href={props.cancelHref} class="btn">
-                {m.record_edit_cancel()}
-              </a>
-              <button
-                type="submit"
-                class="btn btn-primary group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-              >
-                <span
-                  class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
-                  aria-hidden="true"
-                />
-                {m.record_edit_save()}
-              </button>
-            </div>
-          </div>
+          <FormActions
+            error={error()}
+            cancelHref={props.cancelHref}
+            class="sticky bottom-0 -mx-4 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8"
+          />
         </form>
       )}
     </Show>
@@ -287,7 +259,7 @@ function PersonFields(props: {
             name={field('sex')}
             label={m.record_edit_sex()}
             value={value('sex')}
-            none={m.record_edit_none()}
+            none={m.form_none()}
             options={[
               { value: 'male', label: m.record_edit_sex_male() },
               { value: 'female', label: m.record_edit_sex_female() },

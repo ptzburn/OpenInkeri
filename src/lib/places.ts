@@ -10,7 +10,7 @@
 //     village as written but no place yet, unless another place has the
 //     same spelling (then which one is meant stays for an admin to pick).
 import { action, query } from '@solidjs/router';
-import { getRequestEvent, redirect, respond } from '@solidjs/web';
+import { redirect } from '@solidjs/web';
 import { and, count, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import * as v from 'valibot';
 
@@ -24,9 +24,20 @@ import {
 import { recordSearchText } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
-import { isAdmin } from '~/server/auth';
 import { db } from '~/server/database';
 import { changeLog, place, placeAlias, record } from '~/server/database/schema';
+import {
+  collapse,
+  fieldsAtFault,
+  line,
+  optionalId,
+  refuse,
+  requiredLine,
+  rowId,
+  text,
+  version,
+} from '~/server/forms';
+import { adminOnly, signedIn } from '~/server/guards';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -69,26 +80,6 @@ export interface ParishOption {
   id: number;
   name: string;
 }
-
-/** What a failed savePlace carries: a message, and the fields at fault. */
-export interface PlaceError {
-  message: string;
-  fields?: string[];
-}
-
-function signedIn() {
-  const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect(paths['sign-in']());
-  return user;
-}
-
-function adminOnly() {
-  const user = signedIn();
-  if (!isAdmin(user)) throw redirect(paths());
-  return user;
-}
-
-const placeId = v.pipe(v.number(), v.integer(), v.minValue(1));
 
 /** Every place, by Russian name, with its spellings and how many records link to it. */
 export const getPlaces = query(async (): Promise<PlaceListData> => {
@@ -164,7 +155,7 @@ async function loadPlace(id: number) {
 export const getPlaceEdit = query(async (id: number): Promise<PlaceEditData | null> => {
   'use server';
   adminOnly();
-  const found = await loadPlace(v.parse(placeId, id));
+  const found = await loadPlace(v.parse(rowId, id));
   if (!found) return null;
   const { aliases, ...rest } = found;
   return { ...rest, spellings: aliases.map((a) => a.name) };
@@ -188,35 +179,18 @@ export type Parishes = ParishOption[] | undefined;
 
 // --- The form ----------------------------------------------------------------------
 
-const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
-// A text field: whitespace collapsed, and null when empty.
-const text = v.pipe(
-  v.optional(v.string(), ''),
-  v.transform(clean),
-  v.maxLength(2000),
-  v.transform((s) => s || null),
-);
 const form = v.object({
   // Where the list was (search, parish filter), to return there after
   // saving. The redirect is built from these, never taken whole from the
   // request.
   returnQ: v.optional(v.pipe(v.string(), v.maxLength(200))),
   returnParish: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,8}$|^$/))),
-  // Empty for a new place.
-  id: v.pipe(
-    v.optional(v.string(), ''),
-    v.transform((s) => (s === '' ? null : Number(s))),
-    v.nullable(placeId),
-  ),
-  version: v.pipe(v.optional(v.string(), '0'), v.transform(Number), v.number(), v.integer()),
-  nameRu: v.pipe(v.string(), v.transform(clean), v.minLength(1), v.maxLength(200)),
-  nameFi: text,
+  id: optionalId, // empty for a new place
+  version,
+  nameRu: requiredLine(),
+  nameFi: line(),
   kind: v.picklist(placeKinds),
-  parishId: v.pipe(
-    v.optional(v.string(), ''),
-    v.transform((s) => (s === '' ? null : Number(s))),
-    v.nullable(v.pipe(v.number(), v.integer(), v.minValue(1))),
-  ),
+  parishId: optionalId,
   coordinates: v.pipe(
     v.optional(v.string(), ''),
     v.transform(parseCoordinates),
@@ -228,14 +202,10 @@ const form = v.object({
   // One spelling a line, as written in the sources.
   spellings: v.pipe(
     v.optional(v.string(), ''),
-    v.transform((s) => [...new Set(s.split('\n').map(clean).filter(Boolean))]),
+    v.transform((s) => [...new Set(s.split('\n').map(collapse).filter(Boolean))]),
     v.check((list) => list.every((s) => s.length <= 200)),
   ),
 });
-
-// A refused save changed nothing: it revalidates no query, so the page
-// keeps the form as the admin typed it.
-const refuse = (error: PlaceError, status: number) => respond(error, { status, revalidate: [] });
 
 /**
  * Creates a place (no id in the form) or saves the edit page's form over
@@ -252,12 +222,7 @@ export const savePlace = action(async (formData: FormData) => {
   const user = adminOnly();
   const parsed = v.safeParse(form, Object.fromEntries(formData));
   if (!parsed.success) {
-    const fields = [
-      ...new Set(
-        parsed.issues.map((issue) => issue.path?.[0]?.key).filter((key) => typeof key === 'string'),
-      ),
-    ];
-    throw refuse({ message: m.place_edit_invalid(), fields }, 400);
+    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }
   const input = parsed.output;
 
@@ -398,7 +363,7 @@ export const savePlace = action(async (formData: FormData) => {
     console.error('Saving a place failed', error);
     // A new place whose spellings couldn't be written goes again.
     if (!before) await db.delete(place).where(eq(place.id, id));
-    throw refuse({ message: m.place_edit_failed() }, 500);
+    throw refuse({ message: m.form_failed() }, 500);
   }
   throw redirect(
     paths.places.villages({

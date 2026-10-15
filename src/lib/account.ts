@@ -15,6 +15,7 @@ import * as v from 'valibot';
 import { paths } from '~/router';
 import { m } from '~/paraglide/messages.js';
 import { LAST_ADMIN, auth, forwardCookies, isAdmin, requestHeaders } from '~/server/auth';
+import { adminOnly, signedIn } from '~/server/guards';
 
 /**
  * The signed-in user's active sessions, through auth.api.listSessions, or
@@ -28,12 +29,6 @@ async function listSessions() {
     if (isAPIError(error) && error.body?.code === 'SESSION_NOT_FRESH') return null;
     throw error;
   }
-}
-
-function signedIn() {
-  const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect(paths['sign-in']());
-  return user;
 }
 
 /** The signed-in user (set on the request by src/middleware.ts), or null. */
@@ -54,8 +49,7 @@ export const getCurrentUser = query(async () => {
 /** For pages that need a user: redirects signed-out visitors to sign-in. */
 export const requireUser = query(async () => {
   'use server';
-  const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect(paths['sign-in']());
+  const user = signedIn();
   return { id: user.id, name: user.name, email: user.email };
 }, 'require-user');
 
@@ -65,9 +59,7 @@ export const requireUser = query(async () => {
  */
 export const requireAdmin = query(async () => {
   'use server';
-  const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect(paths['sign-in']());
-  if (!isAdmin(user)) throw redirect(paths());
+  adminOnly();
   return true;
 }, 'require-admin');
 

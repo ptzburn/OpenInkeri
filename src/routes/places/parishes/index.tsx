@@ -4,8 +4,8 @@ import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createMemo, isPending } from 'solid-js';
 import { env } from 'virtual:env/client';
 import AddIcon from '~icons/ri/add-line';
-import EditIcon from '~icons/ri/pencil-line';
 
+import EditLinkCell from '~/components/edit-link-cell';
 import PlacesTabs from '~/components/places-tabs';
 import { getCurrentUser } from '~/lib/account';
 import { type ParishList, type ParishRow, getParishList } from '~/lib/parishes';
@@ -58,7 +58,7 @@ export default function Parishes() {
                   <th>{m.villages_col_fi()}</th>
                   <th class="text-right">{m.parishes_col_villages()}</th>
                   <th class="text-right">{m.parishes_col_sources()}</th>
-                  <th>{m.place_edit_note()}</th>
+                  <th>{m.form_note()}</th>
                   <Show when={canEdit()}>
                     <th>
                       <span class="sr-only">{m.records_col_actions()}</span>
@@ -105,21 +105,7 @@ function ParishTableRow(props: { parish: ParishRow; editHref?: string }) {
       <td class="max-w-64 truncate text-base-content/70" title={props.parish.note ?? undefined}>
         {props.parish.note}
       </td>
-      {/* Admins only: the parish's edit link, in its own narrow column. */}
-      <Show when={props.editHref}>
-        {(href) => (
-          <td class="w-0 text-right">
-            <a
-              href={href()}
-              class="btn btn-square btn-ghost btn-xs"
-              aria-label={m.parish_edit_open()}
-              title={m.parish_edit_open()}
-            >
-              <EditIcon class="size-4" aria-hidden="true" />
-            </a>
-          </td>
-        )}
-      </Show>
+      <EditLinkCell href={props.editHref} label={m.parish_edit_open()} />
     </tr>
   );
 }

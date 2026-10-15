@@ -16,7 +16,7 @@ import { paths } from '~/router';
 // the account corner. Links for signed-in users, or for admins, stay hidden
 // from everyone else; the pages and server functions guard themselves anyway.
 export default function Sidebar() {
-  const user = createMemo(() => getCurrentUser());
+  const user = createMemo(() => getCurrentUser(), { name: 'sidebar-user' });
   const inPlaces = useMatch(() => '/places/*');
 
   return (
