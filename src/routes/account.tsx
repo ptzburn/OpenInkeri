@@ -6,9 +6,10 @@ import CalendarIcon from '~icons/ri/calendar-line';
 import DeviceIcon from '~icons/ri/computer-line';
 import MailIcon from '~icons/ri/mail-line';
 
+import type { QueryData } from '~/lib/query-data';
+import { FIELD_MAX } from '~/lib/field-limits';
 import UserAvatar from '~/components/user-avatar';
 import {
-  type AccountData,
   type DeleteAccountError,
   deleteAccount,
   getAccount,
@@ -42,7 +43,7 @@ function lastError<E extends ActionError>(submissions: { error?: unknown }[]) {
 // signed-out visitor to /sign-in (and, like getUsers, resolves to undefined
 // in that server render).
 export default function Account() {
-  const account = createMemo((): Promise<AccountData | undefined> => getAccount(), {
+  const account = createMemo((): Promise<QueryData<typeof getAccount>> => getAccount(), {
     name: 'account',
   });
   const renames = useSubmissions(renameMe);
@@ -102,7 +103,7 @@ export default function Account() {
                       name="name"
                       value={shown().user.name}
                       required
-                      maxlength={100}
+                      maxlength={FIELD_MAX.displayName}
                       class="input join-item w-full"
                       aria-label={m.account_name()}
                     />

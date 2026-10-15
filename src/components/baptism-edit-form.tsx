@@ -1,38 +1,27 @@
 import type { JSX } from '@solidjs/web';
 import { For, Show, createMemo } from 'solid-js';
 
+import type { QueryData } from '~/lib/query-data';
+import { FIELD_MAX } from '~/lib/field-limits';
 import { FormActions, Select, TextInput, useFormErrors } from '~/components/form-fields';
+import {
+  baptismLocationLabels,
+  editedRoleLabels,
+  recordStatusLabels,
+  sexLabels,
+} from '~/components/labels';
 import { PARTIAL_DATE_PATTERN, formatPartialDate } from '~/lib/format';
 import {
-  type BaptismEdit,
-  type BaptismEditOptions,
+  type BaptismEditPerson,
   type EditedRole,
   editedRoles,
   getBaptismEdit,
   getBaptismEditOptions,
   saveBaptism,
 } from '~/data/records';
-import { baptismLocations, recordStatuses } from '~/lib/record-kinds';
+import { baptismLocations, recordStatuses, sexes } from '~/lib/record-kinds';
 import { m } from '~/paraglide/messages.js';
 
-const statusLabels: Record<(typeof recordStatuses)[number], () => string> = {
-  ok: m.record_edit_status_ok,
-  lost: m.record_edit_status_lost,
-  illegible: m.record_edit_status_illegible,
-};
-const locationLabels: Record<(typeof baptismLocations)[number], () => string> = {
-  pastorate: m.record_edit_location_pastorate,
-  church: m.record_edit_location_church,
-  chapel: m.record_edit_location_chapel,
-  village: m.record_edit_location_village,
-  home: m.record_edit_location_home,
-  other: m.record_edit_location_other,
-};
-const roleLabels: Record<EditedRole, () => string> = {
-  child: m.records_col_child,
-  father: m.records_col_father,
-  mother: m.records_col_mother,
-};
 const nameParts = [
   ['given', m.record_edit_given],
   ['patronymic', m.record_edit_patronymic],
@@ -59,12 +48,18 @@ export default function BaptismEditForm(props: {
   returnTo: ListPlace;
   cancelHref: string;
 }) {
-  const record = createMemo((): Promise<BaptismEdit> => getBaptismEdit(props.id), {
-    name: 'baptism-edit',
-  });
-  const options = createMemo((): Promise<BaptismEditOptions> => getBaptismEditOptions(), {
-    name: 'edit-options',
-  });
+  const record = createMemo(
+    (): Promise<QueryData<typeof getBaptismEdit>> => getBaptismEdit(props.id),
+    {
+      name: 'baptism-edit',
+    },
+  );
+  const options = createMemo(
+    (): Promise<QueryData<typeof getBaptismEditOptions>> => getBaptismEditOptions(),
+    {
+      name: 'edit-options',
+    },
+  );
   // This form's refused saves (the latest shown, its fields marked).
   const { error, invalid } = useFormErrors(
     saveBaptism,
@@ -93,7 +88,10 @@ export default function BaptismEditForm(props: {
                   name="status"
                   label={m.record_edit_status()}
                   value={r.status}
-                  options={recordStatuses.map((s) => ({ value: s, label: statusLabels[s]() }))}
+                  options={recordStatuses.map((s) => ({
+                    value: s,
+                    label: recordStatusLabels[s](),
+                  }))}
                   invalid={invalid('status')}
                 />
                 <DateInput
@@ -132,6 +130,7 @@ export default function BaptismEditForm(props: {
                   <span class="fieldset-legend">{m.records_col_note()}</span>
                   <textarea
                     name="note"
+                    maxlength={FIELD_MAX.text}
                     rows={3}
                     class={['textarea w-full', { 'textarea-error': invalid('note') }]}
                     aria-invalid={invalid('note') ? 'true' : undefined}
@@ -161,7 +160,10 @@ export default function BaptismEditForm(props: {
                   label={m.record_edit_location()}
                   value={r.baptism?.location}
                   none={m.form_none()}
-                  options={baptismLocations.map((l) => ({ value: l, label: locationLabels[l]() }))}
+                  options={baptismLocations.map((l) => ({
+                    value: l,
+                    label: baptismLocationLabels[l](),
+                  }))}
                   invalid={invalid('location')}
                 />
                 <DateInput
@@ -217,7 +219,7 @@ export default function BaptismEditForm(props: {
   );
 }
 
-type Person = NonNullable<BaptismEdit>['people'][EditedRole];
+type Person = BaptismEditPerson | null;
 
 function PersonFields(props: {
   role: EditedRole;
@@ -230,7 +232,7 @@ function PersonFields(props: {
 
   return (
     <fieldset class="fieldset rounded-box border border-base-300 p-4">
-      <legend class="fieldset-legend">{roleLabels[props.role]()}</legend>
+      <legend class="fieldset-legend">{editedRoleLabels[props.role]()}</legend>
       <div class="grid gap-x-4 sm:grid-cols-2">
         <TextInput
           name={field('nameRu')}
@@ -260,10 +262,7 @@ function PersonFields(props: {
             label={m.record_edit_sex()}
             value={value('sex')}
             none={m.form_none()}
-            options={[
-              { value: 'male', label: m.record_edit_sex_male() },
-              { value: 'female', label: m.record_edit_sex_female() },
-            ]}
+            options={sexes.map((s) => ({ value: s, label: sexLabels[s]() }))}
             invalid={props.invalid(field('sex'))}
           />
           <DateInput

@@ -7,12 +7,14 @@ import { env } from 'virtual:env/client';
 import PreviousIcon from '~icons/ri/arrow-left-s-line';
 import NextIcon from '~icons/ri/arrow-right-s-line';
 
+import type { QueryData } from '~/lib/query-data';
+import { recordKindLabels } from '~/components/labels';
 import EditLinkCell from '~/components/edit-link-cell';
 import SearchBox from '~/components/search-box';
 import { getCurrentUser } from '~/data/session';
 import { formatPartialDate, localName } from '~/lib/format';
 import { type RecordKind, isRecordKind, recordKinds } from '~/lib/record-kinds';
-import { type RecordList, type RecordRow, getRecords } from '~/data/records';
+import { type RecordRow, getRecords } from '~/data/records';
 import { stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -20,14 +22,6 @@ import { paths } from '~/router';
 const pageNumber = (page: string | undefined) => Number(page) || 1;
 // Baptisms unless ?kind= names another kind.
 const kindOf = (kind: string | undefined): RecordKind => (isRecordKind(kind) ? kind : 'baptisms');
-
-const kindLabels: Record<RecordKind, () => string> = {
-  baptisms: m.records_kind_baptisms,
-  marriages: m.records_kind_marriages,
-  deaths: m.records_kind_deaths,
-  households: m.records_kind_households,
-  taxpayers: m.records_kind_taxpayers,
-};
 
 // Signed-in users only: getRecords redirects a signed-out visitor to
 // sign-in (src/data/records.ts). ?kind= is the kind of record, ?q= the search
@@ -45,7 +39,8 @@ export default function Records() {
   const [search, setSearch] = useSearchParams(paths.records);
   const kind = createMemo(() => kindOf(search.kind), { name: 'records-kind' });
   const list = createMemo(
-    (): Promise<RecordList> => getRecords(kind(), search.q ?? '', pageNumber(search.page)),
+    (): Promise<QueryData<typeof getRecords>> =>
+      getRecords(kind(), search.q ?? '', pageNumber(search.page)),
     { name: 'records-list' },
   );
   // Admins edit baptisms on their edit page; the server functions check the
@@ -82,7 +77,7 @@ export default function Records() {
               href={link(k)}
               class={['tab gap-2 whitespace-nowrap', { 'tab-active': k === kind() }]}
             >
-              {kindLabels[k]()}
+              {recordKindLabels[k]()}
               <span class="badge badge-sm">{list()?.counts[k] ?? ''}</span>
             </a>
           )}

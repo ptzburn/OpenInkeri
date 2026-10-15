@@ -3,9 +3,10 @@ import type { RouteDefinition } from '@solidjs/router';
 import { For, createMemo } from 'solid-js';
 import { env } from 'virtual:env/client';
 
+import type { QueryData } from '~/lib/query-data';
 import UserAvatar from '~/components/user-avatar';
 import { formatDate } from '~/lib/format';
-import { type UserList, getUsers } from '~/data/users';
+import { getUsers } from '~/data/users';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
@@ -20,7 +21,9 @@ export const route = {
 // picked (from lg up; below that the layout shows only the list). Without an
 // index, /users would fall through to the [...404] catch-all.
 export default function UsersIndex() {
-  const list = createMemo((): Promise<UserList> => getUsers(''), { name: 'overview-list' });
+  const list = createMemo((): Promise<QueryData<typeof getUsers>> => getUsers(''), {
+    name: 'overview-list',
+  });
   const users = createMemo(() => list()?.users ?? [], { name: 'overview-users' });
   const admins = createMemo(() => users().filter((user) => user.isAdmin).length, {
     name: 'overview-admins',

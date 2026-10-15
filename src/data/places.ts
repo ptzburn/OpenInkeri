@@ -14,11 +14,12 @@ import { redirect } from '@solidjs/web';
 import { and, count, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import * as v from 'valibot';
 
+import { FIELD_MAX } from '~/lib/field-limits';
+import { parseCoordinates } from '~/lib/coordinates';
 import {
   type CoordinateStatus,
   type PlaceKind,
   coordinateStatuses,
-  parseCoordinates,
   placeKinds,
 } from '~/lib/place-kinds';
 import { recordSearchText } from '~/lib/search-text';
@@ -124,9 +125,6 @@ export const getPlaces = query(async (): Promise<PlaceListData> => {
   };
 }, 'places');
 
-/** What a component's getPlaces read holds (undefined while redirecting). */
-export type PlaceList = PlaceListData | undefined;
-
 async function loadPlace(id: number) {
   return db.query.place.findFirst({
     where: { id },
@@ -156,16 +154,13 @@ export const getPlaceEdit = query(async (id: number): Promise<PlaceEditData | nu
   return { ...rest, spellings: aliases.map((a) => a.name) };
 }, 'place-edit');
 
-/** What a component's getPlaceEdit read holds (undefined while redirecting). */
-export type PlaceEdit = PlaceEditData | null | undefined;
-
 // --- The form ----------------------------------------------------------------------
 
 const form = v.object({
   // Where the list was (search, parish filter), to return there after
   // saving. The redirect is built from these, never taken whole from the
   // request.
-  returnQ: v.optional(v.pipe(v.string(), v.maxLength(200))),
+  returnQ: v.optional(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
   returnParish: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,8}$|^$/))),
   id: optionalId, // empty for a new place
   version,
@@ -185,7 +180,7 @@ const form = v.object({
   spellings: v.pipe(
     v.optional(v.string(), ''),
     v.transform((s) => [...new Set(s.split('\n').map(collapse).filter(Boolean))]),
-    v.check((list) => list.every((s) => s.length <= 200)),
+    v.check((list) => list.every((s) => s.length <= FIELD_MAX.line)),
   ),
 });
 

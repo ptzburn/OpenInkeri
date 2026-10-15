@@ -5,13 +5,14 @@ import 'server-only';
 import { respond } from '@solidjs/web';
 import * as v from 'valibot';
 
+import { FIELD_MAX } from '~/lib/field-limits';
 import type { FormError } from '~/lib/form-error';
 
 /** Whitespace runs as one space, trimmed: for one-line values like names. */
 export const collapse = (s: string) => s.replace(/\s+/g, ' ').trim();
 
 /** A one-line text field: whitespace collapsed, at most `max` characters, null when empty. */
-export const line = (max = 200) =>
+export const line = (max: number = FIELD_MAX.line) =>
   v.pipe(
     v.optional(v.string(), ''),
     v.transform(collapse),
@@ -20,14 +21,14 @@ export const line = (max = 200) =>
   );
 
 /** A required one-line text field: whitespace collapsed, 1 to `max` characters. */
-export const requiredLine = (max = 200) =>
+export const requiredLine = (max: number = FIELD_MAX.line) =>
   v.pipe(v.string(), v.transform(collapse), v.minLength(1), v.maxLength(max));
 
 /** A text field that keeps its line breaks (notes): trimmed, null when empty. */
 export const text = v.pipe(
   v.optional(v.string(), ''),
   v.trim(),
-  v.maxLength(2000),
+  v.maxLength(FIELD_MAX.text),
   v.transform((s) => s || null),
 );
 

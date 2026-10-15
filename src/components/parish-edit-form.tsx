@@ -1,7 +1,9 @@
 import { Show, createMemo } from 'solid-js';
 
+import type { QueryData } from '~/lib/query-data';
+import { FIELD_MAX } from '~/lib/field-limits';
 import { FormActions, TextInput, useFormErrors } from '~/components/form-fields';
-import { type ParishEdit, type ParishEditData, getParishEdit, saveParish } from '~/data/parishes';
+import { type ParishEditData, getParishEdit, saveParish } from '~/data/parishes';
 import { m } from '~/paraglide/messages.js';
 
 // What a new parish's form starts from.
@@ -16,7 +18,8 @@ const blank: ParishEditData = { id: 0, version: 0, nameRu: '', nameFi: null, not
  */
 export default function ParishEditForm(props: { id?: number; cancelHref: string }) {
   const parish = createMemo(
-    (): Promise<ParishEdit> | ParishEditData => (props.id ? getParishEdit(props.id) : blank),
+    (): Promise<QueryData<typeof getParishEdit>> | ParishEditData =>
+      props.id ? getParishEdit(props.id) : blank,
     { name: 'parish-edit' },
   );
   // This form's refused saves (the latest shown, its fields marked).
@@ -40,14 +43,14 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
               label={m.form_name_ru()}
               value={p.nameRu}
               required
-              maxlength={200}
+              maxlength={FIELD_MAX.line}
               invalid={invalid('nameRu')}
             />
             <TextInput
               name="nameFi"
               label={m.form_name_fi()}
               value={p.nameFi}
-              maxlength={200}
+              maxlength={FIELD_MAX.line}
               invalid={invalid('nameFi')}
             />
             <label class="fieldset sm:col-span-2">
@@ -55,7 +58,7 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
               <textarea
                 name="note"
                 rows={4}
-                maxlength={2000}
+                maxlength={FIELD_MAX.text}
                 class={['textarea w-full', { 'textarea-error': invalid('note') }]}
                 aria-invalid={invalid('note') ? 'true' : undefined}
               >

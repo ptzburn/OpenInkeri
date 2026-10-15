@@ -19,3 +19,7 @@ export const baptismLocations = [
   'other',
 ] as const;
 export const sexes = ['male', 'female'] as const;
+
+export type RecordStatus = (typeof recordStatuses)[number];
+export type BaptismLocation = (typeof baptismLocations)[number];
+export type Sex = (typeof sexes)[number];

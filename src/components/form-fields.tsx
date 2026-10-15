@@ -1,6 +1,7 @@
 import { type Action, useSubmissions } from '@solidjs/router';
 import { For, Show } from 'solid-js';
 
+import { FIELD_MAX } from '~/lib/field-limits';
 import type { FormError } from '~/lib/form-error';
 import { m } from '~/paraglide/messages.js';
 
@@ -81,7 +82,7 @@ export function TextInput(props: {
         name={props.name}
         value={props.value ?? ''}
         required={props.required}
-        maxlength={props.maxlength ?? 2000}
+        maxlength={props.maxlength ?? FIELD_MAX.text}
         pattern={props.pattern}
         class={['input w-full', { 'input-error': props.invalid }]}
         aria-invalid={props.invalid ? 'true' : undefined}

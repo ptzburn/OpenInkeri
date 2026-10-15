@@ -263,6 +263,7 @@ export const personaRoles = [
   'member', // of a household; `relationText` says how (отец, сын…)
   'taxpayer',
 ] as const;
+export type PersonaRole = (typeof personaRoles)[number];
 
 // A person as one record mentions them. Names are kept whole as written
 // (`nameRu`, `nameFi`) and split into parts for search and display.

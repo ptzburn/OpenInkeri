@@ -15,6 +15,7 @@ import { redirect } from '@solidjs/web';
 import { and, count, eq, sql } from 'drizzle-orm';
 import * as v from 'valibot';
 
+import { FIELD_MAX } from '~/lib/field-limits';
 import { parsePartialDate } from '~/lib/format';
 import {
   type RecordKind,
@@ -27,7 +28,14 @@ import { foldForSearch, recordSearchText } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
-import { changeLog, persona, record, recordBaptism, source } from '~/server/database/schema';
+import {
+  type PersonaRole,
+  changeLog,
+  persona,
+  record,
+  recordBaptism,
+  source,
+} from '~/server/database/schema';
 import { fieldsAtFault, optionalId, refuse, rowId, text, version } from '~/server/forms';
 import { adminOnly, signedIn } from '~/server/guards';
 
@@ -114,17 +122,13 @@ export const getRecords = query(async (kind: RecordKind, search: string, page: n
   };
 }, 'records');
 
-/**
- * What a component's getRecords read holds: undefined on a server render
- * that redirects a signed-out visitor (see UserList in ./users.ts).
- */
-export type RecordList = Awaited<ReturnType<typeof getRecords>> | undefined;
-export type RecordRow = NonNullable<RecordList>['records'][number];
+/** One row of the records list. */
+export type RecordRow = Awaited<ReturnType<typeof getRecords>>['records'][number];
 
 // --- Editing a baptism -------------------------------------------------------------
 
-/** The roles the edit form edits, one person each. */
-export const editedRoles = ['child', 'father', 'mother'] as const;
+/** The roles the edit form edits, one person each: persona roles, checked against the schema's. */
+export const editedRoles = ['child', 'father', 'mother'] as const satisfies readonly PersonaRole[];
 export type EditedRole = (typeof editedRoles)[number];
 
 /** A person's name fields, as written and in parts, in both languages. */
@@ -231,9 +235,6 @@ export const getBaptismEdit = query(async (id: number): Promise<BaptismEditData 
   return { ...rest, people };
 }, 'baptism-edit');
 
-/** What a component's getBaptismEdit read holds (undefined while redirecting). */
-export type BaptismEdit = BaptismEditData | null | undefined;
-
 /** The places and clergy an edited record can point to, by name. */
 export const getBaptismEditOptions = query(async (): Promise<BaptismEditOptionsData> => {
   'use server';
@@ -251,8 +252,6 @@ export const getBaptismEditOptions = query(async (): Promise<BaptismEditOptionsD
     clergy: clergy.map((c) => ({ id: c.id, name: c.nameRu })),
   };
 }, 'baptism-edit-options');
-
-export type BaptismEditOptions = BaptismEditOptionsData | undefined;
 
 // --- The form ----------------------------------------------------------------------
 
@@ -286,7 +285,7 @@ const form = v.object({
   // Where the list was (kind, search, page), to return there after saving.
   // The redirect is built from these, never taken whole from the request.
   returnKind: v.optional(v.picklist(recordKinds)),
-  returnQ: v.optional(v.pipe(v.string(), v.maxLength(200))),
+  returnQ: v.optional(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
   returnPage: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,5}$/))),
   id: v.pipe(v.string(), v.transform(Number), rowId),
   version,

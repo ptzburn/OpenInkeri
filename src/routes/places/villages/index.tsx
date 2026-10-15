@@ -7,14 +7,15 @@ import AddIcon from '~icons/ri/add-line';
 import CloseIcon from '~icons/ri/close-line';
 import MapIcon from '~icons/ri/map-pin-2-line';
 
+import type { QueryData } from '~/lib/query-data';
 import EditLinkCell from '~/components/edit-link-cell';
 import SearchBox from '~/components/search-box';
-import { kindLabels, statusLabels } from '~/components/place-labels';
+import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
 import PlacesTabs from '~/components/places-tabs';
 import { getCurrentUser } from '~/data/session';
 import { localName } from '~/lib/format';
-import { mapLink } from '~/lib/place-kinds';
-import { type PlaceList, type PlaceRow, getPlaces } from '~/data/places';
+import { mapLink } from '~/lib/coordinates';
+import { type PlaceRow, getPlaces } from '~/data/places';
 import { stringParams } from '~/lib/route-params';
 import { foldForSearch } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
@@ -38,7 +39,9 @@ const matches = (place: PlaceRow, folded: string) =>
 
 export default function Villages() {
   const [search, setSearch] = useSearchParams(paths.places.villages);
-  const list = createMemo((): Promise<PlaceList> => getPlaces(), { name: 'villages-list' });
+  const list = createMemo((): Promise<QueryData<typeof getPlaces>> => getPlaces(), {
+    name: 'villages-list',
+  });
   const parishId = () => Number(search.parish) || null;
   const shown = createMemo(
     () => {
@@ -195,7 +198,7 @@ function PlaceTableRow(props: { place: PlaceRow; editHref?: string }) {
           <span class="font-medium">{props.place.nameRu}</span>
           <Show when={props.place.kind !== 'village'}>
             <span class="badge badge-soft badge-sm whitespace-nowrap">
-              {kindLabels[props.place.kind]()}
+              {placeKindLabels[props.place.kind]()}
             </span>
           </Show>
         </div>
@@ -214,7 +217,9 @@ function PlaceTableRow(props: { place: PlaceRow; editHref?: string }) {
         <Show
           when={props.place.latitude !== null && props.place.longitude !== null}
           fallback={
-            <span class="text-base-content/50">{statusLabels[props.place.coordinateStatus]()}</span>
+            <span class="text-base-content/50">
+              {coordinateStatusLabels[props.place.coordinateStatus]()}
+            </span>
           }
         >
           <a
@@ -225,7 +230,7 @@ function PlaceTableRow(props: { place: PlaceRow; editHref?: string }) {
             title={m.villages_show_on_map()}
           >
             <MapIcon class="size-4" aria-hidden="true" />
-            {statusLabels[props.place.coordinateStatus]()}
+            {coordinateStatusLabels[props.place.coordinateStatus]()}
           </a>
         </Show>
       </td>

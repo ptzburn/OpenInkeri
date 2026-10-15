@@ -13,6 +13,7 @@ import { getRequestEvent, redirect, respond } from '@solidjs/web';
 import { isAPIError } from 'better-auth/api';
 import * as v from 'valibot';
 
+import { FIELD_MAX } from '~/lib/field-limits';
 import type { ActionError } from '~/lib/form-error';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -99,7 +100,9 @@ export const renameMe = action(async (form: FormData) => {
   'use server';
   const user = signedIn();
   const parsed = v.safeParse(
-    v.object({ name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)) }),
+    v.object({
+      name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(FIELD_MAX.displayName)),
+    }),
     Object.fromEntries(form),
   );
   if (!parsed.success) {

@@ -5,10 +5,11 @@ import { For, Show, createMemo, isPending } from 'solid-js';
 import { env } from 'virtual:env/client';
 import AddIcon from '~icons/ri/add-line';
 
+import type { QueryData } from '~/lib/query-data';
 import EditLinkCell from '~/components/edit-link-cell';
 import PlacesTabs from '~/components/places-tabs';
 import { getCurrentUser } from '~/data/session';
-import { type ParishList, type ParishRow, getParishes } from '~/data/parishes';
+import { type ParishRow, getParishes } from '~/data/parishes';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
@@ -20,7 +21,7 @@ export const route = defineFileRoute('/places/parishes/', {
 });
 
 export default function Parishes() {
-  const list = createMemo((): Promise<ParishList> => getParishes(), {
+  const list = createMemo((): Promise<QueryData<typeof getParishes>> => getParishes(), {
     name: 'parishes-list',
   });
   // The list dims while it reloads (after a save) and while a link from

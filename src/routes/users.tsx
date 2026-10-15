@@ -2,10 +2,11 @@ import { type RouteSectionProps, useMatch, useSearchParams } from '@solidjs/rout
 import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createMemo, isPending } from 'solid-js';
 
+import type { QueryData } from '~/lib/query-data';
 import SearchBox from '~/components/search-box';
 import UserAvatar from '~/components/user-avatar';
 import { stringParams } from '~/lib/route-params';
-import { type UserList, getUsers } from '~/data/users';
+import { getUsers } from '~/data/users';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
@@ -30,7 +31,7 @@ export const route = defineFileRoute('/users', {
 // /users/:id the user.
 export default function UsersLayout(props: RouteSectionProps) {
   const [search, setSearch] = useSearchParams(paths.users);
-  const list = createMemo((): Promise<UserList> => getUsers(search.q ?? ''), {
+  const list = createMemo((): Promise<QueryData<typeof getUsers>> => getUsers(search.q ?? ''), {
     name: 'users-list',
   });
   const detail = useMatch(() => '/users/:id');

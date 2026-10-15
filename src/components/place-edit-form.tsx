@@ -1,17 +1,14 @@
 import { Show, createMemo } from 'solid-js';
 import MapIcon from '~icons/ri/map-pin-2-line';
 
+import type { QueryData } from '~/lib/query-data';
+import { FIELD_MAX } from '~/lib/field-limits';
 import { FormActions, Select, TextInput, useFormErrors } from '~/components/form-fields';
-import { kindLabels, statusLabels } from '~/components/place-labels';
-import {
-  COORDINATES_PATTERN,
-  coordinateStatuses,
-  formatCoordinates,
-  mapLink,
-  placeKinds,
-} from '~/lib/place-kinds';
-import { type ParishOptions, getParishOptions } from '~/data/parishes';
-import { type PlaceEdit, type PlaceEditData, getPlaceEdit, savePlace } from '~/data/places';
+import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
+import { COORDINATES_PATTERN, formatCoordinates, mapLink } from '~/lib/coordinates';
+import { coordinateStatuses, placeKinds } from '~/lib/place-kinds';
+import { getParishOptions } from '~/data/parishes';
+import { type PlaceEditData, getPlaceEdit, savePlace } from '~/data/places';
 import { m } from '~/paraglide/messages.js';
 
 // What a new place's form starts from.
@@ -44,15 +41,18 @@ export default function PlaceEditForm(props: {
   cancelHref: string;
 }) {
   const place = createMemo(
-    (): Promise<PlaceEdit> | PlaceEditData =>
+    (): Promise<QueryData<typeof getPlaceEdit>> | PlaceEditData =>
       props.id
         ? getPlaceEdit(props.id)
         : { ...blank, parishId: Number(props.returnTo.parish) || null },
     { name: 'place-edit' },
   );
-  const parishes = createMemo((): Promise<ParishOptions> => getParishOptions(), {
-    name: 'parish-options',
-  });
+  const parishes = createMemo(
+    (): Promise<QueryData<typeof getParishOptions>> => getParishOptions(),
+    {
+      name: 'parish-options',
+    },
+  );
   // This form's refused saves (the latest shown, its fields marked).
   const { error, invalid } = useFormErrors(
     savePlace,
@@ -76,21 +76,21 @@ export default function PlaceEditForm(props: {
               label={m.form_name_ru()}
               value={p.nameRu}
               required
-              maxlength={200}
+              maxlength={FIELD_MAX.line}
               invalid={invalid('nameRu')}
             />
             <TextInput
               name="nameFi"
               label={m.form_name_fi()}
               value={p.nameFi}
-              maxlength={200}
+              maxlength={FIELD_MAX.line}
               invalid={invalid('nameFi')}
             />
             <Select
               name="kind"
               label={m.place_edit_kind()}
               value={p.kind}
-              options={placeKinds.map((k) => ({ value: k, label: kindLabels[k]() }))}
+              options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
               invalid={invalid('kind')}
             />
             <Select
@@ -117,7 +117,10 @@ export default function PlaceEditForm(props: {
               name="coordinateStatus"
               label={m.place_edit_coordinate_status()}
               value={p.coordinateStatus}
-              options={coordinateStatuses.map((s) => ({ value: s, label: statusLabels[s]() }))}
+              options={coordinateStatuses.map((s) => ({
+                value: s,
+                label: coordinateStatusLabels[s](),
+              }))}
               invalid={invalid('coordinateStatus')}
             />
             <Show when={p.latitude !== null && p.longitude !== null}>
@@ -147,6 +150,7 @@ export default function PlaceEditForm(props: {
               <span class="fieldset-legend">{m.form_note()}</span>
               <textarea
                 name="note"
+                maxlength={FIELD_MAX.text}
                 rows={6}
                 class={['textarea w-full', { 'textarea-error': invalid('note') }]}
                 aria-invalid={invalid('note') ? 'true' : undefined}

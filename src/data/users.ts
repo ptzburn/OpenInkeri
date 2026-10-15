@@ -64,14 +64,6 @@ export const getUsers = query(async (search: string) => {
   };
 }, 'users');
 
-/**
- * What a component's getUsers read holds. A signed-out or non-admin visitor
- * makes it redirect, and on the server the router then resolves the read to
- * undefined (the 302 discards the body; the client holds the read pending
- * instead), so a server render can't assume a list.
- */
-export type UserList = Awaited<ReturnType<typeof getUsers>> | undefined;
-
 /** One user, and whether it is the signed-in one. */
 export const getUser = query(async (id: string) => {
   'use server';

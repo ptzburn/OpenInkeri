@@ -76,9 +76,6 @@ export const getParishes = query(async (): Promise<ParishRow[]> => {
     .sort((a, b) => a.nameRu.localeCompare(b.nameRu, 'ru'));
 }, 'parishes');
 
-/** What a component's getParishes read holds (undefined while redirecting). */
-export type ParishList = ParishRow[] | undefined;
-
 /** The parishes a place can belong to, for the place form's select. */
 export const getParishOptions = query(async (): Promise<ParishOption[]> => {
   'use server';
@@ -89,8 +86,6 @@ export const getParishOptions = query(async (): Promise<ParishOption[]> => {
   });
   return parishes.map((p) => ({ id: p.id, name: p.nameRu }));
 }, 'parish-options');
-
-export type ParishOptions = ParishOption[] | undefined;
 
 async function loadParish(id: number) {
   return db.query.parish.findFirst({
@@ -105,9 +100,6 @@ export const getParishEdit = query(async (id: number): Promise<ParishEditData | 
   adminOnly();
   return (await loadParish(v.parse(rowId, id))) ?? null;
 }, 'parish-edit');
-
-/** What a component's getParishEdit read holds (undefined while redirecting). */
-export type ParishEdit = ParishEditData | null | undefined;
 
 // --- The form ----------------------------------------------------------------------
 
