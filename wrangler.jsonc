@@ -11,6 +11,9 @@
   // A new hostname also goes in baseURL.allowedHosts (src/server/auth-options.ts)
   // and needs its own GitHub OAuth app (one callback URL per app).
   "routes": [{ "pattern": "openinkeri.hokkanen.io", "custom_domain": true }],
+  // Workers Logs: console output and uncaught errors, searchable in the
+  // dashboard (Workers & Pages → openinkeri → Logs).
+  "observability": { "enabled": true },
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",
