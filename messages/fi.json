@@ -206,6 +206,7 @@
   ],
   "parish_delete_in_use": "Seurakuntaan kuuluu vielä {uses}. Siirrä ne toiseen seurakuntaan ennen poistamista.",
   "parish_delete_failed": "Seurakunnan poistaminen epäonnistui. Yritä uudelleen.",
+  "parish_created": "Seurakunta {name} lisätty.",
   "parish_deleted": "Seurakunta {name} poistettu.",
   "villages_parish_filter": "Seurakunta: {parish}",
   "villages_clear_filter": "Näytä kaikki seurakunnat",

@@ -24,8 +24,8 @@ const blank: ParishEditData = {
  * and a note. It posts to the saveParish action (and works before
  * JavaScript loads); a save redirects to the parishes list, and Cancel goes
  * to `cancelHref`. A save the server refuses keeps the form as typed, says
- * why and marks the fields at fault. An existing parish's form is followed
- * by its Delete section.
+ * why and marks the fields at fault. A new parish is confirmed with a toast;
+ * an existing parish's form is followed by its Delete section.
  */
 export default function ParishEditForm(props: { id?: number; cancelHref: string }) {
   const parish = createMemo(
@@ -33,11 +33,19 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
       props.id ? getParishEdit(props.id) : blank,
     { name: 'parish-edit' },
   );
+  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
   // This form's refused saves (the latest shown, its fields marked).
-  const { error, invalid } = useFormErrors(
-    saveParish,
-    (form) => form.get('id') === (props.id ? String(props.id) : ''),
-  );
+  const { error, invalid } = useFormErrors(saveParish, isThisForm);
+  // A new parish lands on the parishes list with a toast, named as typed.
+  const toast = useToast();
+  useFormDone(saveParish, isThisForm, (form) => {
+    if (props.id) return;
+    const typed = (field: string) => {
+      const value = form.get(field);
+      return (typeof value === 'string' && value.trim()) || null;
+    };
+    toast(m.parish_created({ name: localName({ ru: typed('nameRu'), fi: typed('nameFi') }) }));
+  });
 
   return (
     // Keyed: each parish (and each fresh read of it) gets a fresh form.

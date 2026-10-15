@@ -210,6 +210,7 @@
   ],
   "parish_delete_in_use": "В приходе ещё есть {uses}. Перед удалением перенесите их в другой приход.",
   "parish_delete_failed": "Не удалось удалить приход. Попробуйте ещё раз.",
+  "parish_created": "Приход {name} добавлен.",
   "parish_deleted": "Приход {name} удалён.",
   "villages_parish_filter": "Приход: {parish}",
   "villages_clear_filter": "Показать все приходы",

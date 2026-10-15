@@ -31,8 +31,8 @@ export function useFormErrors<U>(
 }
 
 /**
- * Calls `done` when one of this form's submissions of `action` goes through
- * (settles without an error), e.g. to show a toast. It runs after the
+ * Calls `done` with the posted form when one of this form's submissions of
+ * `action` goes through (settles without an error), e.g. to show a toast. It runs after the
  * action's redirect, when the page that posted may already be disposed:
  * reading its props still works, but anything that needs an owner (useToast()
  * and other useContext calls, new signals or memos) must happen in the
@@ -41,10 +41,11 @@ export function useFormErrors<U>(
 export function useFormDone<U>(
   action: Action<[FormData], U>,
   isThisForm: (form: FormData) => boolean,
-  done: () => void,
+  done: (form: FormData) => void,
 ) {
   action.onSettled((submission) => {
-    if (!submission.error && isThisForm(submission.input[0])) done();
+    const [form] = submission.input;
+    if (!submission.error && isThisForm(form)) done(form);
   });
 }
 

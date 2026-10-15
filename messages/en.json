@@ -206,6 +206,7 @@
   ],
   "parish_delete_in_use": "Still in this parish: {uses}. Move them to another parish before deleting it.",
   "parish_delete_failed": "Could not delete the parish. Try again.",
+  "parish_created": "Parish {name} added.",
   "parish_deleted": "Parish {name} deleted.",
   "villages_parish_filter": "Parish: {parish}",
   "villages_clear_filter": "Show all parishes",

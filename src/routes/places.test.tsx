@@ -335,6 +335,24 @@ describe('/places/parishes', () => {
     expect(saved.get('id')).toBe('5');
     expect(saved.get('version')).toBe('2');
     expect(saved.get('note')).toBe('Губаницкий приход');
+    // Only a new parish gets a toast.
+    await screen.findAllByRole('link', { name: 'Edit parish' });
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+  });
+
+  test('a new parish is confirmed with a toast, named as typed', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/new');
+    await screen.findByRole('heading', { level: 1, name: 'New parish' });
+    await waitFor(() => expect(field('nameRu')).toBeInTheDocument());
+    fireEvent.input(field('nameRu'), { target: { value: 'Тест' } });
+    fireEvent.input(field('nameFi'), { target: { value: '  Testi ' } });
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+    expect(parishes.saved[0].get('id')).toBe('');
+    // English shows the Finnish name.
+    expect(await screen.findByRole('status')).toHaveTextContent('Parish Testi added.');
   });
 
   test('deleting a parish posts its id and version once confirmed', async () => {

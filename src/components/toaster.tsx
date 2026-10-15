@@ -26,7 +26,7 @@ const TOAST_MS = 5000;
 
 const ToastContext = createContext<(message: string) => void>();
 
-/** Shows a short confirmation in the corner of the page. Call during component setup. */
+/** Shows a short confirmation at the top of the page. Call during component setup. */
 export function useToast(): (message: string) => void {
   return useContext(ToastContext);
 }
@@ -46,7 +46,7 @@ export function ToastProvider(props: ParentProps) {
       {props.children}
       {/* A live region from the first render, so screen readers announce
           the toasts added to it. Above the drawer's sidebar (z-10). */}
-      <div role="status" aria-live="polite" class="toast toast-end z-20">
+      <div role="status" aria-live="polite" class="toast toast-top toast-center z-20">
         <For each={toasts()}>
           {(toast) => <ToastItem message={toast.message} onClose={() => dismiss(toast.id)} />}
         </For>
