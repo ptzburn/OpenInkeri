@@ -14,11 +14,11 @@ import { db } from '~/server/database';
 import { changeLog, parish, place, source } from '~/server/database/schema';
 import {
   fieldsAtFault,
-  line,
+  finnishName,
   optionalId,
   refuse,
-  requiredLine,
   rowId,
+  russianName,
   text,
   version,
 } from '~/server/forms';
@@ -121,8 +121,8 @@ export const getParishEdit = query(async (id: number): Promise<ParishEditData | 
 const form = v.object({
   id: optionalId, // empty for a new parish
   version,
-  nameRu: requiredLine(),
-  nameFi: line(),
+  nameRu: russianName(),
+  nameFi: finnishName(),
   note: text,
 });
 

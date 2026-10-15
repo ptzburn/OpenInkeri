@@ -335,9 +335,8 @@ describe('/places/parishes', () => {
     expect(saved.get('id')).toBe('5');
     expect(saved.get('version')).toBe('2');
     expect(saved.get('note')).toBe('Губаницкий приход');
-    // Only a new parish gets a toast.
-    await screen.findAllByRole('link', { name: 'Edit parish' });
-    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    // The list it lands on says so (English shows the Finnish name).
+    expect(await screen.findByRole('status')).toHaveTextContent('Parish Hevaa saved.');
   });
 
   test('a new parish is confirmed with a toast, named as typed', async () => {

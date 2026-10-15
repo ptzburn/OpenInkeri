@@ -6,6 +6,7 @@ import { respond } from '@solidjs/web';
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
+import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import type { FormError } from '~/lib/form-error';
 
 /** Whitespace runs as one space, trimmed: for one-line values like names. */
@@ -23,6 +24,20 @@ export const line = (max: number = FIELD_MAX.line) =>
 /** A required one-line text field: whitespace collapsed, 1 to `max` characters. */
 export const requiredLine = (max: number = FIELD_MAX.line) =>
   v.pipe(v.string(), v.transform(collapse), v.minLength(1), v.maxLength(max));
+
+/** A required Russian name (of a parish or village): in Cyrillic, see ~/lib/name-scripts. */
+export const russianName = () =>
+  v.pipe(
+    requiredLine(),
+    v.check((s) => matchesPattern(CYRILLIC_NAME_PATTERN, s)),
+  );
+
+/** An optional Finnish name: in Latin letters, null when empty. */
+export const finnishName = () =>
+  v.pipe(
+    line(),
+    v.check((s) => s === null || matchesPattern(LATIN_NAME_PATTERN, s)),
+  );
 
 /** A text field that keeps its line breaks (notes): trimmed, null when empty. */
 export const text = v.pipe(

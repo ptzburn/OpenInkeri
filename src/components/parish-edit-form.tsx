@@ -2,6 +2,7 @@ import { Show, createMemo } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
+import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
 import { localName, parishInUse } from '~/lib/format';
 import { FormActions, TextInput, useFormDone, useFormErrors } from '~/components/form-fields';
 import { useToast } from '~/components/toaster';
@@ -24,8 +25,8 @@ const blank: ParishEditData = {
  * and a note. It posts to the saveParish action (and works before
  * JavaScript loads); a save redirects to the parishes list, and Cancel goes
  * to `cancelHref`. A save the server refuses keeps the form as typed, says
- * why and marks the fields at fault. A new parish is confirmed with a toast;
- * an existing parish's form is followed by its Delete section.
+ * why and marks the fields at fault. A save is confirmed with a toast; an
+ * existing parish's form is followed by its Delete section.
  */
 export default function ParishEditForm(props: { id?: number; cancelHref: string }) {
   const parish = createMemo(
@@ -36,15 +37,16 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
   const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
   // This form's refused saves (the latest shown, its fields marked).
   const { error, invalid } = useFormErrors(saveParish, isThisForm);
-  // A new parish lands on the parishes list with a toast, named as typed.
+  // A save lands on the parishes list with a toast, naming the parish as
+  // saved (a rename shows the new name).
   const toast = useToast();
   useFormDone(saveParish, isThisForm, (form) => {
-    if (props.id) return;
     const typed = (field: string) => {
       const value = form.get(field);
       return (typeof value === 'string' && value.trim()) || null;
     };
-    toast(m.parish_created({ name: localName({ ru: typed('nameRu'), fi: typed('nameFi') }) }));
+    const name = localName({ ru: typed('nameRu'), fi: typed('nameFi') });
+    toast(props.id ? m.parish_saved({ name }) : m.parish_created({ name }));
   });
 
   return (
@@ -62,6 +64,8 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
                 name="nameRu"
                 label={m.form_name_ru()}
                 value={p.nameRu}
+                pattern={CYRILLIC_NAME_PATTERN}
+                hint={m.form_name_ru_hint()}
                 required
                 maxlength={FIELD_MAX.line}
                 invalid={invalid('nameRu')}
@@ -70,6 +74,8 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
                 name="nameFi"
                 label={m.form_name_fi()}
                 value={p.nameFi}
+                pattern={LATIN_NAME_PATTERN}
+                hint={m.form_name_fi_hint()}
                 maxlength={FIELD_MAX.line}
                 invalid={invalid('nameFi')}
               />

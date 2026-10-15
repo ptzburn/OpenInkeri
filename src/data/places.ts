@@ -30,11 +30,11 @@ import { changeLog, place, placeAlias, record } from '~/server/database/schema';
 import {
   collapse,
   fieldsAtFault,
-  line,
+  finnishName,
   optionalId,
   refuse,
-  requiredLine,
   rowId,
+  russianName,
   text,
   version,
 } from '~/server/forms';
@@ -164,8 +164,8 @@ const form = v.object({
   returnParish: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,8}$|^$/))),
   id: optionalId, // empty for a new place
   version,
-  nameRu: requiredLine(),
-  nameFi: line(),
+  nameRu: russianName(),
+  nameFi: finnishName(),
   kind: v.picklist(placeKinds),
   parishId: optionalId,
   coordinates: v.pipe(

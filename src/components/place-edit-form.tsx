@@ -3,6 +3,7 @@ import MapIcon from '~icons/ri/map-pin-2-line';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
+import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
 import { FormActions, Select, TextInput, useFormErrors } from '~/components/form-fields';
 import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
 import { COORDINATES_PATTERN, formatCoordinates, mapLink } from '~/lib/coordinates';
@@ -75,6 +76,8 @@ export default function PlaceEditForm(props: {
               name="nameRu"
               label={m.form_name_ru()}
               value={p.nameRu}
+              pattern={CYRILLIC_NAME_PATTERN}
+              hint={m.form_name_ru_hint()}
               required
               maxlength={FIELD_MAX.line}
               invalid={invalid('nameRu')}
@@ -83,6 +86,8 @@ export default function PlaceEditForm(props: {
               name="nameFi"
               label={m.form_name_fi()}
               value={p.nameFi}
+              pattern={LATIN_NAME_PATTERN}
+              hint={m.form_name_fi_hint()}
               maxlength={FIELD_MAX.line}
               invalid={invalid('nameFi')}
             />
