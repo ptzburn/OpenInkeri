@@ -195,7 +195,7 @@ const placeRows = [...places.values()].map((p) => {
   const [lat, lng] = p.coordinates?.text.split(',').map((n) => Number(n.trim())) ?? [];
   return {
     id: p.id,
-    kind: /мыза/i.test(p.nameRu) ? 'manor' : 'village',
+    kind: /мыза/i.test(p.nameRu) ? 'manor' : /петербург/i.test(p.nameRu) ? 'town' : 'village',
     name_ru: p.nameRu,
     parish_id: parish ? parishId(parish) : null,
     latitude: Number.isFinite(lat) ? lat : null,

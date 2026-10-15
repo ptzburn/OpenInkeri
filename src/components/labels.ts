@@ -46,9 +46,7 @@ export const editedRoleLabels: Labels<EditedRole> = {
 export const placeKindLabels: Labels<PlaceKind> = {
   village: m.place_kind_village,
   manor: m.place_kind_manor,
-  church: m.place_kind_church,
   town: m.place_kind_town,
-  region: m.place_kind_region,
   other: m.place_kind_other,
 };
 

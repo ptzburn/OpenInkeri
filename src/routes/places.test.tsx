@@ -188,7 +188,7 @@ describe('/places/villages', () => {
   test('searches names and spellings, ё as е, without diagnostics', async () => {
     const { container } = renderAt('/places/villages');
     await waitFor(() => expect(names(container)).toHaveLength(3));
-    const input = screen.getByRole('searchbox', { name: 'Search villages' });
+    const input = screen.getByRole('searchbox', { name: 'Search localities' });
 
     const { artifact } = await captureArtifact(
       async () => {
@@ -207,28 +207,28 @@ describe('/places/villages', () => {
 
   test('says when nothing matches', async () => {
     renderAt('/places/villages?q=zzz');
-    expect(await screen.findByText('No villages match “zzz”.')).toBeInTheDocument();
+    expect(await screen.findByText('No localities match “zzz”.')).toBeInTheDocument();
   });
 
   test('only admins can add or edit, and see the unlinked spellings', async () => {
     const { container } = renderAt('/places/villages');
     await waitFor(() => expect(names(container)).toHaveLength(3));
-    expect(screen.queryByRole('link', { name: 'Add village' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Edit village' })).toBeNull();
-    expect(screen.queryByText('Not linked to a village')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Add locality' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Edit locality' })).toBeNull();
+    expect(screen.queryByText('Not linked to a locality')).toBeNull();
     cleanup();
 
     me.current = { isAdmin: true };
     renderAt(`/places/villages?q=${encodeURIComponent('горк')}`);
-    expect(await screen.findByRole('link', { name: 'Edit village' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Edit locality' })).toHaveAttribute(
       'href',
       `/places/villages/1/edit?q=${encodeURIComponent('горк')}`,
     );
-    expect(screen.getByRole('link', { name: 'Add village' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Add locality' })).toHaveAttribute(
       'href',
       `/places/villages/new?q=${encodeURIComponent('горк')}`,
     );
-    expect(screen.getByText('Not linked to a village')).toBeInTheDocument();
+    expect(screen.getByText('Not linked to a locality')).toBeInTheDocument();
     expect(screen.getByText('Серебетта')).toBeInTheDocument();
   });
 });
@@ -237,8 +237,8 @@ describe('editing a village', () => {
   async function openGorki() {
     me.current = { isAdmin: true };
     renderAt(`/places/villages?q=${encodeURIComponent('горк')}`);
-    fireEvent.click(await screen.findByRole('link', { name: 'Edit village' }));
-    await screen.findByRole('heading', { level: 1, name: 'Edit village' });
+    fireEvent.click(await screen.findByRole('link', { name: 'Edit locality' }));
+    await screen.findByRole('heading', { level: 1, name: 'Edit locality' });
     await waitFor(() => expect(field('nameRu')).toHaveValue('Горки'));
     return document.querySelector('main form') as HTMLFormElement;
   }
@@ -279,8 +279,8 @@ describe('editing a village', () => {
   test('a new village starts empty and sends no id', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/villages');
-    fireEvent.click(await screen.findByRole('link', { name: 'Add village' }));
-    await screen.findByRole('heading', { level: 1, name: 'New village' });
+    fireEvent.click(await screen.findByRole('link', { name: 'Add locality' }));
+    await screen.findByRole('heading', { level: 1, name: 'New locality' });
     await waitFor(() => expect(field('nameRu')).toHaveValue(''));
     expect(field('kind')).toHaveValue('village');
     fireEvent.input(field('nameRu'), { target: { value: 'Серебетта' } });
@@ -391,7 +391,7 @@ describe('/places/parishes', () => {
 
     expect(
       screen.getByText(
-        'Still in this parish: 3 villages and 1 source. Move them to another parish before deleting it.',
+        'Still in this parish: 3 localities and 1 source. Move them to another parish before deleting it.',
       ),
     ).toBeInTheDocument();
     expect(button).toBeDisabled();
@@ -404,7 +404,7 @@ describe('/places/parishes', () => {
     renderAt('/places/parishes/5/edit');
     await screen.findByRole('button', { name: 'Delete parish' });
 
-    expect(screen.getByText(/^Still in this parish: 1 village\./)).toBeInTheDocument();
+    expect(screen.getByText(/^Still in this parish: 1 locality\./)).toBeInTheDocument();
   });
 
   test('a new parish has nothing to delete', async () => {
@@ -418,8 +418,8 @@ describe('/places/parishes', () => {
   test('a new village from a filtered list starts in that parish', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/villages?parish=5');
-    fireEvent.click(await screen.findByRole('link', { name: 'Add village' }));
-    await screen.findByRole('heading', { level: 1, name: 'New village' });
+    fireEvent.click(await screen.findByRole('link', { name: 'Add locality' }));
+    await screen.findByRole('heading', { level: 1, name: 'New locality' });
     await waitFor(() => expect(field('parishId')).toHaveValue('5'));
     expect(field('returnParish')).toHaveValue('5');
   });
@@ -473,7 +473,7 @@ describe('reactivity', () => {
     const { container } = renderAt('/places/villages');
     await waitFor(() => expect(names(container)).toHaveLength(3));
     await capture('village-edit-open', async () => {
-      fireEvent.click(screen.getAllByRole('link', { name: 'Edit village' })[0]);
+      fireEvent.click(screen.getAllByRole('link', { name: 'Edit locality' })[0]);
       await waitFor(() => expect(field('spellings')).toHaveValue('Бедная Горка\nГорки'));
     });
     cleanup();
