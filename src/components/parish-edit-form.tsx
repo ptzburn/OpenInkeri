@@ -4,7 +4,13 @@ import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
 import { localName, parishInUse } from '~/lib/format';
-import { FormActions, TextInput, useFormDone, useFormErrors } from '~/components/form-fields';
+import {
+  FormActions,
+  TextInput,
+  postedName,
+  useFormDone,
+  useFormErrors,
+} from '~/components/form-fields';
 import { useToast } from '~/components/toaster';
 import { type ParishEditData, deleteParish, getParishEdit, saveParish } from '~/data/parishes';
 import { m } from '~/paraglide/messages.js';
@@ -41,11 +47,7 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
   // saved (a rename shows the new name).
   const toast = useToast();
   useFormDone(saveParish, isThisForm, (form) => {
-    const typed = (field: string) => {
-      const value = form.get(field);
-      return (typeof value === 'string' && value.trim()) || null;
-    };
-    const name = localName({ ru: typed('nameRu'), fi: typed('nameFi') });
+    const name = postedName(form);
     toast(props.id ? m.parish_saved({ name }) : m.parish_created({ name }));
   });
 

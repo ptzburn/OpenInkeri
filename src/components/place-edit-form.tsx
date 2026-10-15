@@ -4,7 +4,15 @@ import MapIcon from '~icons/ri/map-pin-2-line';
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
-import { FormActions, Select, TextInput, useFormErrors } from '~/components/form-fields';
+import {
+  FormActions,
+  Select,
+  TextInput,
+  postedName,
+  useFormDone,
+  useFormErrors,
+} from '~/components/form-fields';
+import { useToast } from '~/components/toaster';
 import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
 import { COORDINATES_PATTERN, formatCoordinates, mapLink } from '~/lib/coordinates';
 import { coordinateStatuses, placeKinds } from '~/lib/place-kinds';
@@ -33,8 +41,8 @@ const blank: PlaceEditData = {
  * It posts to the savePlace action (and works before JavaScript loads); a
  * save redirects to the villages list as it was (`returnTo`: its search and
  * parish filter), and Cancel goes to `cancelHref`. A new place starts in the
- * parish the list was narrowed to. A save the server refuses keeps the form as typed,
- * says why and marks the fields at fault.
+ * parish the list was narrowed to. A save is confirmed with a toast; one the
+ * server refuses keeps the form as typed, says why and marks the fields at fault.
  */
 export default function PlaceEditForm(props: {
   id?: number;
@@ -54,11 +62,16 @@ export default function PlaceEditForm(props: {
       name: 'parish-options',
     },
   );
+  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
   // This form's refused saves (the latest shown, its fields marked).
-  const { error, invalid } = useFormErrors(
-    savePlace,
-    (form) => form.get('id') === (props.id ? String(props.id) : ''),
-  );
+  const { error, invalid } = useFormErrors(savePlace, isThisForm);
+  // A save lands on the localities list with a toast, naming the place as
+  // saved (a rename shows the new name).
+  const toast = useToast();
+  useFormDone(savePlace, isThisForm, (form) => {
+    const name = postedName(form);
+    toast(props.id ? m.place_saved({ name }) : m.place_created({ name }));
+  });
 
   return (
     // Keyed: each place (and each fresh read of it) gets a fresh form.

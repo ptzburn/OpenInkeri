@@ -2,6 +2,7 @@ import { type Action, useSubmissions } from '@solidjs/router';
 import { For, Show } from 'solid-js';
 
 import { FIELD_MAX } from '~/lib/field-limits';
+import { localName } from '~/lib/format';
 import type { FormError } from '~/lib/form-error';
 import { m } from '~/paraglide/messages.js';
 
@@ -47,6 +48,19 @@ export function useFormDone<U>(
     const [form] = submission.input;
     if (!submission.error && isThisForm(form)) done(form);
   });
+}
+
+/**
+ * The name a parish or locality form posted (its nameRu and nameFi fields),
+ * in the reader's language, for a toast after the save: what the admin
+ * typed, so a rename shows the new name.
+ */
+export function postedName(form: FormData): string {
+  const posted = (field: string) => {
+    const value = form.get(field);
+    return (typeof value === 'string' && value.trim()) || null;
+  };
+  return localName({ ru: posted('nameRu'), fi: posted('nameFi') });
 }
 
 /**

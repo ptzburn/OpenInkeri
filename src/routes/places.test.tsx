@@ -284,6 +284,8 @@ describe('editing a village', () => {
     expect(saved.get('id')).toBe('1');
     expect(saved.get('version')).toBe('3');
     expect(saved.get('spellings')).toBe('Бедная Горка\nГорки\nГоркка');
+    // The list it lands on says so (English shows the Finnish name).
+    expect(await screen.findByRole('status')).toHaveTextContent('Locality Gorkka saved.');
   });
 
   test('a refused save stays, says why and marks the fields', async () => {
@@ -293,6 +295,7 @@ describe('editing a village', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Check the marked fields.');
     expect(window.location.pathname).toBe('/places/villages/1/edit');
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
     expect(field('coordinates')).toHaveAttribute('aria-invalid', 'true');
     expect(field('nameRu')).not.toHaveAttribute('aria-invalid');
   });
@@ -310,6 +313,8 @@ describe('editing a village', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/places/villages'));
     expect(places.saved[0].get('id')).toBe('');
     expect(places.saved[0].get('nameRu')).toBe('Серебетта');
+    // No Finnish name, so English shows the Russian one.
+    expect(await screen.findByRole('status')).toHaveTextContent('Locality Серебетта added.');
   });
 });
 
