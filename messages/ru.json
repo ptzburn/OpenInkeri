@@ -168,6 +168,37 @@
   "place_edit_missing": "Населённого пункта больше нет.",
   "place_created": "Населённый пункт {name} добавлен.",
   "place_saved": "Населённый пункт {name} сохранён.",
+  "place_delete": "Удалить населённый пункт",
+  "place_delete_text": "Удаляет населённый пункт и варианты его написания.",
+  "place_delete_confirm": "Я хочу удалить этот населённый пункт",
+  "place_delete_unconfirmed": "Отметьте флажок для подтверждения.",
+  "place_delete_records": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} запись",
+        "countPlural=few": "{count} записи",
+        "countPlural=many": "{count} записей",
+        "countPlural=*": "{count} записи"
+      }
+    }
+  ],
+  "place_delete_birthplaces": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} место рождения",
+        "countPlural=few": "{count} места рождения",
+        "countPlural=many": "{count} мест рождения",
+        "countPlural=*": "{count} места рождения"
+      }
+    }
+  ],
+  "place_delete_in_use": "С населённым пунктом ещё связаны: {uses}. Перед удалением свяжите их с другим населённым пунктом.",
+  "place_delete_failed": "Не удалось удалить населённый пункт. Попробуйте ещё раз.",
+  "place_deleted": "Населённый пункт {name} удалён.",
   "places_title": "Места",
   "places_tabs_label": "Тип места",
   "parishes_title": "Приходы",

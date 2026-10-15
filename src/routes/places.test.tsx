@@ -14,6 +14,9 @@ const { me, places } = vi.hoisted(() => {
   const places = {
     saved: [] as FormData[],
     failWith: null as null | { message: string; fields?: string[] },
+    deleted: [] as FormData[],
+    // What links to Горки on its edit page.
+    uses: { records: 0, birthplaces: 0 },
     list: () => ({
       places: [
         {
@@ -120,6 +123,7 @@ vi.mock('~/data/places', async () => {
             coordinateStatus: 'approximate',
             note: null,
             spellings: ['Бедная Горка', 'Горки'],
+            ...places.uses,
           }
         : null,
     ),
@@ -135,6 +139,15 @@ vi.mock('~/data/places', async () => {
           : '/places/villages',
       );
     }, 'save-place'),
+    deletePlace: action(async (form: FormData) => {
+      places.deleted.push(form);
+      const q = form.get('returnQ');
+      throw redirect(
+        typeof q === 'string' && q
+          ? `/places/villages?q=${encodeURIComponent(q)}`
+          : '/places/villages',
+      );
+    }, 'delete-place'),
   };
 });
 
@@ -161,6 +174,8 @@ afterEach(() => {
   me.current = null;
   places.saved = [];
   places.failWith = null;
+  places.deleted = [];
+  places.uses = { records: 0, birthplaces: 0 };
   parishes.saved = [];
   parishes.deleted = [];
   parishes.deleteFailsWith = null;
@@ -298,6 +313,43 @@ describe('editing a village', () => {
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
     expect(field('coordinates')).toHaveAttribute('aria-invalid', 'true');
     expect(field('nameRu')).not.toHaveAttribute('aria-invalid');
+  });
+
+  test('a locality that records and birthplaces link to says so and cannot be deleted', async () => {
+    places.uses = { records: 331, birthplaces: 2 };
+    await openGorki();
+    expect(
+      screen.getByText(
+        'Still linked to this locality: 331 records and 2 birthplaces. Link them to another locality before deleting it.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete locality' })).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'I want to delete this locality' })).toBeDisabled();
+  });
+
+  test('deleting a locality returns to the list as it was, with a toast', async () => {
+    await openGorki();
+    const button = screen.getByRole('button', { name: 'Delete locality' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this locality' }));
+    fireEvent.submit(button.closest('form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/places/villages'));
+    expect(window.location.search).toBe(`?q=${encodeURIComponent('горк')}`);
+    const [deleted] = places.deleted;
+    expect(deleted.get('id')).toBe('1');
+    expect(deleted.get('version')).toBe('3');
+    expect(deleted.get('confirm')).toBe('on');
+    expect(deleted.get('returnQ')).toBe('горк');
+    // English shows the Finnish name.
+    expect(await screen.findByRole('status')).toHaveTextContent('Locality Gorkka deleted.');
+  });
+
+  test('a new locality has nothing to delete', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/villages/new');
+    await screen.findByRole('heading', { level: 1, name: 'New locality' });
+    await waitFor(() => expect(field('nameRu')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Delete locality' })).toBeNull();
   });
 
   test('a new village starts empty and sends no id', async () => {

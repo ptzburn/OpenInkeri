@@ -5,6 +5,7 @@ import { FIELD_MAX } from '~/lib/field-limits';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
 import { localName, parishInUse } from '~/lib/format';
 import {
+  DeleteSection,
   FormActions,
   TextInput,
   postedName,
@@ -102,85 +103,19 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
             />
           </form>
           <Show when={p.id}>
-            <DeleteParish
+            <DeleteSection
+              action={deleteParish}
               id={p.id}
               version={p.version}
-              name={localName({ ru: p.nameRu, fi: p.nameFi })}
-              villages={p.villages}
-              sources={p.sources}
+              title={m.parish_delete()}
+              text={m.parish_delete_text()}
+              confirmLabel={m.parish_delete_confirm()}
+              inUse={parishInUse(p)}
+              deleted={m.parish_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
             />
           </Show>
         </>
       )}
     </Show>
-  );
-}
-
-/**
- * Deletes the parish: a ticked box instead of a confirm dialog, so it works
- * before JavaScript loads too; the server checks it again. While villages or
- * sources still belong to the parish, it says so and the form is disabled
- * (the server refuses too, in case one was added since the page loaded).
- * A delete that went through lands on the parishes list with a toast.
- */
-function DeleteParish(props: {
-  id: number;
-  version: number;
-  name: string;
-  villages: number;
-  sources: number;
-}) {
-  const isThisForm = (form: FormData) => form.get('id') === String(props.id);
-  const { error } = useFormErrors(deleteParish, isThisForm);
-  const toast = useToast();
-  useFormDone(deleteParish, isThisForm, () => toast(m.parish_deleted({ name: props.name })));
-  // Read by the warning, the box and the button.
-  const inUse = createMemo(() => parishInUse(props), { name: 'parish-in-use' });
-
-  return (
-    <section
-      class="flex max-w-3xl flex-col gap-3 rounded-box border border-error/40 p-4"
-      aria-labelledby="parish-delete"
-    >
-      <h2 id="parish-delete" class="text-lg font-semibold text-error">
-        {m.parish_delete()}
-      </h2>
-      <p class="text-sm">{m.parish_delete_text()}</p>
-      <Show when={inUse()}>
-        {(message) => <div class="alert alert-warning alert-soft">{message()}</div>}
-      </Show>
-      <form method="post" action={deleteParish} class="group flex flex-col gap-3">
-        <input type="hidden" name="id" value={props.id} />
-        <input type="hidden" name="version" value={props.version} />
-        <label class="label text-base-content">
-          <input
-            type="checkbox"
-            name="confirm"
-            required
-            disabled={!!inUse()}
-            class="checkbox checkbox-error"
-          />
-          {m.parish_delete_confirm()}
-        </label>
-        <Show when={error()}>
-          {(error) => (
-            <div role="alert" class="alert alert-error alert-soft">
-              {error().message}
-            </div>
-          )}
-        </Show>
-        <button
-          type="submit"
-          disabled={!!inUse()}
-          class="btn self-start btn-error group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-        >
-          <span
-            class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
-            aria-hidden="true"
-          />
-          {m.parish_delete()}
-        </button>
-      </form>
-    </section>
   );
 }

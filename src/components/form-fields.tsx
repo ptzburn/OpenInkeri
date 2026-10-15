@@ -1,9 +1,11 @@
 import { type Action, useSubmissions } from '@solidjs/router';
-import { For, Show } from 'solid-js';
+import { For, Show, createMemo, untrack } from 'solid-js';
+import type { JSX } from '@solidjs/web';
 
 import { FIELD_MAX } from '~/lib/field-limits';
 import { localName } from '~/lib/format';
 import type { FormError } from '~/lib/form-error';
+import { useToast } from '~/components/toaster';
 import { m } from '~/paraglide/messages.js';
 
 // What the admins' edit forms share: their refused saves, their fields (a
@@ -162,5 +164,84 @@ export function Select(props: {
         </For>
       </select>
     </label>
+  );
+}
+
+/**
+ * An edit page's Delete section, for an action whose form posts `id`,
+ * `version` and a ticked `confirm` box (a box instead of a confirm dialog,
+ * so it works before JavaScript loads too; the server checks it again).
+ * While something still depends on the row, `inUse` says what, and the box
+ * and button are disabled (the server refuses too, in case something was
+ * linked since the page loaded). A delete that went through shows `deleted`
+ * as a toast on the page its action redirects to.
+ */
+export function DeleteSection<U>(props: {
+  action: Action<[FormData], U>;
+  id: number;
+  version: number;
+  title: string;
+  text: string;
+  confirmLabel: string;
+  inUse: string | undefined;
+  deleted: string;
+  /** Further hidden fields the action reads. */
+  children?: JSX.Element;
+}) {
+  // A section posts to one action for its life: read it once.
+  const action = untrack(() => props.action);
+  const isThisForm = (form: FormData) => form.get('id') === String(props.id);
+  const { error } = useFormErrors(action, isThisForm);
+  const toast = useToast();
+  useFormDone(action, isThisForm, () => toast(props.deleted));
+  // Read by the warning, the box and the button.
+  const inUse = createMemo(() => props.inUse, { name: 'delete-in-use' });
+
+  return (
+    <section
+      class="flex max-w-3xl flex-col gap-3 rounded-box border border-error/40 p-4"
+      aria-labelledby="delete-section"
+    >
+      <h2 id="delete-section" class="text-lg font-semibold text-error">
+        {props.title}
+      </h2>
+      <p class="text-sm">{props.text}</p>
+      <Show when={inUse()}>
+        {(message) => <div class="alert alert-warning alert-soft">{message()}</div>}
+      </Show>
+      <form method="post" action={action} class="group flex flex-col gap-3">
+        <input type="hidden" name="id" value={props.id} />
+        <input type="hidden" name="version" value={props.version} />
+        {props.children}
+        <label class="label text-base-content">
+          <input
+            type="checkbox"
+            name="confirm"
+            required
+            disabled={!!inUse()}
+            class="checkbox checkbox-error"
+          />
+          {props.confirmLabel}
+        </label>
+        <Show when={error()}>
+          {(error) => (
+            <div role="alert" class="alert alert-error alert-soft">
+              {error().message}
+            </div>
+          )}
+        </Show>
+        <button
+          type="submit"
+          disabled={!!inUse()}
+          class="btn self-start btn-error group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
+        >
+          <span
+            class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
+            aria-hidden="true"
+          />
+          {props.title}
+        </button>
+      </form>
+    </section>
   );
 }

@@ -168,6 +168,33 @@
   "place_edit_missing": "Paikkakuntaa ei ole enää.",
   "place_created": "Paikkakunta {name} lisätty.",
   "place_saved": "Paikkakunta {name} tallennettu.",
+  "place_delete": "Poista paikkakunta",
+  "place_delete_text": "Poistaa paikkakunnan ja sen vaihtoehtoiset kirjoitusasut.",
+  "place_delete_confirm": "Haluan poistaa tämän paikkakunnan",
+  "place_delete_unconfirmed": "Vahvista poisto valitsemalla ruutu.",
+  "place_delete_records": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} merkintä",
+        "countPlural=*": "{count} merkintää"
+      }
+    }
+  ],
+  "place_delete_birthplaces": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} syntymäpaikka",
+        "countPlural=*": "{count} syntymäpaikkaa"
+      }
+    }
+  ],
+  "place_delete_in_use": "Paikkakuntaan liittyy vielä {uses}. Liitä ne toiseen paikkakuntaan ennen poistamista.",
+  "place_delete_failed": "Paikkakunnan poistaminen epäonnistui. Yritä uudelleen.",
+  "place_deleted": "Paikkakunta {name} poistettu.",
   "places_title": "Paikat",
   "places_tabs_label": "Paikan tyyppi",
   "parishes_title": "Seurakunnat",

@@ -103,17 +103,31 @@ export function finnishNamesShown(): boolean {
   return getLocale() !== 'ru';
 }
 
+/** Counts as one phrase ("3 villages and 1 source"), skipping the absent ones; undefined if none. */
+function listUses(parts: (string | undefined)[]): string | undefined {
+  const present = parts.filter((part) => part !== undefined);
+  if (!present.length) return undefined;
+  return new Intl.ListFormat(getLocale(), { type: 'conjunction' }).format(present);
+}
+
 /**
  * Why a parish can't be deleted yet, naming only what still belongs to it
  * ("3 villages and 1 source"), or undefined when nothing does. The parish
  * edit page shows it up front; deleteParish refuses with the same words.
  */
 export function parishInUse(uses: { villages: number; sources: number }): string | undefined {
-  const parts = [
+  const list = listUses([
     uses.villages ? m.parish_delete_villages({ count: uses.villages }) : undefined,
     uses.sources ? m.parish_delete_sources({ count: uses.sources }) : undefined,
-  ].filter((part) => part !== undefined);
-  if (!parts.length) return undefined;
-  const list = new Intl.ListFormat(getLocale(), { type: 'conjunction' }).format(parts);
-  return m.parish_delete_in_use({ uses: list });
+  ]);
+  return list && m.parish_delete_in_use({ uses: list });
+}
+
+/** The same for a locality: the records and birthplaces still linked to it. */
+export function placeInUse(uses: { records: number; birthplaces: number }): string | undefined {
+  const list = listUses([
+    uses.records ? m.place_delete_records({ count: uses.records }) : undefined,
+    uses.birthplaces ? m.place_delete_birthplaces({ count: uses.birthplaces }) : undefined,
+  ]);
+  return list && m.place_delete_in_use({ uses: list });
 }

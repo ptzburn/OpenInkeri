@@ -11,11 +11,12 @@
 //     same spelling (then which one is meant stays for an admin to pick).
 import { action, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
-import { and, count, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, count, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
 import { parseCoordinates } from '~/lib/coordinates';
+import { placeInUse } from '~/lib/format';
 import {
   type CoordinateStatus,
   type PlaceKind,
@@ -26,7 +27,15 @@ import { recordSearchText } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
-import { changeLog, place, placeAlias, record } from '~/server/database/schema';
+import {
+  changeLog,
+  persona,
+  place,
+  placeAlias,
+  record,
+  recordBaptism,
+  recordHolding,
+} from '~/server/database/schema';
 import {
   collapse,
   fieldsAtFault,
@@ -75,6 +84,9 @@ export interface PlaceEditData {
   coordinateStatus: CoordinateStatus;
   note: string | null;
   spellings: string[];
+  /** What still links to it: while anything does, it can't be deleted. */
+  records: number;
+  birthplaces: number;
 }
 
 /** Every place, by Russian name, with its spellings and how many records link to it. */
@@ -144,24 +156,68 @@ async function loadPlace(id: number) {
   });
 }
 
-/** One place for its edit page, or null if there is none. */
+/**
+ * What links to a place: records (as their village, their baptism's place
+ * or a household's estate) and personas born there. Deleting the place would
+ * set all of these to null.
+ */
+async function countUses(id: number) {
+  const [records, birthplaces] = await Promise.all([
+    db.$count(
+      record,
+      or(
+        eq(record.placeId, id),
+        inArray(
+          record.id,
+          db
+            .select({ id: recordBaptism.recordId })
+            .from(recordBaptism)
+            .where(eq(recordBaptism.locationPlaceId, id)),
+        ),
+        inArray(
+          record.id,
+          db
+            .select({ id: recordHolding.recordId })
+            .from(recordHolding)
+            .where(eq(recordHolding.estatePlaceId, id)),
+        ),
+      ),
+    ),
+    db.$count(persona, eq(persona.birthplaceId, id)),
+  ]);
+  return { records, birthplaces };
+}
+
+/** One place for its edit page, with what still links to it, or null if there is none. */
 export const getPlaceEdit = query(async (id: number): Promise<PlaceEditData | null> => {
   'use server';
   adminOnly();
-  const found = await loadPlace(v.parse(rowId, id));
+  const placeId = v.parse(rowId, id);
+  const [found, uses] = await Promise.all([loadPlace(placeId), countUses(placeId)]);
   if (!found) return null;
   const { aliases, ...rest } = found;
-  return { ...rest, spellings: aliases.map((a) => a.name) };
+  return { ...rest, spellings: aliases.map((a) => a.name), ...uses };
 }, 'place-edit');
 
 // --- The form ----------------------------------------------------------------------
 
-const form = v.object({
-  // Where the list was (search, parish filter), to return there after
-  // saving. The redirect is built from these, never taken whole from the
-  // request.
+// Where the list was (search, parish filter), to return there after saving
+// or deleting. The redirect is built from these, never taken whole from the
+// request.
+const returnTo = {
   returnQ: v.optional(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
   returnParish: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,8}$|^$/))),
+};
+
+/** The villages list as the form came from it. */
+const backToList = (input: { returnQ?: string; returnParish?: string }) =>
+  paths.places.villages({
+    q: input.returnQ || undefined,
+    parish: input.returnParish || undefined,
+  });
+
+const form = v.object({
+  ...returnTo,
   id: optionalId, // empty for a new place
   version,
   nameRu: russianName(),
@@ -342,10 +398,50 @@ export const savePlace = action(async (formData: FormData) => {
     if (!before) await db.delete(place).where(eq(place.id, id));
     throw refuse({ message: m.form_failed() }, 500);
   }
-  throw redirect(
-    paths.places.villages({
-      q: input.returnQ || undefined,
-      parish: input.returnParish || undefined,
-    }),
-  );
+  throw redirect(backToList(input));
 }, 'save-place');
+
+const deletion = v.object({
+  ...returnTo,
+  id: v.pipe(v.string(), v.transform(Number), rowId),
+  version,
+  confirm: v.literal('on'),
+});
+
+/**
+ * Deletes the edit page's place, with its spellings, once its confirm box
+ * is ticked, then redirects to the villages list it came from. Refused while
+ * records or birthplaces still link to it (the links would quietly go
+ * blank), and, like a save, when the place changed since the page loaded it.
+ */
+export const deletePlace = action(async (formData: FormData) => {
+  'use server';
+  const user = adminOnly();
+  const parsed = v.safeParse(deletion, Object.fromEntries(formData));
+  if (!parsed.success) throw refuse({ message: m.place_delete_unconfirmed() }, 400);
+  const input = parsed.output;
+
+  const before = await loadPlace(input.id);
+  if (!before) throw refuse({ message: m.place_edit_missing() }, 404);
+  if (before.version !== input.version) throw refuse({ message: m.place_edit_conflict() }, 409);
+  const inUse = placeInUse(await countUses(input.id));
+  if (inUse) throw refuse({ message: inUse }, 409);
+
+  try {
+    // The spellings go with the place (on delete cascade).
+    await db.batch([
+      db.delete(place).where(and(eq(place.id, input.id), eq(place.version, input.version))),
+      db.insert(changeLog).values({
+        userId: user.id,
+        entity: 'place',
+        entityId: input.id,
+        action: 'delete',
+        before: { ...before, aliases: undefined, spellings: before.aliases.map((a) => a.name) },
+      }),
+    ]);
+  } catch (error) {
+    console.error('Deleting a place failed', error);
+    throw refuse({ message: m.place_delete_failed() }, 500);
+  }
+  throw redirect(backToList(input));
+}, 'delete-place');

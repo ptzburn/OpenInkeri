@@ -168,6 +168,33 @@
   "place_edit_missing": "The locality no longer exists.",
   "place_created": "Locality {name} added.",
   "place_saved": "Locality {name} saved.",
+  "place_delete": "Delete locality",
+  "place_delete_text": "Deletes the locality and its alternative spellings.",
+  "place_delete_confirm": "I want to delete this locality",
+  "place_delete_unconfirmed": "Tick the box to confirm.",
+  "place_delete_records": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} record",
+        "countPlural=*": "{count} records"
+      }
+    }
+  ],
+  "place_delete_birthplaces": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} birthplace",
+        "countPlural=*": "{count} birthplaces"
+      }
+    }
+  ],
+  "place_delete_in_use": "Still linked to this locality: {uses}. Link them to another locality before deleting it.",
+  "place_delete_failed": "Could not delete the locality. Try again.",
+  "place_deleted": "Locality {name} deleted.",
   "places_title": "Places",
   "places_tabs_label": "Place type",
   "parishes_title": "Parishes",
