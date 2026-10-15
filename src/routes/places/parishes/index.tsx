@@ -1,6 +1,7 @@
 import { Title } from '@solidjs/meta';
+import { useIsRouting } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createMemo } from 'solid-js';
+import { For, Show, createMemo, isPending } from 'solid-js';
 import { env } from 'virtual:env/client';
 import AddIcon from '~icons/ri/add-line';
 import EditIcon from '~icons/ri/pencil-line';
@@ -22,6 +23,10 @@ export default function Parishes() {
   const list = createMemo((): Promise<ParishList> => getParishList(), {
     name: 'parishes-list',
   });
+  // The list dims while it reloads (after a save) and while a link from
+  // it is opening the next page, so a click shows at once.
+  const isRouting = useIsRouting();
+  const busy = () => isRouting() || isPending(list);
   // Admins add and edit parishes; the server functions check the role
   // again, so this only decides what is offered.
   const me = createMemo(() => getCurrentUser(), { name: 'parishes-me' });
@@ -40,39 +45,41 @@ export default function Parishes() {
         </Show>
       </header>
       <PlacesTabs current="parishes" />
-      <Show
-        when={list()?.length}
-        fallback={<p class="py-6 text-center text-base-content/60">{m.parishes_empty()}</p>}
-      >
-        <div class="overflow-x-auto rounded-box border border-base-300">
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>{m.villages_col_ru()}</th>
-                <th>{m.villages_col_fi()}</th>
-                <th class="text-right">{m.parishes_col_villages()}</th>
-                <th class="text-right">{m.parishes_col_sources()}</th>
-                <th>{m.place_edit_note()}</th>
-                <Show when={canEdit()}>
-                  <th>
-                    <span class="sr-only">{m.records_col_actions()}</span>
-                  </th>
-                </Show>
-              </tr>
-            </thead>
-            <tbody>
-              <For each={list() ?? []} keyed={(parish) => parish.id}>
-                {(parish) => (
-                  <ParishTableRow
-                    parish={parish()}
-                    editHref={canEdit() ? paths.places.parishes(parish().id).edit() : undefined}
-                  />
-                )}
-              </For>
-            </tbody>
-          </table>
-        </div>
-      </Show>
+      <div class="transition-opacity" style={{ opacity: busy() ? 0.5 : 1 }}>
+        <Show
+          when={list()?.length}
+          fallback={<p class="py-6 text-center text-base-content/60">{m.parishes_empty()}</p>}
+        >
+          <div class="overflow-x-auto rounded-box border border-base-300">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>{m.villages_col_ru()}</th>
+                  <th>{m.villages_col_fi()}</th>
+                  <th class="text-right">{m.parishes_col_villages()}</th>
+                  <th class="text-right">{m.parishes_col_sources()}</th>
+                  <th>{m.place_edit_note()}</th>
+                  <Show when={canEdit()}>
+                    <th>
+                      <span class="sr-only">{m.records_col_actions()}</span>
+                    </th>
+                  </Show>
+                </tr>
+              </thead>
+              <tbody>
+                <For each={list() ?? []} keyed={(parish) => parish.id}>
+                  {(parish) => (
+                    <ParishTableRow
+                      parish={parish()}
+                      editHref={canEdit() ? paths.places.parishes(parish().id).edit() : undefined}
+                    />
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </div>
+        </Show>
+      </div>
     </main>
   );
 }

@@ -1,7 +1,7 @@
 import { Title } from '@solidjs/meta';
-import { useSearchParams } from '@solidjs/router';
+import { useIsRouting, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createEffect, createMemo, onSettled, untrack } from 'solid-js';
+import { For, Show, createEffect, createMemo, isPending, onSettled, untrack } from 'solid-js';
 import { env } from 'virtual:env/client';
 import AddIcon from '~icons/ri/add-line';
 import CloseIcon from '~icons/ri/close-line';
@@ -65,6 +65,10 @@ export default function Villages() {
   };
   // Where the edit pages return to: this list as it is now.
   const listPlace = () => ({ q: search.q, parish: search.parish });
+  // The list dims while it reloads (after a save) and while a link from
+  // it is opening the next page, so a click shows at once.
+  const isRouting = useIsRouting();
+  const busy = () => isRouting() || isPending(list);
   // Admins add and edit villages; the server functions check the role
   // again, so this only decides what is offered.
   const me = createMemo(() => getCurrentUser(), { name: 'villages-me' });
@@ -149,46 +153,48 @@ export default function Villages() {
         <span class="badge badge-sm">{shown().length}</span>
       </form>
 
-      <Show
-        when={shown().length}
-        fallback={
-          <p class="py-6 text-center text-base-content/60">
-            {search.q ? m.villages_no_match({ search: search.q }) : m.villages_empty()}
-          </p>
-        }
-      >
-        <div class="overflow-x-auto rounded-box border border-base-300">
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>{m.villages_col_ru()}</th>
-                <th>{m.villages_col_fi()}</th>
-                <th>{m.villages_col_parish()}</th>
-                <th>{m.villages_col_spellings()}</th>
-                <th class="text-right">{m.villages_col_records()}</th>
-                <th>{m.villages_col_coordinates()}</th>
-                <Show when={canEdit()}>
-                  <th>
-                    <span class="sr-only">{m.records_col_actions()}</span>
-                  </th>
-                </Show>
-              </tr>
-            </thead>
-            <tbody>
-              <For each={shown()} keyed={(place) => place.id}>
-                {(place) => (
-                  <PlaceTableRow
-                    place={place()}
-                    editHref={
-                      canEdit() ? paths.places.villages(place().id).edit(listPlace()) : undefined
-                    }
-                  />
-                )}
-              </For>
-            </tbody>
-          </table>
-        </div>
-      </Show>
+      <div class="transition-opacity" style={{ opacity: busy() ? 0.5 : 1 }}>
+        <Show
+          when={shown().length}
+          fallback={
+            <p class="py-6 text-center text-base-content/60">
+              {search.q ? m.villages_no_match({ search: search.q }) : m.villages_empty()}
+            </p>
+          }
+        >
+          <div class="overflow-x-auto rounded-box border border-base-300">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>{m.villages_col_ru()}</th>
+                  <th>{m.villages_col_fi()}</th>
+                  <th>{m.villages_col_parish()}</th>
+                  <th>{m.villages_col_spellings()}</th>
+                  <th class="text-right">{m.villages_col_records()}</th>
+                  <th>{m.villages_col_coordinates()}</th>
+                  <Show when={canEdit()}>
+                    <th>
+                      <span class="sr-only">{m.records_col_actions()}</span>
+                    </th>
+                  </Show>
+                </tr>
+              </thead>
+              <tbody>
+                <For each={shown()} keyed={(place) => place.id}>
+                  {(place) => (
+                    <PlaceTableRow
+                      place={place()}
+                      editHref={
+                        canEdit() ? paths.places.villages(place().id).edit(listPlace()) : undefined
+                      }
+                    />
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </div>
+        </Show>
+      </div>
 
       {/* For admins: the spellings to add to a village, so their records link. */}
       <Show when={canEdit() && list()?.unlinked.length}>
@@ -202,11 +208,12 @@ export default function Villages() {
           <div class="collapse-content flex flex-col gap-3 text-sm">
             <p class="text-base-content/70">{m.villages_unlinked_hint()}</p>
             <ul class="flex flex-wrap gap-2">
-              <For each={list()?.unlinked ?? []}>
+              {/* Keyed by text: a reload after a save returns new objects. */}
+              <For each={list()?.unlinked ?? []} keyed={(u) => u.text}>
                 {(u) => (
                   <li class="badge gap-1 badge-outline">
-                    {u.text}
-                    <span class="text-base-content/60">{u.records}</span>
+                    {u().text}
+                    <span class="text-base-content/60">{u().records}</span>
                   </li>
                 )}
               </For>

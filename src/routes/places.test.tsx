@@ -1,5 +1,5 @@
 import { Loading, flush } from 'solid-js';
-import { captureArtifact } from '@solidjs/diagnostics';
+import { captureArtifact, expectNoSilentHolds } from '@solidjs/diagnostics';
 import '@solidjs/diagnostics/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
@@ -320,5 +320,78 @@ describe('/places/parishes', () => {
     await screen.findByRole('heading', { level: 1, name: 'New village' });
     await waitFor(() => expect(field('parishId')).toHaveValue('5'));
     expect(field('returnParish')).toHaveValue('5');
+  });
+});
+
+describe('reactivity', () => {
+  // Each scenario is one click. Besides Solid's diagnostics, it checks that
+  // the click shows at once: the list dims while the next page loads,
+  // instead of the old page sitting there unchanged (a "silent hold").
+  async function capture(scenario: string, click: () => Promise<void>) {
+    const { artifact } = await captureArtifact(
+      async () => {
+        await click();
+        flush();
+      },
+      { scenario },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+    expectNoSilentHolds(artifact);
+  }
+
+  test('following a village count to its villages', async () => {
+    const { container } = renderAt('/places/parishes');
+    await waitFor(() => expect(container.querySelectorAll('tbody tr')).toHaveLength(2));
+    await capture('parish-to-villages', async () => {
+      fireEvent.click(screen.getByRole('link', { name: '1' }));
+      await waitFor(() => expect(names(container)).toEqual(['Горки']));
+    });
+  });
+
+  test('switching tabs', async () => {
+    const { container } = renderAt('/places/villages');
+    await waitFor(() => expect(names(container)).toHaveLength(3));
+    await capture('places-tabs', async () => {
+      fireEvent.click(screen.getByRole('link', { name: 'Parishes' }));
+      await waitFor(() => expect(container.querySelectorAll('tbody tr')).toHaveLength(2));
+    });
+  });
+
+  test('opening the edit pages', async () => {
+    me.current = { isAdmin: true };
+    // A first visit loads each page's code behind the spinner (in the app
+    // the server renders a direct visit); the captures are the clicks.
+    renderAt('/places/villages/1/edit');
+    await waitFor(() => expect(field('nameRu')).toHaveValue('Горки'));
+    cleanup();
+    renderAt('/places/parishes/5/edit');
+    await waitFor(() => expect(field('nameFi')).toHaveValue('Hevaa'));
+    cleanup();
+
+    const { container } = renderAt('/places/villages');
+    await waitFor(() => expect(names(container)).toHaveLength(3));
+    await capture('village-edit-open', async () => {
+      fireEvent.click(screen.getAllByRole('link', { name: 'Edit village' })[0]);
+      await waitFor(() => expect(field('spellings')).toHaveValue('Бедная Горка\nГорки'));
+    });
+    cleanup();
+
+    renderAt('/places/parishes');
+    await screen.findAllByRole('link', { name: 'Edit parish' });
+    await capture('parish-edit-open', async () => {
+      fireEvent.click(screen.getAllByRole('link', { name: 'Edit parish' })[0]);
+      await waitFor(() => expect(field('nameFi')).toHaveValue('Hevaa'));
+    });
+  });
+
+  test('a refused save', async () => {
+    me.current = { isAdmin: true };
+    places.failWith = { message: 'Check the marked fields.', fields: ['coordinates'] };
+    renderAt('/places/villages/1/edit');
+    await waitFor(() => expect(field('nameRu')).toHaveValue('Горки'));
+    await capture('village-save-refused', async () => {
+      fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+      await screen.findByRole('alert');
+    });
   });
 });
