@@ -61,6 +61,42 @@ declare module "virtual:file-routes" {
       $$route?: undefined;
     },
     {
+      path: "/places/parishes/:id/edit";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/parishes/[id]/edit")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/parishes/[id]/edit")>;
+    },
+    {
+      path: "/places/parishes/";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/parishes/index")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/parishes/index")>;
+    },
+    {
+      path: "/places/parishes/new";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/parishes/new")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/parishes/new")>;
+    },
+    {
+      path: "/places/villages/:id/edit";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/villages/[id]/edit")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/villages/[id]/edit")>;
+    },
+    {
+      path: "/places/villages/";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/villages/index")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/villages/index")>;
+    },
+    {
+      path: "/places/villages/new";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/villages/new")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/villages/new")>;
+    },
+    {
       path: "/records/:id/edit";
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/records/[id]/edit")>;
@@ -167,11 +203,59 @@ declare module "virtual:file-routes" {
       children?: undefined;
     },
     {
+      path: "/places/parishes/";
+      id: "/places/parishes/";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/parishes/index")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/parishes/index")>;
+      children?: undefined;
+    },
+    {
+      path: "/places/villages/";
+      id: "/places/villages/";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/villages/index")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/villages/index")>;
+      children?: undefined;
+    },
+    {
       path: "/records/:id/edit";
       id: "/records/:id/edit";
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/records/[id]/edit")>;
       $$route: FileRouteEagerRef<typeof import("./src/routes/records/[id]/edit")>;
+      children?: undefined;
+    },
+    {
+      path: "/places/parishes/new";
+      id: "/places/parishes/new";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/parishes/new")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/parishes/new")>;
+      children?: undefined;
+    },
+    {
+      path: "/places/villages/new";
+      id: "/places/villages/new";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/villages/new")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/villages/new")>;
+      children?: undefined;
+    },
+    {
+      path: "/places/parishes/:id/edit";
+      id: "/places/parishes/:id/edit";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/parishes/[id]/edit")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/parishes/[id]/edit")>;
+      children?: undefined;
+    },
+    {
+      path: "/places/villages/:id/edit";
+      id: "/places/villages/:id/edit";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/places/villages/[id]/edit")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/places/villages/[id]/edit")>;
       children?: undefined;
     }
   ];

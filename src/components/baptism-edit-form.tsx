@@ -2,6 +2,7 @@ import { useSubmissions } from '@solidjs/router';
 import type { JSX } from '@solidjs/web';
 import { For, Show, createMemo } from 'solid-js';
 
+import { Select, TextInput } from '~/components/form-fields';
 import { PARTIAL_DATE_PATTERN, formatPartialDate } from '~/lib/format';
 import {
   type BaptismEdit,
@@ -344,26 +345,6 @@ function Section(props: { title: string; children: JSX.Element }) {
   );
 }
 
-function TextInput(props: {
-  name: string;
-  label: string;
-  value: string | null | undefined;
-  invalid: boolean;
-}) {
-  return (
-    <label class="fieldset">
-      <span class="fieldset-legend">{props.label}</span>
-      <input
-        name={props.name}
-        value={props.value ?? ''}
-        maxlength={2000}
-        class={['input w-full', { 'input-error': props.invalid }]}
-        aria-invalid={props.invalid ? 'true' : undefined}
-      />
-    </label>
-  );
-}
-
 // A date as the page shows it (12.3.1895, 3.1895, 1895); the server reads
 // it back (parsePartialDate) and the pattern catches typos before sending.
 function DateInput(props: {
@@ -384,46 +365,6 @@ function DateInput(props: {
         aria-invalid={props.invalid ? 'true' : undefined}
       />
       <span class="label">{m.record_edit_date_hint()}</span>
-    </label>
-  );
-}
-
-type Option = { value: string | number; label: string };
-
-// A <select> with the current value's option marked selected; `none` adds
-// an empty first option (sent as '', read as "none").
-function Select(props: {
-  name: string;
-  label: string;
-  value: string | number | null | undefined;
-  options: Option[];
-  none?: string;
-  invalid: boolean;
-}) {
-  const current = () => String(props.value ?? '');
-  return (
-    <label class="fieldset">
-      <span class="fieldset-legend">{props.label}</span>
-      <select
-        name={props.name}
-        class={['select w-full', { 'select-error': props.invalid }]}
-        aria-invalid={props.invalid ? 'true' : undefined}
-      >
-        <Show when={props.none}>
-          {(label) => (
-            <option value="" selected={current() === ''}>
-              {label()}
-            </option>
-          )}
-        </Show>
-        <For each={props.options}>
-          {(option) => (
-            <option value={option.value} selected={current() === String(option.value)}>
-              {option.label}
-            </option>
-          )}
-        </For>
-      </select>
     </label>
   );
 }

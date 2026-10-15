@@ -59,6 +59,18 @@ export const requireUser = query(async () => {
   return { id: user.id, name: user.name, email: user.email };
 }, 'require-user');
 
+/**
+ * For admin pages that read nothing else first: redirects signed-out
+ * visitors to sign-in and everyone else who isn't an admin home.
+ */
+export const requireAdmin = query(async () => {
+  'use server';
+  const user = getRequestEvent()?.locals.user;
+  if (!user) throw redirect(paths['sign-in']());
+  if (!isAdmin(user)) throw redirect(paths());
+  return true;
+}, 'require-admin');
+
 /** What a failed action carries in `submission.error` (see useSubmissions). */
 export interface ActionError {
   message: string;

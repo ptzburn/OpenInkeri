@@ -6,6 +6,7 @@
 import { sql } from 'drizzle-orm';
 import { index, integer, real, snakeCase, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
+import { coordinateStatuses, placeKinds } from '../../lib/place-kinds';
 import { baptismLocations, recordKinds, recordStatuses, sexes } from '../../lib/record-kinds';
 import { user } from './auth-schema';
 
@@ -49,8 +50,7 @@ export const parish = snakeCase.table('parish', {
   ...audit(),
 });
 
-export const placeKinds = ['village', 'manor', 'church', 'town', 'region', 'other'] as const;
-export const coordinateStatuses = ['verified', 'approximate', 'unknown'] as const;
+export { coordinateStatuses, placeKinds };
 
 // A canonical place. Spellings found in sources are `placeAlias` rows.
 export const place = snakeCase.table(

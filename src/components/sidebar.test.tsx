@@ -32,6 +32,18 @@ const link = (name: string) => screen.findByRole('link', { name });
 afterEach(cleanup);
 
 describe('<Sidebar />', () => {
+  test('Places stays active on both tabs and the edit pages', async () => {
+    for (const url of ['/places/villages', '/places/parishes', '/places/villages/1/edit']) {
+      renderAt(url);
+      const places = await link('Places');
+      expect(places).toHaveAttribute('href', '/places/villages');
+      await waitFor(() => expect(places).toHaveClass('menu-active'));
+      cleanup();
+    }
+    renderAt('/records');
+    expect(await link('Places')).not.toHaveClass('menu-active');
+  });
+
   test('Users stays active on a user page, and Home does not', async () => {
     renderAt('/users/u1');
     await waitFor(async () => expect(await link('Users')).toHaveAttribute('data-active'));

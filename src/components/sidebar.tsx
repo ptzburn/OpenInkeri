@@ -1,6 +1,8 @@
+import { useMatch } from '@solidjs/router';
 import { Loading, Show, createMemo } from 'solid-js';
 import Book from '~icons/ri/book-open-line';
 import Map from '~icons/ri/map-2-line';
+import MapPin from '~icons/ri/map-pin-2-line';
 import Team from '~icons/ri/team-line';
 // Typed client env, validated and baked in at build time (see env.ts).
 import { env } from 'virtual:env/client';
@@ -15,6 +17,7 @@ import { paths } from '~/router';
 // from everyone else; the pages and server functions guard themselves anyway.
 export default function Sidebar() {
   const user = createMemo(() => getCurrentUser());
+  const inPlaces = useMatch(() => '/places/*');
 
   return (
     <aside class="flex min-h-full w-64 flex-col border-r border-base-300 bg-base-200">
@@ -41,6 +44,14 @@ export default function Sidebar() {
                 <a class="data-active:menu-active" href={paths.records()}>
                   <Book class="size-5" aria-hidden="true" />
                   {m.records_title()}
+                </a>
+              </li>
+              <li>
+                {/* Opens the villages tab, and stays lit on the parishes
+                    tab and the edit pages too. */}
+                <a class={{ 'menu-active': !!inPlaces() }} href={paths.places.villages()}>
+                  <MapPin class="size-5" aria-hidden="true" />
+                  {m.places_title()}
                 </a>
               </li>
             </Show>
