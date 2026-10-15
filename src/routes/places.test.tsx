@@ -440,4 +440,28 @@ describe('reactivity', () => {
       await screen.findByRole('alert');
     });
   });
+
+  test('a refused delete', async () => {
+    me.current = { isAdmin: true };
+    parishes.deleteFailsWith = { message: 'The parish still has villages (1) or sources (1).' };
+    renderAt('/places/parishes/5/edit');
+    const button = await screen.findByRole('button', { name: 'Delete parish' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
+    await capture('parish-delete-refused', async () => {
+      fireEvent.submit(button.closest('form') as HTMLFormElement);
+      await screen.findByRole('alert');
+    });
+  });
+
+  test('a delete', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/5/edit');
+    const button = await screen.findByRole('button', { name: 'Delete parish' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
+    await capture('parish-delete', async () => {
+      fireEvent.submit(button.closest('form') as HTMLFormElement);
+      await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+      await screen.findAllByRole('link', { name: 'Edit parish' });
+    });
+  });
 });

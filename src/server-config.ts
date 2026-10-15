@@ -12,6 +12,15 @@ import { createFlightDataCollector } from '@solidjs/router/server';
 
 import { Router } from './router';
 
+const collectFlightData = createFlightDataCollector(Router);
+
 configureServerFunctionsServer({
-  collectFlightData: createFlightDataCollector(Router),
+  // Except for a thrown refusal (refuse() in src/server/forms.ts, or any
+  // other thrown error): it changed nothing, and fresh data would reload the
+  // form and wipe what the admin typed. A thrown redirect (a save that went
+  // through) still collects its target page's data.
+  collectFlightData: (event, outcome) =>
+    outcome.thrown && !outcome.response?.headers.has('Location')
+      ? undefined
+      : collectFlightData(event, outcome),
 });

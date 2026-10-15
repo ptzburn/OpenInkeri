@@ -57,10 +57,13 @@ export function fieldsAtFault(issues: readonly v.BaseIssue<unknown>[]): string[]
 }
 
 /**
- * A refused save, to throw from an action. It changed nothing, so it
- * revalidates no query and the page keeps the form as the admin typed it
- * (by default an action's response revalidates every query, which would
- * reload the row into the form).
+ * A refused save, to throw from an action: the page shows `error` as the
+ * submission's error. It changed nothing, so the page keeps the form as the
+ * admin typed it: src/server-config.ts collects no fresh page data for a
+ * thrown refusal, and the router revalidates nothing after an error.
+ *
+ * Don't add `revalidate` here: any X-Revalidate header (even an empty one)
+ * makes the browser transport treat the response like a thrown redirect and
+ * hand it to the action as its result, so the error never shows.
  */
-export const refuse = (error: FormError, status: number) =>
-  respond(error, { status, revalidate: [] });
+export const refuse = (error: FormError, status: number) => respond(error, { status });
