@@ -182,7 +182,28 @@ describe('/places/villages', () => {
       'href',
       expect.stringContaining('mlat=59.613487'),
     );
-    expect(container.querySelector('tbody tr:nth-child(2)')).toHaveTextContent('Manor');
+    // Every place's type has its own column, villages included.
+    const typeColumn = [...container.querySelectorAll('thead th')].findIndex(
+      (th) => th.textContent === 'Type',
+    );
+    expect(typeColumn).toBe(2);
+    expect(
+      [...container.querySelectorAll('tbody tr')].map((tr) => tr.children[typeColumn].textContent),
+    ).toEqual(['Village', 'Manor', 'Village']);
+  });
+
+  test('in Russian, only the Russian name is shown', async () => {
+    document.cookie = 'PARAGLIDE_LOCALE=ru; path=/';
+    try {
+      const { container } = renderAt('/places/villages');
+      await waitFor(() => expect(names(container)).toHaveLength(3));
+      const headers = [...container.querySelectorAll('thead th')].map((th) => th.textContent);
+      expect(headers.slice(0, 2)).toEqual(['Название', 'Тип']);
+      expect(container.querySelector('tbody tr')!.children).toHaveLength(headers.length);
+      expect(container).not.toHaveTextContent('Gorkka');
+    } finally {
+      document.cookie = 'PARAGLIDE_LOCALE=; path=/; max-age=0';
+    }
   });
 
   test('searches names and spellings, ё as е, without diagnostics', async () => {
@@ -293,6 +314,21 @@ describe('editing a village', () => {
 });
 
 describe('/places/parishes', () => {
+  test('in Russian, only the Russian name is shown', async () => {
+    document.cookie = 'PARAGLIDE_LOCALE=ru; path=/';
+    try {
+      const { container } = renderAt('/places/parishes');
+      await waitFor(() => expect(container.querySelectorAll('tbody tr')).toHaveLength(2));
+      const headers = [...container.querySelectorAll('thead th')].map((th) => th.textContent);
+      expect(headers[0]).toBe('Название');
+      expect(headers).not.toContain('По-фински');
+      expect(container.querySelector('tbody tr')!.children).toHaveLength(headers.length);
+      expect(container).not.toHaveTextContent('Hevaa');
+    } finally {
+      document.cookie = 'PARAGLIDE_LOCALE=; path=/; max-age=0';
+    }
+  });
+
   test('lists the parishes; a village count opens their villages', async () => {
     const { container } = renderAt('/places/parishes');
     const tabs = await screen.findByRole('navigation', { name: 'Place type' });

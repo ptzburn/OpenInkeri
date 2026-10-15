@@ -6,6 +6,7 @@ import { env } from 'virtual:env/client';
 import AddIcon from '~icons/ri/add-line';
 
 import type { QueryData } from '~/lib/query-data';
+import { finnishNamesShown } from '~/lib/format';
 import EditLinkCell from '~/components/edit-link-cell';
 import PlacesTabs from '~/components/places-tabs';
 import { getCurrentUser } from '~/data/session';
@@ -55,8 +56,10 @@ export default function Parishes() {
             <table class="table table-sm">
               <thead>
                 <tr>
-                  <th>{m.villages_col_ru()}</th>
-                  <th>{m.villages_col_fi()}</th>
+                  <th>{finnishNamesShown() ? m.villages_col_ru() : m.villages_col_name()}</th>
+                  <Show when={finnishNamesShown()}>
+                    <th>{m.villages_col_fi()}</th>
+                  </Show>
                   <th class="text-right">{m.parishes_col_villages()}</th>
                   <th class="text-right">{m.parishes_col_sources()}</th>
                   <th>{m.form_note()}</th>
@@ -89,7 +92,9 @@ function ParishTableRow(props: { parish: ParishRow; editHref?: string }) {
   return (
     <tr>
       <td class="font-medium">{props.parish.nameRu}</td>
-      <td>{props.parish.nameFi}</td>
+      <Show when={finnishNamesShown()}>
+        <td>{props.parish.nameFi}</td>
+      </Show>
       {/* The count opens the villages list narrowed to this parish. */}
       <td class="text-right tabular-nums">
         <Show when={props.parish.villages} fallback={0}>

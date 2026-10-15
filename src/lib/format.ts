@@ -95,6 +95,15 @@ export function localName(names: { ru: string | null; fi: string | null } | null
 }
 
 /**
+ * Whether the lists show a Finnish-name column: not in Russian, where the
+ * Russian name is all the reader needs. The locale only changes with a page
+ * reload, so this needs no tracking.
+ */
+export function finnishNamesShown(): boolean {
+  return getLocale() !== 'ru';
+}
+
+/**
  * Why a parish can't be deleted yet, naming only what still belongs to it
  * ("3 villages and 1 source"), or undefined when nothing does. The parish
  * edit page shows it up front; deleteParish refuses with the same words.

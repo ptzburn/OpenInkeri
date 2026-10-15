@@ -13,7 +13,7 @@ import SearchBox from '~/components/search-box';
 import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
 import PlacesTabs from '~/components/places-tabs';
 import { getCurrentUser } from '~/data/session';
-import { localName } from '~/lib/format';
+import { finnishNamesShown, localName } from '~/lib/format';
 import { mapLink } from '~/lib/coordinates';
 import { type PlaceRow, getPlaces } from '~/data/places';
 import { stringParams } from '~/lib/route-params';
@@ -129,8 +129,11 @@ export default function Villages() {
             <table class="table table-sm">
               <thead>
                 <tr>
-                  <th>{m.villages_col_ru()}</th>
-                  <th>{m.villages_col_fi()}</th>
+                  <th>{finnishNamesShown() ? m.villages_col_ru() : m.villages_col_name()}</th>
+                  <Show when={finnishNamesShown()}>
+                    <th>{m.villages_col_fi()}</th>
+                  </Show>
+                  <th>{m.villages_col_kind()}</th>
                   <th>{m.villages_col_parish()}</th>
                   <th>{m.villages_col_spellings()}</th>
                   <th class="text-right">{m.villages_col_records()}</th>
@@ -194,16 +197,12 @@ function PlaceTableRow(props: { place: PlaceRow; editHref?: string }) {
   return (
     <tr>
       <td>
-        <div class="flex flex-wrap items-center gap-1">
-          <span class="font-medium">{props.place.nameRu}</span>
-          <Show when={props.place.kind !== 'village'}>
-            <span class="badge badge-soft badge-sm whitespace-nowrap">
-              {placeKindLabels[props.place.kind]()}
-            </span>
-          </Show>
-        </div>
+        <span class="font-medium">{props.place.nameRu}</span>
       </td>
-      <td>{props.place.nameFi}</td>
+      <Show when={finnishNamesShown()}>
+        <td>{props.place.nameFi}</td>
+      </Show>
+      <td>{placeKindLabels[props.place.kind]()}</td>
       <td>{localName(props.place.parish)}</td>
       <td>
         <ul class="flex flex-wrap gap-1">
