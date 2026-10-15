@@ -66,7 +66,11 @@ vi.mock('~/data/session', () => ({
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
 }));
 const { parishes } = vi.hoisted(() => ({
-  parishes: { saved: [] as FormData[] },
+  parishes: {
+    saved: [] as FormData[],
+    deleted: [] as FormData[],
+    deleteFailsWith: null as null | { message: string },
+  },
 }));
 vi.mock('~/data/parishes', async () => {
   const { action } = await import('@solidjs/router');
@@ -84,6 +88,12 @@ vi.mock('~/data/parishes', async () => {
       parishes.saved.push(form);
       throw redirect('/places/parishes');
     }, 'save-parish'),
+    // Like the server: a refusal throws its error; a delete redirects to the list.
+    deleteParish: action(async (form: FormData) => {
+      parishes.deleted.push(form);
+      if (parishes.deleteFailsWith) throw parishes.deleteFailsWith;
+      throw redirect('/places/parishes');
+    }, 'delete-parish'),
   };
 });
 vi.mock('~/data/places', async () => {
@@ -141,6 +151,8 @@ afterEach(() => {
   places.saved = [];
   places.failWith = null;
   parishes.saved = [];
+  parishes.deleted = [];
+  parishes.deleteFailsWith = null;
 });
 
 describe('/places/villages', () => {
@@ -311,6 +323,40 @@ describe('/places/parishes', () => {
     expect(saved.get('id')).toBe('5');
     expect(saved.get('version')).toBe('2');
     expect(saved.get('note')).toBe('Губаницкий приход');
+  });
+
+  test('deleting a parish posts its id and version once confirmed', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/5/edit');
+    const button = await screen.findByRole('button', { name: 'Delete parish' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
+    fireEvent.submit(button.closest('form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+    const [deleted] = parishes.deleted;
+    expect(deleted.get('id')).toBe('5');
+    expect(deleted.get('version')).toBe('2');
+    expect(deleted.get('confirm')).toBe('on');
+  });
+
+  test('a refused delete says why and stays on the page', async () => {
+    me.current = { isAdmin: true };
+    parishes.deleteFailsWith = { message: 'The parish still has villages (1) or sources (1).' };
+    renderAt('/places/parishes/5/edit');
+    const button = await screen.findByRole('button', { name: 'Delete parish' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
+    fireEvent.submit(button.closest('form') as HTMLFormElement);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('villages (1) or sources (1)');
+    expect(window.location.pathname).toBe('/places/parishes/5/edit');
+  });
+
+  test('a new parish has nothing to delete', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/new');
+    await screen.findByRole('heading', { level: 1, name: 'New parish' });
+    await waitFor(() => expect(field('nameRu')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: 'Delete parish' })).toBeNull();
   });
 
   test('a new village from a filtered list starts in that parish', async () => {

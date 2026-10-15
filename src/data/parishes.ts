@@ -170,3 +170,52 @@ export const saveParish = action(async (formData: FormData) => {
   }
   throw redirect(paths.places.parishes());
 }, 'save-parish');
+
+const deletion = v.object({
+  id: v.pipe(v.string(), v.transform(Number), rowId),
+  version,
+  confirm: v.literal('on'),
+});
+
+/**
+ * Deletes the edit page's parish once its confirm box is ticked, then
+ * redirects to the parishes list. Refused while villages or sources still
+ * belong to the parish: their links would quietly go blank (the foreign
+ * keys set null), so they move elsewhere first. Also refused, like a save,
+ * when the parish changed since the page loaded it.
+ */
+export const deleteParish = action(async (formData: FormData) => {
+  'use server';
+  const user = adminOnly();
+  const parsed = v.safeParse(deletion, Object.fromEntries(formData));
+  if (!parsed.success) throw refuse({ message: m.parish_delete_unconfirmed() }, 400);
+  const { id, version } = parsed.output;
+
+  const before = await loadParish(id);
+  if (!before) throw refuse({ message: m.parish_edit_missing() }, 404);
+  if (before.version !== version) throw refuse({ message: m.parish_edit_conflict() }, 409);
+  const [villages, sources] = await Promise.all([
+    db.$count(place, eq(place.parishId, id)),
+    db.$count(source, eq(source.parishId, id)),
+  ]);
+  if (villages || sources) {
+    throw refuse({ message: m.parish_delete_in_use({ villages, sources }) }, 409);
+  }
+
+  try {
+    await db.batch([
+      db.delete(parish).where(and(eq(parish.id, id), eq(parish.version, version))),
+      db.insert(changeLog).values({
+        userId: user.id,
+        entity: 'parish',
+        entityId: id,
+        action: 'delete',
+        before,
+      }),
+    ]);
+  } catch (error) {
+    console.error('Deleting a parish failed', error);
+    throw refuse({ message: m.parish_delete_failed() }, 500);
+  }
+  throw redirect(paths.places.parishes());
+}, 'delete-parish');
