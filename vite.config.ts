@@ -79,6 +79,39 @@ export default defineConfig({
   ]),
   // Reads the `~/*` → src/* alias from tsconfig.json, so it's defined once.
   resolve: { tsconfigPaths: true },
+  environments: {
+    ssr: {
+      optimizeDeps: {
+        // The Worker's entries are generated, so the dependency scanner finds
+        // nothing and Vite discovers SSR deps one at a time while the Worker
+        // loads, reloading after each. A reload mid-startup can crash in
+        // fileRoutes (pageRoutes undefined). Listing them optimizes them in
+        // one batch up front. Add a package here when the dev log shows
+        // "(ssr) dependency optimized: <pkg>".
+        include: [
+          '@better-auth/drizzle-adapter/relations-v2',
+          '@solidjs/meta',
+          '@solidjs/router/fs',
+          '@solidjs/router/server',
+          '@solidjs/start-devtools',
+          '@solidjs/web',
+          '@solidjs/web/server-functions',
+          '@solidjs/web/server-functions/server',
+          '@solidjs/web/storage',
+          'better-auth',
+          'better-auth/api',
+          'better-auth/plugins',
+          'better-auth/solid-start',
+          'drizzle-orm',
+          'drizzle-orm/d1',
+          'drizzle-orm/sqlite-core',
+          'filesystem-routing/api',
+          'solid-js',
+          'valibot',
+        ],
+      },
+    },
+  },
   server: {
     port: 3060,
     host: true,
