@@ -4,6 +4,7 @@ import '@solidjs/diagnostics/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
+import { ToastProvider } from '~/components/toaster';
 import { Router } from '~/router';
 
 // The places pages (villages and parishes) through the real router, with
@@ -140,7 +141,13 @@ vi.mock('~/data/places', async () => {
 function renderAt(url: string) {
   window.history.replaceState(null, '', url);
   return render(() => (
-    <Router>{(props) => <Loading fallback="Loading">{props.children}</Loading>}</Router>
+    <Router>
+      {(props) => (
+        <ToastProvider>
+          <Loading fallback="Loading">{props.children}</Loading>
+        </ToastProvider>
+      )}
+    </Router>
   ));
 }
 
@@ -342,6 +349,8 @@ describe('/places/parishes', () => {
     expect(deleted.get('id')).toBe('5');
     expect(deleted.get('version')).toBe('2');
     expect(deleted.get('confirm')).toBe('on');
+    // The list it lands on says so (English shows the Finnish name).
+    expect(await screen.findByRole('status')).toHaveTextContent('Parish Hevaa deleted.');
   });
 
   test('a refused delete says why and stays on the page', async () => {
@@ -354,6 +363,7 @@ describe('/places/parishes', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('villages (1) or sources (1)');
     expect(window.location.pathname).toBe('/places/parishes/5/edit');
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
   });
 
   test('a parish that villages and sources belong to says so and cannot be deleted', async () => {
@@ -362,9 +372,11 @@ describe('/places/parishes', () => {
     renderAt('/places/parishes/5/edit');
     const button = await screen.findByRole('button', { name: 'Delete parish' });
 
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'Still in this parish: 3 villages and 1 source. Move them to another parish before deleting it.',
-    );
+    expect(
+      screen.getByText(
+        'Still in this parish: 3 villages and 1 source. Move them to another parish before deleting it.',
+      ),
+    ).toBeInTheDocument();
     expect(button).toBeDisabled();
     expect(screen.getByRole('checkbox', { name: 'I want to delete this parish' })).toBeDisabled();
   });
@@ -375,7 +387,7 @@ describe('/places/parishes', () => {
     renderAt('/places/parishes/5/edit');
     await screen.findByRole('button', { name: 'Delete parish' });
 
-    expect(screen.getByRole('status')).toHaveTextContent('Still in this parish: 1 village.');
+    expect(screen.getByText(/^Still in this parish: 1 village\./)).toBeInTheDocument();
   });
 
   test('a new parish has nothing to delete', async () => {

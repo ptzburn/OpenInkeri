@@ -31,6 +31,24 @@ export function useFormErrors<U>(
 }
 
 /**
+ * Calls `done` when one of this form's submissions of `action` goes through
+ * (settles without an error), e.g. to show a toast. It runs after the
+ * action's redirect, when the page that posted may already be disposed:
+ * reading its props still works, but anything that needs an owner (useToast()
+ * and other useContext calls, new signals or memos) must happen in the
+ * component body, with `done` only calling what that returned.
+ */
+export function useFormDone<U>(
+  action: Action<[FormData], U>,
+  isThisForm: (form: FormData) => boolean,
+  done: () => void,
+) {
+  action.onSettled((submission) => {
+    if (!submission.error && isThisForm(submission.input[0])) done();
+  });
+}
+
+/**
  * The bottom of an edit form: why the last save was refused, Cancel (a link
  * back) and Save. The form must have the `group` class: while a save is in
  * flight the router marks it aria-busy, which shows the spinner and stops

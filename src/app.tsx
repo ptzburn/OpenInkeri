@@ -7,6 +7,7 @@ import { env } from 'virtual:env/client';
 import LanguageSwitcher from './components/language-switcher';
 import Sidebar from './components/sidebar';
 import ThemeSwitcher from './components/theme-switcher';
+import { ToastProvider } from './components/toaster';
 import { m } from './paraglide/messages.js';
 import { Router } from './router';
 import './app.css';
@@ -17,7 +18,7 @@ export default function App() {
   return (
     <Router>
       {(props) => (
-        <>
+        <ToastProvider>
           <Title>{env.VITE_APP_NAME}</Title>
           {/* The sidebar stays open from lg up; below that the checkbox
               toggles it over the page. */}
@@ -72,7 +73,7 @@ export default function App() {
               <Sidebar />
             </div>
           </div>
-        </>
+        </ToastProvider>
       )}
     </Router>
   );

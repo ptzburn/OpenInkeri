@@ -2,8 +2,9 @@ import { Show, createMemo } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
-import { parishInUse } from '~/lib/format';
-import { FormActions, TextInput, useFormErrors } from '~/components/form-fields';
+import { localName, parishInUse } from '~/lib/format';
+import { FormActions, TextInput, useFormDone, useFormErrors } from '~/components/form-fields';
+import { useToast } from '~/components/toaster';
 import { type ParishEditData, deleteParish, getParishEdit, saveParish } from '~/data/parishes';
 import { m } from '~/paraglide/messages.js';
 
@@ -85,7 +86,13 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
             />
           </form>
           <Show when={p.id}>
-            <DeleteParish id={p.id} version={p.version} villages={p.villages} sources={p.sources} />
+            <DeleteParish
+              id={p.id}
+              version={p.version}
+              name={localName({ ru: p.nameRu, fi: p.nameFi })}
+              villages={p.villages}
+              sources={p.sources}
+            />
           </Show>
         </>
       )}
@@ -98,10 +105,21 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
  * before JavaScript loads too; the server checks it again. While villages or
  * sources still belong to the parish, it says so and the form is disabled
  * (the server refuses too, in case one was added since the page loaded).
+ * A delete that went through lands on the parishes list with a toast.
  */
-function DeleteParish(props: { id: number; version: number; villages: number; sources: number }) {
-  const { error } = useFormErrors(deleteParish, (form) => form.get('id') === String(props.id));
-  const inUse = () => parishInUse(props);
+function DeleteParish(props: {
+  id: number;
+  version: number;
+  name: string;
+  villages: number;
+  sources: number;
+}) {
+  const isThisForm = (form: FormData) => form.get('id') === String(props.id);
+  const { error } = useFormErrors(deleteParish, isThisForm);
+  const toast = useToast();
+  useFormDone(deleteParish, isThisForm, () => toast(m.parish_deleted({ name: props.name })));
+  // Read by the warning, the box and the button.
+  const inUse = createMemo(() => parishInUse(props), { name: 'parish-in-use' });
 
   return (
     <section
@@ -113,11 +131,7 @@ function DeleteParish(props: { id: number; version: number; villages: number; so
       </h2>
       <p class="text-sm">{m.parish_delete_text()}</p>
       <Show when={inUse()}>
-        {(message) => (
-          <div role="status" class="alert alert-warning alert-soft">
-            {message()}
-          </div>
-        )}
+        {(message) => <div class="alert alert-warning alert-soft">{message()}</div>}
       </Show>
       <form method="post" action={deleteParish} class="group flex flex-col gap-3">
         <input type="hidden" name="id" value={props.id} />
