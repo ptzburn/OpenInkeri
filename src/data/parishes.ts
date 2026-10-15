@@ -7,6 +7,7 @@ import { redirect } from '@solidjs/web';
 import { and, count, eq, isNotNull } from 'drizzle-orm';
 import * as v from 'valibot';
 
+import { parishInUse } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -46,6 +47,9 @@ export interface ParishEditData {
   nameRu: string;
   nameFi: string | null;
   note: string | null;
+  /** How many places and registers belong to it: while any do, it can't be deleted. */
+  villages: number;
+  sources: number;
 }
 
 /** Every parish, by Russian name, with how many places and registers belong to it. */
@@ -94,11 +98,22 @@ async function loadParish(id: number) {
   });
 }
 
-/** One parish for its edit page, or null if there is none. */
+/** How many places and registers belong to a parish. */
+async function countUses(id: number) {
+  const [villages, sources] = await Promise.all([
+    db.$count(place, eq(place.parishId, id)),
+    db.$count(source, eq(source.parishId, id)),
+  ]);
+  return { villages, sources };
+}
+
+/** One parish for its edit page, with what still belongs to it, or null if there is none. */
 export const getParishEdit = query(async (id: number): Promise<ParishEditData | null> => {
   'use server';
   adminOnly();
-  return (await loadParish(v.parse(rowId, id))) ?? null;
+  const parishId = v.parse(rowId, id);
+  const [row, uses] = await Promise.all([loadParish(parishId), countUses(parishId)]);
+  return row ? { ...row, ...uses } : null;
 }, 'parish-edit');
 
 // --- The form ----------------------------------------------------------------------
@@ -194,13 +209,8 @@ export const deleteParish = action(async (formData: FormData) => {
   const before = await loadParish(id);
   if (!before) throw refuse({ message: m.parish_edit_missing() }, 404);
   if (before.version !== version) throw refuse({ message: m.parish_edit_conflict() }, 409);
-  const [villages, sources] = await Promise.all([
-    db.$count(place, eq(place.parishId, id)),
-    db.$count(source, eq(source.parishId, id)),
-  ]);
-  if (villages || sources) {
-    throw refuse({ message: m.parish_delete_in_use({ villages, sources }) }, 409);
-  }
+  const inUse = parishInUse(await countUses(id));
+  if (inUse) throw refuse({ message: inUse }, 409);
 
   try {
     await db.batch([

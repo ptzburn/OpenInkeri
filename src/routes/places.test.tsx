@@ -70,6 +70,8 @@ const { parishes } = vi.hoisted(() => ({
     saved: [] as FormData[],
     deleted: [] as FormData[],
     deleteFailsWith: null as null | { message: string },
+    // What belongs to parish 5 on its edit page.
+    uses: { villages: 0, sources: 0 },
   },
 }));
 vi.mock('~/data/parishes', async () => {
@@ -82,7 +84,9 @@ vi.mock('~/data/parishes', async () => {
     ]),
     getParishOptions: vi.fn(async () => [{ id: 5, name: 'Губаницы' }]),
     getParishEdit: vi.fn(async (id: number) =>
-      id === 5 ? { id: 5, version: 2, nameRu: 'Губаницы', nameFi: 'Hevaa', note: null } : null,
+      id === 5
+        ? { id: 5, version: 2, nameRu: 'Губаницы', nameFi: 'Hevaa', note: null, ...parishes.uses }
+        : null,
     ),
     saveParish: action(async (form: FormData) => {
       parishes.saved.push(form);
@@ -153,6 +157,7 @@ afterEach(() => {
   parishes.saved = [];
   parishes.deleted = [];
   parishes.deleteFailsWith = null;
+  parishes.uses = { villages: 0, sources: 0 };
 });
 
 describe('/places/villages', () => {
@@ -349,6 +354,28 @@ describe('/places/parishes', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('villages (1) or sources (1)');
     expect(window.location.pathname).toBe('/places/parishes/5/edit');
+  });
+
+  test('a parish that villages and sources belong to says so and cannot be deleted', async () => {
+    me.current = { isAdmin: true };
+    parishes.uses = { villages: 3, sources: 1 };
+    renderAt('/places/parishes/5/edit');
+    const button = await screen.findByRole('button', { name: 'Delete parish' });
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Still in this parish: 3 villages and 1 source. Move them to another parish before deleting it.',
+    );
+    expect(button).toBeDisabled();
+    expect(screen.getByRole('checkbox', { name: 'I want to delete this parish' })).toBeDisabled();
+  });
+
+  test('the warning names only what belongs to the parish', async () => {
+    me.current = { isAdmin: true };
+    parishes.uses = { villages: 1, sources: 0 };
+    renderAt('/places/parishes/5/edit');
+    await screen.findByRole('button', { name: 'Delete parish' });
+
+    expect(screen.getByRole('status')).toHaveTextContent('Still in this parish: 1 village.');
   });
 
   test('a new parish has nothing to delete', async () => {

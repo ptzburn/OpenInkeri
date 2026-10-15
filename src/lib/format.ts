@@ -1,4 +1,5 @@
 // Display formats shared by the pages.
+import { m } from '~/paraglide/messages.js';
 import { getLocale } from '~/paraglide/runtime.js';
 
 // Day.month.year, the Finnish way (13.10.2026, 1.2.2026). The calendar day is
@@ -91,4 +92,19 @@ export function localName(names: { ru: string | null; fi: string | null } | null
   if (!names) return '';
   const ru = getLocale() === 'ru';
   return (ru ? (names.ru ?? names.fi) : (names.fi ?? names.ru)) ?? '';
+}
+
+/**
+ * Why a parish can't be deleted yet, naming only what still belongs to it
+ * ("3 villages and 1 source"), or undefined when nothing does. The parish
+ * edit page shows it up front; deleteParish refuses with the same words.
+ */
+export function parishInUse(uses: { villages: number; sources: number }): string | undefined {
+  const parts = [
+    uses.villages ? m.parish_delete_villages({ count: uses.villages }) : undefined,
+    uses.sources ? m.parish_delete_sources({ count: uses.sources }) : undefined,
+  ].filter((part) => part !== undefined);
+  if (!parts.length) return undefined;
+  const list = new Intl.ListFormat(getLocale(), { type: 'conjunction' }).format(parts);
+  return m.parish_delete_in_use({ uses: list });
 }

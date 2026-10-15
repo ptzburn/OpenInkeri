@@ -180,10 +180,30 @@
   "parish_edit_missing": "Seurakuntaa ei ole enää.",
   "parish_edit_conflict": "Joku muu muutti seurakuntaa sillä välin. Lataa sivu uudelleen nähdäksesi muutokset.",
   "parish_delete": "Poista seurakunta",
-  "parish_delete_text": "Poistaa seurakunnan. Vain seurakunnan, jolla ei ole kyliä eikä lähteitä, voi poistaa: siirrä ne ensin toiseen seurakuntaan.",
+  "parish_delete_text": "Poistaa seurakunnan.",
   "parish_delete_confirm": "Haluan poistaa tämän seurakunnan",
   "parish_delete_unconfirmed": "Vahvista poisto valitsemalla ruutu.",
-  "parish_delete_in_use": "Seurakunnalla on vielä kyliä ({villages}) tai lähteitä ({sources}). Siirrä ne ensin toiseen seurakuntaan.",
+  "parish_delete_villages": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} kylä",
+        "countPlural=*": "{count} kylää"
+      }
+    }
+  ],
+  "parish_delete_sources": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} lähde",
+        "countPlural=*": "{count} lähdettä"
+      }
+    }
+  ],
+  "parish_delete_in_use": "Seurakuntaan kuuluu vielä {uses}. Siirrä ne toiseen seurakuntaan ennen poistamista.",
   "parish_delete_failed": "Seurakunnan poistaminen epäonnistui. Yritä uudelleen.",
   "villages_parish_filter": "Seurakunta: {parish}",
   "villages_clear_filter": "Näytä kaikki seurakunnat",

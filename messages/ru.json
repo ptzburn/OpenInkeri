@@ -180,10 +180,34 @@
   "parish_edit_missing": "Прихода больше нет.",
   "parish_edit_conflict": "Кто-то другой тем временем изменил этот приход. Перезагрузите страницу, чтобы увидеть изменения.",
   "parish_delete": "Удалить приход",
-  "parish_delete_text": "Удаляет приход. Удалить можно только приход без деревень и источников: сначала перенесите их в другой приход.",
+  "parish_delete_text": "Удаляет приход.",
   "parish_delete_confirm": "Я хочу удалить этот приход",
   "parish_delete_unconfirmed": "Отметьте флажок для подтверждения.",
-  "parish_delete_in_use": "У прихода ещё есть деревни ({villages}) или источники ({sources}). Сначала перенесите их в другой приход.",
+  "parish_delete_villages": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} деревня",
+        "countPlural=few": "{count} деревни",
+        "countPlural=many": "{count} деревень",
+        "countPlural=*": "{count} деревни"
+      }
+    }
+  ],
+  "parish_delete_sources": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} источник",
+        "countPlural=few": "{count} источника",
+        "countPlural=many": "{count} источников",
+        "countPlural=*": "{count} источника"
+      }
+    }
+  ],
+  "parish_delete_in_use": "В приходе ещё есть {uses}. Перед удалением перенесите их в другой приход.",
   "parish_delete_failed": "Не удалось удалить приход. Попробуйте ещё раз.",
   "villages_parish_filter": "Приход: {parish}",
   "villages_clear_filter": "Показать все приходы",

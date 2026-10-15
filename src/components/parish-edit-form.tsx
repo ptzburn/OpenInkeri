@@ -2,12 +2,21 @@ import { Show, createMemo } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
+import { parishInUse } from '~/lib/format';
 import { FormActions, TextInput, useFormErrors } from '~/components/form-fields';
 import { type ParishEditData, deleteParish, getParishEdit, saveParish } from '~/data/parishes';
 import { m } from '~/paraglide/messages.js';
 
 // What a new parish's form starts from.
-const blank: ParishEditData = { id: 0, version: 0, nameRu: '', nameFi: null, note: null };
+const blank: ParishEditData = {
+  id: 0,
+  version: 0,
+  nameRu: '',
+  nameFi: null,
+  note: null,
+  villages: 0,
+  sources: 0,
+};
 
 /**
  * The admin's form for one parish, or for a new one without `id`: its names
@@ -76,7 +85,7 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
             />
           </form>
           <Show when={p.id}>
-            <DeleteParish id={p.id} version={p.version} />
+            <DeleteParish id={p.id} version={p.version} villages={p.villages} sources={p.sources} />
           </Show>
         </>
       )}
@@ -86,11 +95,13 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
 
 /**
  * Deletes the parish: a ticked box instead of a confirm dialog, so it works
- * before JavaScript loads too; the server checks it again, and refuses a
- * parish that villages or sources still belong to.
+ * before JavaScript loads too; the server checks it again. While villages or
+ * sources still belong to the parish, it says so and the form is disabled
+ * (the server refuses too, in case one was added since the page loaded).
  */
-function DeleteParish(props: { id: number; version: number }) {
+function DeleteParish(props: { id: number; version: number; villages: number; sources: number }) {
   const { error } = useFormErrors(deleteParish, (form) => form.get('id') === String(props.id));
+  const inUse = () => parishInUse(props);
 
   return (
     <section
@@ -101,11 +112,24 @@ function DeleteParish(props: { id: number; version: number }) {
         {m.parish_delete()}
       </h2>
       <p class="text-sm">{m.parish_delete_text()}</p>
+      <Show when={inUse()}>
+        {(message) => (
+          <div role="status" class="alert alert-warning alert-soft">
+            {message()}
+          </div>
+        )}
+      </Show>
       <form method="post" action={deleteParish} class="group flex flex-col gap-3">
         <input type="hidden" name="id" value={props.id} />
         <input type="hidden" name="version" value={props.version} />
         <label class="label text-base-content">
-          <input type="checkbox" name="confirm" required class="checkbox checkbox-error" />
+          <input
+            type="checkbox"
+            name="confirm"
+            required
+            disabled={!!inUse()}
+            class="checkbox checkbox-error"
+          />
           {m.parish_delete_confirm()}
         </label>
         <Show when={error()}>
@@ -117,6 +141,7 @@ function DeleteParish(props: { id: number; version: number }) {
         </Show>
         <button
           type="submit"
+          disabled={!!inUse()}
           class="btn self-start btn-error group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
         >
           <span

@@ -180,10 +180,30 @@
   "parish_edit_missing": "The parish no longer exists.",
   "parish_edit_conflict": "Someone else changed this parish meanwhile. Reload the page to see their changes.",
   "parish_delete": "Delete parish",
-  "parish_delete_text": "Deletes the parish. Only a parish with no villages or sources can be deleted: move them to another parish first.",
+  "parish_delete_text": "Deletes the parish.",
   "parish_delete_confirm": "I want to delete this parish",
   "parish_delete_unconfirmed": "Tick the box to confirm.",
-  "parish_delete_in_use": "The parish still has villages ({villages}) or sources ({sources}). Move them to another parish first.",
+  "parish_delete_villages": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} village",
+        "countPlural=*": "{count} villages"
+      }
+    }
+  ],
+  "parish_delete_sources": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} source",
+        "countPlural=*": "{count} sources"
+      }
+    }
+  ],
+  "parish_delete_in_use": "Still in this parish: {uses}. Move them to another parish before deleting it.",
   "parish_delete_failed": "Could not delete the parish. Try again.",
   "villages_parish_filter": "Parish: {parish}",
   "villages_clear_filter": "Show all parishes",
