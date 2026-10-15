@@ -13,7 +13,13 @@ import EditLinkCell from '~/components/edit-link-cell';
 import SearchBox from '~/components/search-box';
 import { getCurrentUser } from '~/data/session';
 import { formatPartialDate, localName } from '~/lib/format';
-import { type RecordKind, isRecordKind, recordKinds } from '~/lib/record-kinds';
+import {
+  type EditableKind,
+  type RecordKind,
+  isEditableKind,
+  isRecordKind,
+  recordKinds,
+} from '~/lib/record-kinds';
 import { type RecordRow, getRecords } from '~/data/records';
 import { stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
@@ -43,10 +49,12 @@ export default function Records() {
       getRecords(kind(), search.q ?? '', pageNumber(search.page)),
     { name: 'records-list' },
   );
-  // Admins edit baptisms on their edit page; the server functions check the
+  // The kinds with columns of their own; the others have no records yet.
+  const listed = () => (isEditableKind(kind()) ? (kind() as EditableKind) : undefined);
+  // Admins edit records on their edit page; the server functions check the
   // role again, so this only decides what is offered.
   const me = createMemo(() => getCurrentUser(), { name: 'records-me' });
-  const canEdit = () => !!me()?.isAdmin && kind() === 'baptisms';
+  const canEdit = () => !!me()?.isAdmin && !!listed();
 
   // A search goes in the URL in place of the current entry, from page 1.
   const searchFor = (value: string) =>
@@ -97,13 +105,13 @@ export default function Records() {
         </Show>
       </SearchBox>
       <div class="transition-opacity" style={{ opacity: isPending(list) ? 0.5 : 1 }}>
-        {/* Only baptisms have columns yet; the other kinds get theirs when
-            their registers are imported. */}
+        {/* Households and taxpayers have no columns yet; they get theirs when
+            their lists are imported. */}
         <Show
-          when={kind() === 'baptisms' && list()?.records.length}
+          when={listed() && list()?.records.length}
           fallback={
             <p class="py-6 text-center text-base-content/60">
-              {kind() !== 'baptisms'
+              {!listed()
                 ? m.records_kind_empty()
                 : search.q
                   ? m.records_no_match({ search: search.q })
@@ -115,13 +123,7 @@ export default function Records() {
             <table class="table table-sm">
               <thead>
                 <tr>
-                  <th>{m.records_col_born()}</th>
-                  <th>{m.records_col_baptised()}</th>
-                  <th>{m.records_col_child()}</th>
-                  <th>{m.records_col_father()}</th>
-                  <th>{m.records_col_mother()}</th>
-                  <th>{m.records_col_village()}</th>
-                  <th>{m.records_col_note()}</th>
+                  <For each={columns[listed() ?? 'baptisms']}>{(label) => <th>{label()}</th>}</For>
                   <Show when={canEdit()}>
                     <th>
                       <span class="sr-only">{m.records_col_actions()}</span>
@@ -135,6 +137,7 @@ export default function Records() {
                 <For each={list()?.records ?? []} keyed={(row) => row.id}>
                   {(row) => (
                     <RecordTableRow
+                      kind={listed() ?? 'baptisms'}
                       row={row()}
                       // The link carries the list's place, to return to it.
                       editHref={
@@ -208,55 +211,145 @@ function PageLink(props: {
   );
 }
 
-function RecordTableRow(props: { row: RecordRow; editHref?: string }) {
+// The columns of each kind's table, before the edit link's.
+const columns: Record<EditableKind, (() => string)[]> = {
+  baptisms: [
+    m.records_col_born,
+    m.records_col_baptised,
+    m.records_col_child,
+    m.records_col_father,
+    m.records_col_mother,
+    m.records_col_village,
+    m.records_col_note,
+  ],
+  marriages: [m.records_col_married, m.records_col_groom, m.records_col_bride, m.records_col_note],
+  deaths: [
+    m.records_col_died,
+    m.records_col_buried,
+    m.records_col_deceased,
+    m.records_col_age,
+    m.records_col_death_place,
+    m.records_col_cause,
+    m.records_col_note,
+  ],
+};
+
+function RecordTableRow(props: { kind: EditableKind; row: RecordRow; editHref?: string }) {
+  const date = (value: string | null) => (
+    <td class="tabular-nums whitespace-nowrap">{formatPartialDate(value)}</td>
+  );
+  const lost = () => (
+    <Show when={props.row.lost}>
+      <span class="badge shrink-0 badge-soft badge-sm whitespace-nowrap">{m.records_lost()}</span>
+    </Show>
+  );
+  const stillborn = () => (
+    <Show when={props.row.stillborn}>
+      <span class="text-base-content/60 italic">{m.records_stillborn()}</span>
+    </Show>
+  );
+  const note = () => (
+    <td class="max-w-64 truncate text-base-content/70" title={props.row.note ?? undefined}>
+      {props.row.note}
+    </td>
+  );
+
   return (
     <tr class={props.row.lost ? 'text-base-content/50' : undefined}>
-      <td class="tabular-nums whitespace-nowrap">{formatPartialDate(props.row.birthDate)}</td>
-      <td class="tabular-nums whitespace-nowrap">{formatPartialDate(props.row.baptismDate)}</td>
-      <td>
-        <div class="flex flex-wrap items-center gap-1">
-          <Show when={props.row.lost}>
-            <span class="badge shrink-0 badge-soft badge-sm whitespace-nowrap">
-              {m.records_lost()}
-            </span>
-          </Show>
-          <Show when={props.row.stillborn}>
-            <span class="text-base-content/60 italic">{m.records_stillborn()}</span>
-          </Show>
-          <span class="font-medium">{localName(props.row.child)}</span>
-          <Show when={props.row.multipleBirth}>
-            {(count) => (
-              <span class="badge shrink-0 badge-soft badge-sm whitespace-nowrap badge-info">
-                {count() >= 3 ? m.records_triplets() : m.records_twins()}
+      <Show when={props.kind === 'baptisms'}>
+        {date(props.row.birthDate)}
+        {date(props.row.date)}
+        <td>
+          <div class="flex flex-wrap items-center gap-1">
+            {lost()}
+            {stillborn()}
+            <span class="font-medium">{localName(props.row.child)}</span>
+            <Show when={props.row.multipleBirth}>
+              {(count) => (
+                <span class="badge shrink-0 badge-soft badge-sm whitespace-nowrap badge-info">
+                  {count() >= 3 ? m.records_triplets() : m.records_twins()}
+                </span>
+              )}
+            </Show>
+            <Show when={props.row.illegitimate}>
+              <span class="badge shrink-0 badge-outline badge-sm whitespace-nowrap">
+                {m.records_illegitimate()}
               </span>
-            )}
-          </Show>
-          <Show when={props.row.illegitimate}>
-            <span class="badge shrink-0 badge-outline badge-sm whitespace-nowrap">
-              {m.records_illegitimate()}
-            </span>
-          </Show>
-        </div>
-      </td>
-      <td>{localName(props.row.father)}</td>
-      <td>{localName(props.row.mother)}</td>
-      <td>
-        {/* The canonical village; the spelling in the register shows on hover
-            when it differs. */}
-        <span
-          title={
-            props.row.villageAsWritten && props.row.villageAsWritten !== props.row.village?.ru
-              ? m.records_as_written({ text: props.row.villageAsWritten })
-              : undefined
-          }
-        >
-          {localName(props.row.village) || props.row.villageAsWritten}
-        </span>
-      </td>
-      <td class="max-w-64 truncate text-base-content/70" title={props.row.note ?? undefined}>
-        {props.row.note}
-      </td>
+            </Show>
+          </div>
+        </td>
+        <td>{localName(props.row.father)}</td>
+        <td>{localName(props.row.mother)}</td>
+        <td>
+          <Place place={props.row.village} asWritten={props.row.villageAsWritten} />
+        </td>
+        {note()}
+      </Show>
+      <Show when={props.kind === 'marriages'}>
+        {date(props.row.date)}
+        <td>
+          {lost()}
+          <Spouse person={props.row.groom} />
+        </td>
+        <td>
+          <Spouse person={props.row.bride} />
+        </td>
+        {note()}
+      </Show>
+      <Show when={props.kind === 'deaths'}>
+        {date(props.row.date)}
+        {date(props.row.burialDate)}
+        <td>
+          <div class="flex flex-wrap items-center gap-1">
+            {lost()}
+            {stillborn()}
+            <span class="font-medium">{localName(props.row.deceased)}</span>
+          </div>
+        </td>
+        <td class="whitespace-nowrap">{props.row.deceased?.age}</td>
+        <td>
+          <Place place={props.row.village} asWritten={props.row.villageAsWritten} />
+        </td>
+        <td>{props.row.cause}</td>
+        {note()}
+      </Show>
       <EditLinkCell href={props.editHref} label={m.record_edit_open()} />
     </tr>
+  );
+}
+
+type Names = { ru: string | null; fi: string | null };
+
+// The canonical place; the spelling in the source shows on hover when it
+// differs, and stands in for the place when none was resolved.
+function Place(props: { place: Names | null; asWritten: string | null }) {
+  return (
+    <span
+      title={
+        props.asWritten && props.asWritten !== props.place?.ru
+          ? m.records_as_written({ text: props.asWritten })
+          : undefined
+      }
+    >
+      {localName(props.place) || props.asWritten}
+    </span>
+  );
+}
+
+// A bride or groom: the name, then their age and where they lived.
+function Spouse(props: { person: RecordRow['groom'] }) {
+  return (
+    <Show when={props.person}>
+      {(p) => (
+        <div class="flex flex-col">
+          <span class="font-medium">{localName(p())}</span>
+          <span class="text-xs text-base-content/60">
+            <Show when={p().age}>{(age) => m.records_age({ age: age() })}</Show>
+            <Show when={p().age && (p().residence || p().residenceAsWritten)}> · </Show>
+            <Place place={p().residence} asWritten={p().residenceAsWritten} />
+          </span>
+        </div>
+      )}
+    </Show>
   );
 }

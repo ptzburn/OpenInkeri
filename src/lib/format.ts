@@ -123,11 +123,16 @@ export function parishInUse(uses: { villages: number; sources: number }): string
   return list && m.parish_delete_in_use({ uses: list });
 }
 
-/** The same for a locality: the records and birthplaces still linked to it. */
-export function placeInUse(uses: { records: number; birthplaces: number }): string | undefined {
+/** The same for a locality: the records, birthplaces and parish churches still linked to it. */
+export function placeInUse(uses: {
+  records: number;
+  birthplaces: number;
+  churches: number;
+}): string | undefined {
   const list = listUses([
     uses.records ? m.place_delete_records({ count: uses.records }) : undefined,
     uses.birthplaces ? m.place_delete_birthplaces({ count: uses.birthplaces }) : undefined,
+    uses.churches ? m.place_delete_churches({ count: uses.churches }) : undefined,
   ]);
   return list && m.place_delete_in_use({ uses: list });
 }

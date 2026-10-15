@@ -5,6 +5,7 @@ import { Show } from 'solid-js';
 import EditPage from '~/components/edit-page';
 import ParishEditForm from '~/components/parish-edit-form';
 import { getParishEdit } from '~/data/parishes';
+import { getPlaceOptions } from '~/data/places';
 import { idParam } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -14,7 +15,10 @@ import { paths } from '~/router';
 export const route = defineFileRoute('/places/parishes/:id/edit', {
   preload: ({ params }) => {
     const id = idParam(params.id);
-    if (id) void getParishEdit(id);
+    if (id) {
+      void getParishEdit(id);
+      void getPlaceOptions();
+    }
   },
 });
 

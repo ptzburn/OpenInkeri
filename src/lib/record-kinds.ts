@@ -8,6 +8,17 @@ export type RecordKind = (typeof recordKinds)[number];
 export const isRecordKind = (value: unknown): value is RecordKind =>
   recordKinds.includes(value as RecordKind);
 
+/** The kinds the records page lists with their own columns and admins edit. */
+export const editableKinds = [
+  'baptisms',
+  'marriages',
+  'deaths',
+] as const satisfies readonly RecordKind[];
+export type EditableKind = (typeof editableKinds)[number];
+
+export const isEditableKind = (value: unknown): value is EditableKind =>
+  editableKinds.includes(value as EditableKind);
+
 // Other values with a fixed set of options, which the edit form offers too.
 export const recordStatuses = ['ok', 'lost', 'illegible'] as const;
 export const baptismLocations = [

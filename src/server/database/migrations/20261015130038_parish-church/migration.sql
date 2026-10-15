@@ -1,0 +1,1 @@
+ALTER TABLE `parish` ADD `church_place_id` integer REFERENCES place(id) ON DELETE SET NULL;

@@ -4,11 +4,13 @@
 //
 // A save writes the place, its spellings, a change_log entry and the
 // records it touches in one D1 batch. Records it touches:
-//   - a rename refreshes the search_text of the records linked to the place
-//     (it holds the place's name, see ~/lib/search-text);
-//   - a spelling added to the place links the records that have that
-//     village as written but no place yet, unless another place has the
-//     same spelling (then which one is meant stays for an admin to pick).
+//   - a rename refreshes the search_text of the records linked to the place,
+//     as their place or where one of their people lived (it holds the
+//     place's name, see ~/lib/search-text);
+//   - a spelling added to the place links the records, and the people's
+//     residences, that have that village as written but no place yet,
+//     unless another place has the same spelling (then which one is meant
+//     stays for an admin to pick).
 import { action, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
 import { and, count, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
@@ -23,12 +25,13 @@ import {
   coordinateStatuses,
   placeKinds,
 } from '~/lib/place-kinds';
-import { recordSearchText } from '~/lib/search-text';
+import { searchTextOf } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
 import {
   changeLog,
+  parish,
   persona,
   place,
   placeAlias,
@@ -87,6 +90,15 @@ export interface PlaceEditData {
   /** What still links to it: while anything does, it can't be deleted. */
   records: number;
   birthplaces: number;
+  /** Parishes whose church stands here. */
+  churches: number;
+}
+
+export interface PlaceOption {
+  id: number;
+  name: string;
+  parishId: number | null;
+  parish: string | null;
 }
 
 /** Every place, by Russian name, with its spellings and how many records link to it. */
@@ -162,7 +174,7 @@ async function loadPlace(id: number) {
  * set all of these to null.
  */
 async function countUses(id: number) {
-  const [records, birthplaces] = await Promise.all([
+  const [records, birthplaces, churches] = await Promise.all([
     db.$count(
       record,
       or(
@@ -181,11 +193,17 @@ async function countUses(id: number) {
             .from(recordHolding)
             .where(eq(recordHolding.estatePlaceId, id)),
         ),
+        // A bride or groom who lived there.
+        inArray(
+          record.id,
+          db.select({ id: persona.recordId }).from(persona).where(eq(persona.residenceId, id)),
+        ),
       ),
     ),
     db.$count(persona, eq(persona.birthplaceId, id)),
+    db.$count(parish, eq(parish.churchPlaceId, id)),
   ]);
-  return { records, birthplaces };
+  return { records, birthplaces, churches };
 }
 
 /** One place for its edit page, with what still links to it, or null if there is none. */
@@ -198,6 +216,23 @@ export const getPlaceEdit = query(async (id: number): Promise<PlaceEditData | nu
   const { aliases, ...rest } = found;
   return { ...rest, spellings: aliases.map((a) => a.name), ...uses };
 }, 'place-edit');
+
+/** Every place, by Russian name, with its parish: a form's choices of locality. */
+export const getPlaceOptions = query(async (): Promise<PlaceOption[]> => {
+  'use server';
+  adminOnly();
+  const places = await db.query.place.findMany({
+    columns: { id: true, nameRu: true, parishId: true },
+    with: { parish: { columns: { nameRu: true } } },
+    orderBy: { nameRu: 'asc' },
+  });
+  return places.map((p) => ({
+    id: p.id,
+    name: p.nameRu,
+    parishId: p.parishId,
+    parish: p.parish?.nameRu ?? null,
+  }));
+}, 'place-options');
 
 // --- The form ----------------------------------------------------------------------
 
@@ -315,8 +350,9 @@ export const savePlace = action(async (formData: FormData) => {
   }
   for (const name of added) statements.push(db.insert(placeAlias).values({ placeId: id, name }));
 
-  // Records whose search_text changes: those linked to a renamed place, and
-  // those an added spelling links. Only spellings no other place has link.
+  // Records whose search_text changes: those linked to a renamed place (as
+  // the record's place or where one of its people lived), and those an added
+  // spelling links. Only spellings no other place has link.
   const others = added.length
     ? await db.query.placeAlias.findMany({
         where: { name: { in: added }, placeId: { ne: id } },
@@ -330,50 +366,107 @@ export const savePlace = action(async (formData: FormData) => {
       ? await db.query.record.findMany({
           where: {
             OR: [
-              ...(renamed ? [{ placeId: id }] : []),
+              ...(renamed ? [{ placeId: id }, { personas: { residenceId: id } }] : []),
               ...(linking.length
-                ? [{ placeId: { isNull: true as const }, placeText: { in: linking } }]
+                ? [
+                    { placeId: { isNull: true as const }, placeText: { in: linking } },
+                    {
+                      personas: {
+                        residenceId: { isNull: true as const },
+                        residenceText: { in: linking },
+                      },
+                    },
+                  ]
                 : []),
             ],
           },
           columns: { id: true, version: true, placeId: true, placeText: true },
-          with: { personas: { columns: { nameRu: true, nameFi: true }, orderBy: { id: 'asc' } } },
+          with: {
+            place: { columns: { nameRu: true } },
+            personas: {
+              columns: {
+                id: true,
+                nameRu: true,
+                nameFi: true,
+                residenceId: true,
+                residenceText: true,
+              },
+              with: { residence: { columns: { nameRu: true } } },
+              orderBy: { id: 'asc' },
+            },
+          },
         })
       : [];
+  const links = (placeId: number | null, text: string | null) =>
+    placeId === null && text !== null && linking.includes(text);
+  // A place's name as it will be: this place's is the one being saved.
+  const nameOf = (placeId: number | null, current: string | undefined) =>
+    placeId === id ? input.nameRu : (current ?? null);
   const linked: number[] = [];
   for (const r of touched) {
-    const links = r.placeId === null;
-    if (links) linked.push(r.id);
-    const searchText =
-      recordSearchText([
-        ...r.personas.flatMap((p) => [p.nameRu, p.nameFi]),
-        r.placeText,
-        input.nameRu,
-      ]) || null;
+    const placeId = links(r.placeId, r.placeText) ? id : r.placeId;
+    const residents = r.personas.filter((p) => links(p.residenceId, p.residenceText));
+    const searchText = searchTextOf({
+      placeText: r.placeText,
+      placeName: nameOf(placeId, r.place?.nameRu),
+      people: r.personas.map((p) => {
+        const residenceId = residents.includes(p) ? id : p.residenceId;
+        return { ...p, residenceName: nameOf(residenceId, p.residence?.nameRu) };
+      }),
+    });
+    // A rename changes no field of the record itself: only its search text
+    // follows, without a new version. Linking changes the record.
+    if (placeId === r.placeId && !residents.length) {
+      statements.push(
+        db
+          .update(record)
+          .set({ searchText, ...stamp })
+          .where(eq(record.id, r.id)),
+      );
+      continue;
+    }
+    linked.push(r.id);
     statements.push(
       db
         .update(record)
-        // A rename changes no field of the record itself: only its search
-        // text follows, without a new version.
-        .set(
-          links
-            ? { placeId: id, searchText, version: r.version + 1, ...stamp }
-            : { searchText, ...stamp },
-        )
+        .set({ placeId, searchText, version: r.version + 1, ...stamp })
         .where(eq(record.id, r.id)),
     );
-    if (links) {
+    if (residents.length) {
       statements.push(
-        db.insert(changeLog).values({
-          userId: user.id,
-          entity: 'record',
-          entityId: r.id,
-          action: 'update',
-          before: { placeId: null, version: r.version },
-          after: { placeId: id, version: r.version + 1 },
-        }),
+        db
+          .update(persona)
+          .set({ residenceId: id, ...stamp })
+          .where(
+            inArray(
+              persona.id,
+              residents.map((p) => p.id),
+            ),
+          ),
       );
     }
+    statements.push(
+      db.insert(changeLog).values({
+        userId: user.id,
+        entity: 'record',
+        entityId: r.id,
+        action: 'update',
+        before: {
+          placeId: r.placeId,
+          version: r.version,
+          ...(residents.length && {
+            residences: residents.map((p) => ({ id: p.id, residenceId: null })),
+          }),
+        },
+        after: {
+          placeId,
+          version: r.version + 1,
+          ...(residents.length && {
+            residences: residents.map((p) => ({ id: p.id, residenceId: id })),
+          }),
+        },
+      }),
+    );
   }
 
   const after = { ...fields, spellings: input.spellings, linkedRecords: linked };
@@ -411,7 +504,7 @@ const deletion = v.object({
 /**
  * Deletes the edit page's place, with its spellings, once its confirm box
  * is ticked, then redirects to the villages list it came from. Refused while
- * records or birthplaces still link to it (the links would quietly go
+ * records, birthplaces or parish churches still link to it (the links would quietly go
  * blank), and, like a save, when the place changed since the page loaded it.
  */
 export const deletePlace = action(async (formData: FormData) => {

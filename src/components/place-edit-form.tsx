@@ -37,6 +37,7 @@ const blank: PlaceEditData = {
   spellings: [],
   records: 0,
   birthplaces: 0,
+  churches: 0,
 };
 
 /**

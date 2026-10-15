@@ -2,9 +2,9 @@
 // option list (src/lib/record-kinds.ts, src/lib/place-kinds.ts, the roles the
 // edit form edits). Each map is a Record over the list's type, so an option
 // added without its label fails the type check here.
-import type { EditedRole } from '~/data/records';
 import type { CoordinateStatus, PlaceKind } from '~/lib/place-kinds';
 import type { BaptismLocation, RecordKind, RecordStatus, Sex } from '~/lib/record-kinds';
+import type { EditedRole } from '~/lib/record-people';
 import { m } from '~/paraglide/messages.js';
 
 type Labels<T extends string> = Record<T, () => string>;
@@ -41,6 +41,9 @@ export const editedRoleLabels: Labels<EditedRole> = {
   child: m.records_col_child,
   father: m.records_col_father,
   mother: m.records_col_mother,
+  groom: m.records_col_groom,
+  bride: m.records_col_bride,
+  deceased: m.records_col_deceased,
 };
 
 export const placeKindLabels: Labels<PlaceKind> = {

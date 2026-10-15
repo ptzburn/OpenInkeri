@@ -3,12 +3,13 @@
 // users: a signed-out visitor is redirected to sign-in, which also makes the
 // read the page's guard. Editing is for admins.
 //
-// The edit page's form (src/components/baptism-edit-form.tsx) reads a
-// record with getBaptismEdit and the places and clergy to choose from with
-// getBaptismEditOptions, and saves through saveBaptism. A save covers the
-// record, its baptism details and its child, father and mother, and goes to
-// D1 as one batch (one transaction) with a change_log entry holding the
-// record before and after. record.raw, the row as first transcribed, is
+// The edit page's form (src/components/record-edit-form.tsx) reads a
+// baptism, marriage or death record with getRecordEdit and the places and
+// clergy to choose from with getRecordEditOptions, and saves through
+// saveRecord. A save covers the record, its kind's details (record_baptism,
+// record_death) and the people the form edits (~/lib/record-people), and
+// goes to D1 as one batch (one transaction) with a change_log entry holding
+// the record before and after. record.raw, the row as first transcribed, is
 // never edited.
 import { action, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
@@ -18,13 +19,26 @@ import * as v from 'valibot';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { parsePartialDate } from '~/lib/format';
 import {
+  type BaptismLocation,
+  type EditableKind,
   type RecordKind,
+  type Sex,
   baptismLocations,
+  isEditableKind,
   recordKinds,
   recordStatuses,
   sexes,
 } from '~/lib/record-kinds';
-import { foldForSearch, recordSearchText } from '~/lib/search-text';
+import {
+  type EditedRole,
+  type NameField,
+  type PersonField,
+  editedRoles,
+  nameFields,
+  personFieldsOf,
+  sexOfRole,
+} from '~/lib/record-people';
+import { foldForSearch, searchTextOf } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -34,6 +48,7 @@ import {
   persona,
   record,
   recordBaptism,
+  recordDeath,
   source,
 } from '~/server/database/schema';
 import { fieldsAtFault, optionalId, refuse, rowId, text, version } from '~/server/forms';
@@ -47,8 +62,8 @@ export const RECORDS_PAGE_SIZE = 50;
  * `page` counts from 1 and is clamped to the pages there are. Also returns
  * how many records each kind has, whatever the search, for the kind tabs.
  *
- * Only baptisms have columns on the page yet: the other kinds' fields are
- * read here once their registers are imported.
+ * Each row carries the fields of every listed kind (baptisms, marriages,
+ * deaths); the page shows the current kind's.
  */
 export const getRecords = query(async (kind: RecordKind, search: string, page: number) => {
   'use server';
@@ -89,13 +104,27 @@ export const getRecords = query(async (kind: RecordKind, search: string, page: n
       baptism: {
         columns: { birthDate: true, stillborn: true, multipleBirth: true, illegitimate: true },
       },
-      personas: { columns: { role: true, nameRu: true, nameFi: true }, orderBy: { id: 'asc' } },
+      death: { columns: { burialDate: true, causeText: true, stillborn: true } },
+      personas: {
+        columns: { role: true, nameRu: true, nameFi: true, ageText: true, residenceText: true },
+        with: { residence: { columns: { nameRu: true, nameFi: true } } },
+        orderBy: { id: 'asc' },
+      },
     },
   });
 
-  const named = (personas: (typeof rows)[number]['personas'], role: string) => {
-    const persona = personas.find((p) => p.role === role);
-    return persona ? { ru: persona.nameRu, fi: persona.nameFi } : null;
+  // The first person in a role: names, age and where they lived.
+  const named = (personas: (typeof rows)[number]['personas'], role: PersonaRole) => {
+    const p = personas.find((p) => p.role === role);
+    return p
+      ? {
+          ru: p.nameRu,
+          fi: p.nameFi,
+          age: p.ageText,
+          residence: p.residence ? { ru: p.residence.nameRu, fi: p.residence.nameFi } : null,
+          residenceAsWritten: p.residenceText,
+        }
+      : null;
   };
 
   return {
@@ -107,16 +136,23 @@ export const getRecords = query(async (kind: RecordKind, search: string, page: n
     records: rows.map((r) => ({
       id: r.id,
       lost: r.status === 'lost',
-      baptismDate: r.date,
+      // Baptised, married or died.
+      date: r.date,
       birthDate: r.baptism?.birthDate ?? null,
-      stillborn: r.baptism?.stillborn ?? false,
+      stillborn: r.baptism?.stillborn ?? r.death?.stillborn ?? false,
       multipleBirth: r.baptism?.multipleBirth ?? null,
       illegitimate: r.baptism?.illegitimate ?? false,
+      burialDate: r.death?.burialDate ?? null,
+      cause: r.death?.causeText ?? null,
+      // Where the people lived; for a death, where it happened.
       village: r.place ? { ru: r.place.nameRu, fi: r.place.nameFi } : null,
       villageAsWritten: r.placeText,
       child: named(r.personas, 'child'),
       father: named(r.personas, 'father'),
       mother: named(r.personas, 'mother'),
+      groom: named(r.personas, 'groom'),
+      bride: named(r.personas, 'bride'),
+      deceased: named(r.personas, 'deceased'),
       note: r.note,
     })),
   };
@@ -125,39 +161,30 @@ export const getRecords = query(async (kind: RecordKind, search: string, page: n
 /** One row of the records list. */
 export type RecordRow = Awaited<ReturnType<typeof getRecords>>['records'][number];
 
-// --- Editing a baptism -------------------------------------------------------------
-
-/** The roles the edit form edits, one person each: persona roles, checked against the schema's. */
-export const editedRoles = ['child', 'father', 'mother'] as const satisfies readonly PersonaRole[];
-export type EditedRole = (typeof editedRoles)[number];
-
-/** A person's name fields, as written and in parts, in both languages. */
-export const nameFields = [
-  'nameRu',
-  'givenRu',
-  'patronymicRu',
-  'surnameRu',
-  'maidenRu',
-  'nameFi',
-  'givenFi',
-  'patronymicFi',
-  'surnameFi',
-  'maidenFi',
-] as const;
+// --- Editing a record --------------------------------------------------------------
 
 // The read functions' results, spelled out: the edit page's types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
 // circular (see AccountData in ./account.ts).
-export interface BaptismEditPerson extends Record<(typeof nameFields)[number], string | null> {
+export interface RecordEditPerson extends Record<NameField, string | null> {
   id: number;
   role: string;
   sex: (typeof sexes)[number] | null;
   deathDate: string | null;
   origin: string | null;
+  ageText: string | null;
+  rankText: string | null;
+  religionText: string | null;
+  civilStatusText: string | null;
+  residenceText: string | null;
+  residenceId: number | null;
+  birthplaceText: string | null;
+  birthplaceId: number | null;
 }
 
-export interface BaptismEditData {
+export interface RecordEditData {
   id: number;
+  kind: EditableKind;
   version: number;
   status: (typeof recordStatuses)[number];
   date: string | null;
@@ -169,15 +196,24 @@ export interface BaptismEditData {
     officiantText: string | null;
     officiantId: number | null;
     location: (typeof baptismLocations)[number] | null;
+    locationPlaceId: number | null;
     emergencyDate: string | null;
     multipleBirth: number | null;
     illegitimate: boolean;
     stillborn: boolean;
   } | null;
-  people: Record<EditedRole, BaptismEditPerson | null>;
+  death: {
+    burialDate: string | null;
+    burialPlaceText: string | null;
+    causeText: string | null;
+    causeTermId: number | null;
+    stillborn: boolean;
+  } | null;
+  /** The first person in each role the kind's form edits (a record names one of each). */
+  people: Partial<Record<EditedRole, RecordEditPerson | null>>;
 }
 
-export interface BaptismEditOptionsData {
+export interface RecordEditOptionsData {
   places: { id: number; name: string; parish: string | null }[];
   clergy: { id: number; name: string }[];
 }
@@ -186,22 +222,21 @@ const personaColumns = {
   id: true,
   role: true,
   sex: true,
-  nameRu: true,
-  givenRu: true,
-  patronymicRu: true,
-  surnameRu: true,
-  maidenRu: true,
-  nameFi: true,
-  givenFi: true,
-  patronymicFi: true,
-  surnameFi: true,
-  maidenFi: true,
+  ...(Object.fromEntries(nameFields.map((f) => [f, true])) as Record<NameField, true>),
   deathDate: true,
   origin: true,
+  ageText: true,
+  rankText: true,
+  religionText: true,
+  civilStatusText: true,
+  residenceText: true,
+  residenceId: true,
+  birthplaceText: true,
+  birthplaceId: true,
 } as const;
 
-// A baptism as the edit form edits it, and as change_log records it.
-async function loadBaptism(id: number) {
+// A record as the edit form edits it, and as change_log records it.
+async function loadRecord(id: number) {
   return db.query.record.findFirst({
     where: { id },
     columns: {
@@ -216,27 +251,31 @@ async function loadBaptism(id: number) {
     with: {
       source: { columns: { kind: true } },
       baptism: { columns: { recordId: false } },
+      death: { columns: { recordId: false } },
       personas: { columns: personaColumns, orderBy: { id: 'asc' } },
     },
   });
 }
 
-/** One baptism record for the edit page, or null if there is none. */
-export const getBaptismEdit = query(async (id: number): Promise<BaptismEditData | null> => {
+/** One baptism, marriage or death record for the edit page, or null if there is none. */
+export const getRecordEdit = query(async (id: number): Promise<RecordEditData | null> => {
   'use server';
   adminOnly();
-  const found = await loadBaptism(v.parse(rowId, id));
-  if (!found || found.source.kind !== 'baptisms') return null;
+  const found = await loadRecord(v.parse(rowId, id));
+  const kind = found?.source.kind;
+  if (!found || !isEditableKind(kind)) return null;
   const { source: _, personas, ...rest } = found;
-  // The first person in each edited role (a record names one of each).
   const people = Object.fromEntries(
-    editedRoles.map((role) => [role, personas.find((p) => p.role === role) ?? null]),
-  ) as Record<EditedRole, BaptismEditPerson | null>;
-  return { ...rest, people };
-}, 'baptism-edit');
+    editedRoles[kind].map((role: EditedRole) => [
+      role,
+      personas.find((p) => p.role === role) ?? null,
+    ]),
+  );
+  return { ...rest, kind, people };
+}, 'record-edit');
 
 /** The places and clergy an edited record can point to, by name. */
-export const getBaptismEditOptions = query(async (): Promise<BaptismEditOptionsData> => {
+export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsData> => {
   'use server';
   adminOnly();
   const [places, clergy] = await Promise.all([
@@ -251,7 +290,7 @@ export const getBaptismEditOptions = query(async (): Promise<BaptismEditOptionsD
     places: places.map((p) => ({ id: p.id, name: p.nameRu, parish: p.parish?.nameRu ?? null })),
     clergy: clergy.map((c) => ({ id: c.id, name: c.nameRu })),
   };
-}, 'baptism-edit-options');
+}, 'record-edit-options');
 
 // --- The form ----------------------------------------------------------------------
 
@@ -273,84 +312,116 @@ const checkbox = v.pipe(
   v.optional(v.string()),
   v.transform((s) => s === 'on'),
 );
+const recordId = v.pipe(v.string(), v.transform(Number), rowId);
 
-const personFields = (role: EditedRole) => ({
-  ...Object.fromEntries(nameFields.map((f) => [`${role}.${f}`, text])),
-  ...(role === 'child'
-    ? { [`${role}.sex`]: choice(sexes), [`${role}.deathDate`]: date }
-    : { [`${role}.origin`]: text }),
-});
-
-const form = v.object({
+// What every kind's form posts.
+const common = {
   // Where the list was (kind, search, page), to return there after saving.
   // The redirect is built from these, never taken whole from the request.
   returnKind: v.optional(v.picklist(recordKinds)),
   returnQ: v.optional(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
   returnPage: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,5}$/))),
-  id: v.pipe(v.string(), v.transform(Number), rowId),
+  id: recordId,
   version,
   status: v.picklist(recordStatuses),
   date,
-  birthDate: date,
-  emergencyDate: date,
-  placeId: optionalId,
-  placeText: text,
   note: text,
-  officiantId: optionalId,
-  officiantText: text,
-  location: choice(baptismLocations),
-  multipleBirth: v.pipe(
-    v.optional(v.string(), ''),
-    v.transform((s) => (s === '' ? null : Number(s))),
-    v.nullable(v.picklist([2, 3])),
-  ),
-  illegitimate: checkbox,
-  stillborn: checkbox,
-  ...personFields('child'),
-  ...personFields('father'),
-  ...personFields('mother'),
-});
+};
+
+const place = { placeId: optionalId, placeText: text };
+
+// The record's own fields and its details, by kind. A marriage has no
+// place of its own: the bride and groom each have where they lived.
+const kindFields = {
+  baptisms: {
+    ...place,
+    birthDate: date,
+    emergencyDate: date,
+    officiantId: optionalId,
+    officiantText: text,
+    location: choice(baptismLocations),
+    multipleBirth: v.pipe(
+      v.optional(v.string(), ''),
+      v.transform((s) => (s === '' ? null : Number(s))),
+      v.nullable(v.picklist([2, 3])),
+    ),
+    illegitimate: checkbox,
+    stillborn: checkbox,
+  },
+  marriages: {},
+  deaths: {
+    ...place,
+    burialDate: date,
+    burialPlaceText: text,
+    causeText: text,
+    stillborn: checkbox,
+  },
+} satisfies Record<EditableKind, v.ObjectEntries>;
+
+const personField = {
+  sex: choice(sexes),
+  deathDate: date,
+  origin: text,
+  ageText: text,
+  rankText: text,
+  religionText: text,
+  civilStatusText: text,
+  residenceId: optionalId,
+  residenceText: text,
+  birthplaceId: optionalId,
+  birthplaceText: text,
+} satisfies Record<PersonField, v.GenericSchema>;
+
+// A kind's whole form: its people's fields are named "role.field".
+const formOf = (kind: EditableKind) =>
+  v.object({
+    ...common,
+    ...kindFields[kind],
+    ...Object.fromEntries(
+      editedRoles[kind].flatMap((role) => [
+        ...nameFields.map((f) => [`${role}.${f}`, text] as const),
+        ...personFieldsOf(kind, role).map((f) => [`${role}.${f}`, personField[f]] as const),
+      ]),
+    ),
+  });
+
+type Values = Record<string, string | number | boolean | null>;
 
 // The values of one person in the parsed form.
-function personValues(input: Record<string, unknown>, role: EditedRole) {
-  const pick = (field: string) => (input[`${role}.${field}`] ?? null) as string | null;
-  return {
-    ...Object.fromEntries(nameFields.map((f) => [f, pick(f)])),
-    ...(role === 'child'
-      ? { sex: pick('sex') as (typeof sexes)[number] | null, deathDate: pick('deathDate') }
-      : { origin: pick('origin') }),
-  } as Record<(typeof nameFields)[number], string | null> & {
-    sex?: (typeof sexes)[number] | null;
-    deathDate?: string | null;
-    origin?: string | null;
-  };
+function personValues(input: Values, kind: EditableKind, role: EditedRole): Values {
+  return Object.fromEntries(
+    [...nameFields, ...personFieldsOf(kind, role)].map((f) => [f, input[`${role}.${f}`] ?? null]),
+  );
 }
 
 /**
- * Saves the edit page's form over a baptism record, then redirects to the
- * records list where the admin came from (the redirect revalidates, so the
- * list shows the change). Refused, with the fields at fault, when a value
- * doesn't read; and when the record changed since the page loaded it (its
- * version moved on), so one admin's save doesn't silently undo another's.
- * The check reads the version just before the batch, so two saves within
- * the same moment could still both pass.
+ * Saves the edit page's form over a baptism, marriage or death record, then
+ * redirects to the records list where the admin came from (the redirect
+ * revalidates, so the list shows the change). The record's kind comes from
+ * the database, not the form. Refused, with the fields at fault, when a
+ * value doesn't read; and when the record changed since the page loaded it
+ * (its version moved on), so one admin's save doesn't silently undo
+ * another's. The check reads the version just before the batch, so two
+ * saves within the same moment could still both pass.
  *
  * A person whose fields are all emptied is removed from the record; one
  * given a name where there was none is added.
  */
-export const saveBaptism = action(async (formData: FormData) => {
+export const saveRecord = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = v.safeParse(form, Object.fromEntries(formData));
+  const entries = Object.fromEntries(formData);
+  const id = v.safeParse(recordId, entries.id);
+  if (!id.success) throw refuse({ message: m.form_invalid(), fields: ['id'] }, 400);
+
+  const before = await loadRecord(id.output);
+  const kind = before?.source.kind;
+  if (!before || !isEditableKind(kind)) throw refuse({ message: m.record_edit_missing() }, 404);
+  const parsed = v.safeParse(formOf(kind), entries);
   if (!parsed.success) {
     throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }
-  const input = parsed.output as typeof parsed.output & Record<string, unknown>;
-
-  const before = await loadBaptism(input.id);
-  if (!before || before.source.kind !== 'baptisms') {
-    throw refuse({ message: m.record_edit_missing() }, 404);
-  }
+  const input = parsed.output as typeof parsed.output & Values;
   if (before.version !== input.version) {
     throw refuse({ message: m.record_edit_conflict() }, 409);
   }
@@ -358,17 +429,22 @@ export const saveBaptism = action(async (formData: FormData) => {
   const now = new Date();
   const stamp = { updatedAt: now, updatedBy: user.id };
   const statements = [];
-  const people = editedRoles.map((role) => ({
+  const people = editedRoles[kind].map((role: EditedRole) => ({
     role,
-    values: personValues(input, role),
+    values: personValues(input, kind, role),
     current: before.personas.find((p) => p.role === role) ?? null,
   }));
 
+  const kept = [];
   for (const { role, values, current } of people) {
     const empty = Object.values(values).every((value) => value === null);
+    // The deceased died on the record's date.
+    if (role === 'deceased' && !empty) values.deathDate = input.date;
     if (current && empty) {
       statements.push(db.delete(persona).where(eq(persona.id, current.id)));
-    } else if (current) {
+      continue;
+    }
+    if (current) {
       statements.push(
         db
           .update(persona)
@@ -376,55 +452,99 @@ export const saveBaptism = action(async (formData: FormData) => {
           .where(eq(persona.id, current.id)),
       );
     } else if (!empty) {
-      const sex = role === 'father' ? 'male' : role === 'mother' ? 'female' : (values.sex ?? null);
       statements.push(
         db.insert(persona).values({
           recordId: input.id,
           role,
           ...values,
-          sex,
+          sex: 'sex' in values ? (values.sex as Sex | null) : (sexOfRole[role] ?? null),
           createdBy: user.id,
           ...stamp,
         }),
       );
-    }
+    } else continue;
+    kept.push({ ...current, ...values });
   }
 
-  const baptism = {
-    birthDate: input.birthDate,
-    officiantText: input.officiantText,
-    officiantId: input.officiantId,
-    location: input.location,
-    emergencyDate: input.emergencyDate,
-    multipleBirth: input.multipleBirth,
-    illegitimate: input.illegitimate,
-    stillborn: input.stillborn,
-  };
-  statements.push(
-    db
-      .insert(recordBaptism)
-      .values({ recordId: input.id, ...baptism })
-      .onConflictDoUpdate({ target: recordBaptism.recordId, set: baptism }),
-  );
+  // The kind's details: one row beside the record, written whole.
+  let details: { baptism?: object; death?: object } = {};
+  if (kind === 'baptisms') {
+    const baptism = {
+      birthDate: input.birthDate as string | null,
+      officiantText: input.officiantText as string | null,
+      officiantId: input.officiantId as number | null,
+      location: input.location as BaptismLocation | null,
+      emergencyDate: input.emergencyDate as string | null,
+      multipleBirth: input.multipleBirth as number | null,
+      illegitimate: input.illegitimate as boolean,
+      stillborn: input.stillborn as boolean,
+    };
+    statements.push(
+      db
+        .insert(recordBaptism)
+        .values({ recordId: input.id, ...baptism })
+        .onConflictDoUpdate({ target: recordBaptism.recordId, set: baptism }),
+    );
+    details = { baptism: { ...before.baptism, ...baptism } };
+  } else if (kind === 'deaths') {
+    const death = {
+      burialDate: input.burialDate as string | null,
+      burialPlaceText: input.burialPlaceText as string | null,
+      causeText: input.causeText as string | null,
+      stillborn: input.stillborn as boolean,
+    };
+    statements.push(
+      db
+        .insert(recordDeath)
+        .values({ recordId: input.id, ...death })
+        .onConflictDoUpdate({ target: recordDeath.recordId, set: death }),
+    );
+    details = { death: { ...before.death, ...death } };
+  }
+
+  const placed = 'placeId' in input;
+  const placeId = placed ? (input.placeId as number | null) : before.placeId;
+  const placeText = placed ? (input.placeText as string | null) : before.placeText;
 
   // search_text: every name in the record (people the form doesn't edit,
-  // like a lay baptizer, too), the village as written and its place's name.
-  const placeName = input.placeId
-    ? (await db.query.place.findFirst({ where: { id: input.placeId }, columns: { nameRu: true } }))
-        ?.nameRu
-    : null;
-  const others = before.personas.filter((p) => !editedRoles.includes(p.role as EditedRole));
-  const names = [
-    ...others.flatMap((p) => [p.nameRu, p.nameFi]),
-    ...people.flatMap(({ values }) => [values.nameRu, values.nameFi]),
-  ];
+  // like a lay baptizer, too), its place and where its people lived, as
+  // written and the places' names.
+  const others = before.personas.filter((p) => !people.some((e) => e.current?.id === p.id));
+  const everyone = [...others, ...kept] as {
+    nameRu: string | null;
+    nameFi: string | null;
+    residenceText?: string | null;
+    residenceId?: number | null;
+  }[];
+  const placeIds = [placeId, ...everyone.map((p) => p.residenceId)].filter(
+    (n): n is number => typeof n === 'number',
+  );
+  const placeNames = new Map(
+    placeIds.length
+      ? (
+          await db.query.place.findMany({
+            where: { id: { in: [...new Set(placeIds)] } },
+            columns: { id: true, nameRu: true },
+          })
+        ).map((p) => [p.id, p.nameRu])
+      : [],
+  );
   const fields = {
     status: input.status,
     date: input.date,
-    placeId: input.placeId,
-    placeText: input.placeText,
+    placeId,
+    placeText,
     note: input.note,
-    searchText: recordSearchText([...names, input.placeText, placeName]) || null,
+    searchText: searchTextOf({
+      placeText,
+      placeName: placeId ? placeNames.get(placeId) : null,
+      people: everyone.map((p) => ({
+        nameRu: p.nameRu,
+        nameFi: p.nameFi,
+        residenceText: p.residenceText,
+        residenceName: p.residenceId ? placeNames.get(p.residenceId) : null,
+      })),
+    }),
   };
   statements.unshift(
     db
@@ -445,7 +565,7 @@ export const saveBaptism = action(async (formData: FormData) => {
         ...beforeLog,
         ...fields,
         version: before.version + 1,
-        baptism: { ...before.baptism, ...baptism },
+        ...details,
         people: Object.fromEntries(people.map(({ role, values }) => [role, values])),
       },
     }),
@@ -454,7 +574,7 @@ export const saveBaptism = action(async (formData: FormData) => {
   try {
     await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
   } catch (error) {
-    console.error('Saving a baptism failed', error);
+    console.error('Saving a record failed', error);
     throw refuse({ message: m.form_failed() }, 500);
   }
   throw redirect(
@@ -464,4 +584,4 @@ export const saveBaptism = action(async (formData: FormData) => {
       page: input.returnPage,
     }),
   );
-}, 'save-baptism');
+}, 'save-record');

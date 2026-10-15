@@ -129,6 +129,23 @@
   "record_edit_missing": "The record no longer exists.",
   "record_edit_back": "Back to records",
   "records_col_actions": "Actions",
+  "records_col_married": "Married",
+  "records_col_groom": "Groom",
+  "records_col_bride": "Bride",
+  "records_col_died": "Died",
+  "records_col_buried": "Buried",
+  "records_col_deceased": "Deceased",
+  "records_col_age": "Age",
+  "records_col_death_place": "Place of death",
+  "records_col_cause": "Cause of death",
+  "records_age": "age {age}",
+  "record_edit_death": "Death and burial",
+  "record_edit_burial_place": "Place of burial",
+  "record_edit_rank": "Rank or occupation",
+  "record_edit_religion": "Religion",
+  "record_edit_civil_status": "Civil status",
+  "record_edit_residence": "Lived in",
+  "record_edit_birthplace": "Born in",
   "villages_title": "Localities",
   "villages_search_label": "Search localities",
   "villages_search_placeholder": "Name or spelling",
@@ -192,6 +209,16 @@
       }
     }
   ],
+  "place_delete_churches": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "the church of {count} parish",
+        "countPlural=*": "the churches of {count} parishes"
+      }
+    }
+  ],
   "place_delete_in_use": "Still linked to this locality: {uses}. Link them to another locality before deleting it.",
   "place_delete_failed": "Could not delete the locality. Try again.",
   "place_deleted": "Locality {name} deleted.",
@@ -213,6 +240,8 @@
   "parish_delete_text": "Deletes the parish.",
   "parish_delete_confirm": "I want to delete this parish",
   "parish_delete_unconfirmed": "Tick the box to confirm.",
+  "parish_church": "Church",
+  "parish_church_hint": "The locality the parish church stands in",
   "parish_delete_villages": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],

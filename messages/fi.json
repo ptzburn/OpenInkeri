@@ -129,6 +129,23 @@
   "record_edit_missing": "Merkintää ei enää ole.",
   "record_edit_back": "Takaisin merkintöihin",
   "records_col_actions": "Toiminnot",
+  "records_col_married": "Vihitty",
+  "records_col_groom": "Sulhanen",
+  "records_col_bride": "Morsian",
+  "records_col_died": "Kuollut",
+  "records_col_buried": "Haudattu",
+  "records_col_deceased": "Vainaja",
+  "records_col_age": "Ikä",
+  "records_col_death_place": "Kuolinpaikka",
+  "records_col_cause": "Kuolinsyy",
+  "records_age": "ikä {age}",
+  "record_edit_death": "Kuolema ja hautaus",
+  "record_edit_burial_place": "Hautauspaikka",
+  "record_edit_rank": "Sääty tai ammatti",
+  "record_edit_religion": "Uskonto",
+  "record_edit_civil_status": "Siviilisääty",
+  "record_edit_residence": "Asuinpaikka",
+  "record_edit_birthplace": "Syntymäpaikka",
   "villages_title": "Paikkakunnat",
   "villages_search_label": "Hae paikkakuntia",
   "villages_search_placeholder": "Nimi tai kirjoitusasu",
@@ -192,6 +209,16 @@
       }
     }
   ],
+  "place_delete_churches": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} seurakunnan kirkko",
+        "countPlural=*": "{count} seurakunnan kirkot"
+      }
+    }
+  ],
   "place_delete_in_use": "Paikkakuntaan liittyy vielä {uses}. Liitä ne toiseen paikkakuntaan ennen poistamista.",
   "place_delete_failed": "Paikkakunnan poistaminen epäonnistui. Yritä uudelleen.",
   "place_deleted": "Paikkakunta {name} poistettu.",
@@ -213,6 +240,8 @@
   "parish_delete_text": "Poistaa seurakunnan.",
   "parish_delete_confirm": "Haluan poistaa tämän seurakunnan",
   "parish_delete_unconfirmed": "Vahvista poisto valitsemalla ruutu.",
+  "parish_church": "Kirkko",
+  "parish_church_hint": "Paikkakunta, jossa seurakunnan kirkko on",
   "parish_delete_villages": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],

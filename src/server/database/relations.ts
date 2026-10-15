@@ -8,11 +8,16 @@ import * as schema from './schema';
 export const relations = {
   ...defineRelations(schema, (r) => ({
     parish: {
-      places: r.many.place({ from: r.parish.id, to: r.place.parishId }),
+      places: r.many.place({ from: r.parish.id, to: r.place.parishId, alias: 'place_parish' }),
+      church: r.one.place({
+        from: r.parish.churchPlaceId,
+        to: r.place.id,
+        alias: 'parish_church',
+      }),
       sources: r.many.source({ from: r.parish.id, to: r.source.parishId }),
     },
     place: {
-      parish: r.one.parish({ from: r.place.parishId, to: r.parish.id }),
+      parish: r.one.parish({ from: r.place.parishId, to: r.parish.id, alias: 'place_parish' }),
       aliases: r.many.placeAlias({ from: r.place.id, to: r.placeAlias.placeId }),
       records: r.many.record({ from: r.place.id, to: r.record.placeId }),
     },
@@ -53,7 +58,16 @@ export const relations = {
     persona: {
       record: r.one.record({ from: r.persona.recordId, to: r.record.id, optional: false }),
       person: r.one.person({ from: r.persona.personId, to: r.person.id }),
-      birthplace: r.one.place({ from: r.persona.birthplaceId, to: r.place.id }),
+      birthplace: r.one.place({
+        from: r.persona.birthplaceId,
+        to: r.place.id,
+        alias: 'persona_birthplace',
+      }),
+      residence: r.one.place({
+        from: r.persona.residenceId,
+        to: r.place.id,
+        alias: 'persona_residence',
+      }),
       relation: r.one.term({
         from: r.persona.relationTermId,
         to: r.term.id,
@@ -64,6 +78,11 @@ export const relations = {
         from: r.persona.civilStatusTermId,
         to: r.term.id,
         alias: 'persona_civil_status',
+      }),
+      religion: r.one.term({
+        from: r.persona.religionTermId,
+        to: r.term.id,
+        alias: 'persona_religion',
       }),
     },
     person: {

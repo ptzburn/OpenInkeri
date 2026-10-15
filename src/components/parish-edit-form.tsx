@@ -7,6 +7,7 @@ import { localName, parishInUse } from '~/lib/format';
 import {
   DeleteSection,
   FormActions,
+  Select,
   TextInput,
   postedName,
   useFormDone,
@@ -14,6 +15,7 @@ import {
 } from '~/components/form-fields';
 import { useToast } from '~/components/toaster';
 import { type ParishEditData, deleteParish, getParishEdit, saveParish } from '~/data/parishes';
+import { getPlaceOptions } from '~/data/places';
 import { m } from '~/paraglide/messages.js';
 
 // What a new parish's form starts from.
@@ -22,14 +24,15 @@ const blank: ParishEditData = {
   version: 0,
   nameRu: '',
   nameFi: null,
+  churchPlaceId: null,
   note: null,
   villages: 0,
   sources: 0,
 };
 
 /**
- * The admin's form for one parish, or for a new one without `id`: its names
- * and a note. It posts to the saveParish action (and works before
+ * The admin's form for one parish, or for a new one without `id`: its names,
+ * the locality its church stands in and a note. It posts to the saveParish action (and works before
  * JavaScript loads); a save redirects to the parishes list, and Cancel goes
  * to `cancelHref`. A save the server refuses keeps the form as typed, says
  * why and marks the fields at fault. A save is confirmed with a toast; an
@@ -40,6 +43,27 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
     (): Promise<QueryData<typeof getParishEdit>> | ParishEditData =>
       props.id ? getParishEdit(props.id) : blank,
     { name: 'parish-edit' },
+  );
+  const places = createMemo((): Promise<QueryData<typeof getPlaceOptions>> => getPlaceOptions(), {
+    name: 'parish-places',
+  });
+  // The church's choices: the parish's own localities first, then the rest
+  // with their parish.
+  const churchOptions = createMemo(
+    () => {
+      const id = props.id;
+      const all = places() ?? [];
+      return [
+        ...all.filter((p) => id && p.parishId === id).map((p) => ({ value: p.id, label: p.name })),
+        ...all
+          .filter((p) => !id || p.parishId !== id)
+          .map((p) => ({
+            value: p.id,
+            label: p.parish && p.parish !== p.name ? `${p.name} (${p.parish})` : p.name,
+          })),
+      ];
+    },
+    { name: 'parish-church-options' },
   );
   const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
   // This form's refused saves (the latest shown, its fields marked).
@@ -82,6 +106,17 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
                 maxlength={FIELD_MAX.line}
                 invalid={invalid('nameFi')}
               />
+              <div class="sm:col-span-2">
+                <Select
+                  name="churchPlaceId"
+                  label={m.parish_church()}
+                  value={p.churchPlaceId}
+                  none={m.form_none()}
+                  options={churchOptions()}
+                  invalid={invalid('churchPlaceId')}
+                />
+                <p class="label">{m.parish_church_hint()}</p>
+              </div>
               <label class="fieldset sm:col-span-2">
                 <span class="fieldset-legend">{m.form_note()}</span>
                 <textarea

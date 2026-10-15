@@ -16,7 +16,7 @@ const { me, places } = vi.hoisted(() => {
     failWith: null as null | { message: string; fields?: string[] },
     deleted: [] as FormData[],
     // What links to Горки on its edit page.
-    uses: { records: 0, birthplaces: 0 },
+    uses: { records: 0, birthplaces: 0, churches: 0 },
     list: () => ({
       places: [
         {
@@ -89,7 +89,15 @@ vi.mock('~/data/parishes', async () => {
     getParishOptions: vi.fn(async () => [{ id: 5, name: 'Губаницы' }]),
     getParishEdit: vi.fn(async (id: number) =>
       id === 5
-        ? { id: 5, version: 2, nameRu: 'Губаницы', nameFi: 'Hevaa', note: null, ...parishes.uses }
+        ? {
+            id: 5,
+            version: 2,
+            nameRu: 'Губаницы',
+            nameFi: 'Hevaa',
+            churchPlaceId: 1,
+            note: null,
+            ...parishes.uses,
+          }
         : null,
     ),
     saveParish: action(async (form: FormData) => {
@@ -109,6 +117,11 @@ vi.mock('~/data/places', async () => {
   const { redirect } = await import('@solidjs/web');
   return {
     getPlaces: vi.fn(async () => places.list()),
+    // The church's choices: Горки in parish 5, Кикерино in another parish.
+    getPlaceOptions: vi.fn(async () => [
+      { id: 2, name: 'Кикерино', parishId: 7, parish: 'Волосово' },
+      { id: 1, name: 'Горки', parishId: 5, parish: 'Губаницы' },
+    ]),
     getPlaceEdit: vi.fn(async (id: number) =>
       id === 1
         ? {
@@ -175,7 +188,7 @@ afterEach(() => {
   places.saved = [];
   places.failWith = null;
   places.deleted = [];
-  places.uses = { records: 0, birthplaces: 0 };
+  places.uses = { records: 0, birthplaces: 0, churches: 0 };
   parishes.saved = [];
   parishes.deleted = [];
   parishes.deleteFailsWith = null;
@@ -316,11 +329,11 @@ describe('editing a village', () => {
   });
 
   test('a locality that records and birthplaces link to says so and cannot be deleted', async () => {
-    places.uses = { records: 331, birthplaces: 2 };
+    places.uses = { records: 331, birthplaces: 2, churches: 1 };
     await openGorki();
     expect(
       screen.getByText(
-        'Still linked to this locality: 331 records and 2 birthplaces. Link them to another locality before deleting it.',
+        'Still linked to this locality: 331 records, 2 birthplaces, and the church of 1 parish. Link them to another locality before deleting it.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete locality' })).toBeDisabled();
@@ -420,7 +433,12 @@ describe('/places/parishes', () => {
     fireEvent.click((await screen.findAllByRole('link', { name: 'Edit parish' }))[0]);
     await screen.findByRole('heading', { level: 1, name: 'Edit parish' });
     await waitFor(() => expect(field('nameFi')).toHaveValue('Hevaa'));
+    // The church: the parish's own localities first, the rest with their parish.
+    await waitFor(() => expect(field('churchPlaceId')).toHaveValue('1'));
+    const choices = [...(field('churchPlaceId') as HTMLSelectElement).options].map((o) => o.text);
+    expect(choices).toEqual(['— none —', 'Горки', 'Кикерино (Волосово)']);
     fireEvent.input(field('note'), { target: { value: 'Губаницкий приход' } });
+    fireEvent.change(field('churchPlaceId'), { target: { value: '2' } });
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
 
     await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
@@ -428,6 +446,7 @@ describe('/places/parishes', () => {
     expect(saved.get('id')).toBe('5');
     expect(saved.get('version')).toBe('2');
     expect(saved.get('note')).toBe('Губаницкий приход');
+    expect(saved.get('churchPlaceId')).toBe('2');
     // The list it lands on says so (English shows the Finnish name).
     expect(await screen.findByRole('status')).toHaveTextContent('Parish Hevaa saved.');
   });

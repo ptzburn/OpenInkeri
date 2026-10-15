@@ -46,6 +46,8 @@ export interface ParishEditData {
   version: number;
   nameRu: string;
   nameFi: string | null;
+  /** The locality the parish church stands in. */
+  churchPlaceId: number | null;
   note: string | null;
   /** How many places and registers belong to it: while any do, it can't be deleted. */
   villages: number;
@@ -94,7 +96,14 @@ export const getParishOptions = query(async (): Promise<ParishOption[]> => {
 async function loadParish(id: number) {
   return db.query.parish.findFirst({
     where: { id },
-    columns: { id: true, version: true, nameRu: true, nameFi: true, note: true },
+    columns: {
+      id: true,
+      version: true,
+      nameRu: true,
+      nameFi: true,
+      churchPlaceId: true,
+      note: true,
+    },
   });
 }
 
@@ -123,6 +132,7 @@ const form = v.object({
   version,
   nameRu: russianName(),
   nameFi: finnishName(),
+  churchPlaceId: optionalId,
   note: text,
 });
 
@@ -145,6 +155,17 @@ export const saveParish = action(async (formData: FormData) => {
   if (id && !before) throw refuse({ message: m.parish_edit_missing() }, 404);
   if (before && before.version !== version) {
     throw refuse({ message: m.parish_edit_conflict() }, 409);
+  }
+
+  // A church in a locality deleted since the page loaded.
+  if (
+    fields.churchPlaceId &&
+    !(await db.query.place.findFirst({
+      where: { id: fields.churchPlaceId },
+      columns: { id: true },
+    }))
+  ) {
+    throw refuse({ message: m.form_invalid(), fields: ['churchPlaceId'] }, 400);
   }
 
   const stamp = { updatedAt: new Date(), updatedBy: user.id };

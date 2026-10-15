@@ -129,6 +129,23 @@
   "record_edit_missing": "Записи больше нет.",
   "record_edit_back": "К записям",
   "records_col_actions": "Действия",
+  "records_col_married": "Венчание",
+  "records_col_groom": "Жених",
+  "records_col_bride": "Невеста",
+  "records_col_died": "Смерть",
+  "records_col_buried": "Погребение",
+  "records_col_deceased": "Умерший",
+  "records_col_age": "Возраст",
+  "records_col_death_place": "Место смерти",
+  "records_col_cause": "Причина смерти",
+  "records_age": "возраст {age}",
+  "record_edit_death": "Смерть и погребение",
+  "record_edit_burial_place": "Место погребения",
+  "record_edit_rank": "Звание или занятие",
+  "record_edit_religion": "Вероисповедание",
+  "record_edit_civil_status": "Семейное положение",
+  "record_edit_residence": "Место жительства",
+  "record_edit_birthplace": "Место рождения",
   "villages_title": "Населённые пункты",
   "villages_search_label": "Поиск населённых пунктов",
   "villages_search_placeholder": "Название или написание",
@@ -196,6 +213,18 @@
       }
     }
   ],
+  "place_delete_churches": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "церковь {count} прихода",
+        "countPlural=few": "церкви {count} приходов",
+        "countPlural=many": "церкви {count} приходов",
+        "countPlural=*": "церкви {count} приходов"
+      }
+    }
+  ],
   "place_delete_in_use": "С населённым пунктом ещё связаны: {uses}. Перед удалением свяжите их с другим населённым пунктом.",
   "place_delete_failed": "Не удалось удалить населённый пункт. Попробуйте ещё раз.",
   "place_deleted": "Населённый пункт {name} удалён.",
@@ -217,6 +246,8 @@
   "parish_delete_text": "Удаляет приход.",
   "parish_delete_confirm": "Я хочу удалить этот приход",
   "parish_delete_unconfirmed": "Отметьте флажок для подтверждения.",
+  "parish_church": "Церковь",
+  "parish_church_hint": "Населённый пункт, где стоит церковь прихода",
   "parish_delete_villages": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
