@@ -4,13 +4,13 @@ import { For, Show, createMemo, isPending } from 'solid-js';
 
 import SearchBox from '~/components/search-box';
 import UserAvatar from '~/components/user-avatar';
-import { stringParams } from '~/lib/search';
-import { type UserList, getUsers } from '~/lib/users';
+import { stringParams } from '~/lib/route-params';
+import { type UserList, getUsers } from '~/data/users';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
 // Admins only: getUsers redirects a signed-out visitor to /sign-in and a
-// signed-in non-admin home (src/lib/users.ts), and the section shows nothing
+// signed-in non-admin home (src/data/users.ts), and the section shows nothing
 // until it answers. The preload starts it as navigation begins.
 //
 // ?q= holds the list's search, so a search survives reloads, can be shared,

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vite-plus/test';
 
-import { stringParams } from './search';
+import { stringParams } from './route-params';
 
 const parse = (raw: unknown) => {
   const outcome = stringParams('q')['~standard'].validate(raw);

@@ -9,11 +9,11 @@ import NextIcon from '~icons/ri/arrow-right-s-line';
 
 import EditLinkCell from '~/components/edit-link-cell';
 import SearchBox from '~/components/search-box';
-import { getCurrentUser } from '~/lib/account';
+import { getCurrentUser } from '~/data/session';
 import { formatPartialDate, localName } from '~/lib/format';
 import { type RecordKind, isRecordKind, recordKinds } from '~/lib/record-kinds';
-import { type RecordList, type RecordRow, getRecords } from '~/lib/records';
-import { stringParams } from '~/lib/search';
+import { type RecordList, type RecordRow, getRecords } from '~/data/records';
+import { stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
@@ -30,7 +30,7 @@ const kindLabels: Record<RecordKind, () => string> = {
 };
 
 // Signed-in users only: getRecords redirects a signed-out visitor to
-// sign-in (src/lib/records.ts). ?kind= is the kind of record, ?q= the search
+// sign-in (src/data/records.ts). ?kind= is the kind of record, ?q= the search
 // and ?page= the page, so all survive reloads and can be shared.
 export const route = defineFileRoute('/records/', {
   search: stringParams('kind', 'q', 'page'),

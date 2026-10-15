@@ -5,8 +5,9 @@ import { Show } from 'solid-js';
 import { env } from 'virtual:env/client';
 import GitHub from '~icons/ri/github-fill';
 
-import { type ActionError, signInWithGitHub } from '~/lib/account';
-import { stringParams } from '~/lib/search';
+import { signInWithGitHub } from '~/data/session';
+import type { ActionError } from '~/lib/form-error';
+import { stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 

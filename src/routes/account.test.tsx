@@ -5,7 +5,7 @@ import '@solidjs/diagnostics/vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vite-plus/test';
 
-import type { AccountData } from '~/lib/account';
+import type { AccountData } from '~/data/account';
 import { Router } from '~/router';
 
 // The account page through the real router, with the server functions
@@ -13,19 +13,24 @@ import { Router } from '~/router';
 // action revalidates getAccount the way it does in the app.
 const store = vi.hoisted(() => ({ account: undefined as unknown as AccountData }));
 
-vi.mock('~/lib/account', async () => {
+vi.mock('~/data/session', async () => {
+  const { action, query } = await import('@solidjs/router');
+  return {
+    getCurrentUser: query(async () => null, 'current-user'),
+    signInAgain: action(async () => {}, 'sign-in-again'),
+  };
+});
+vi.mock('~/data/account', async () => {
   const { action, query } = await import('@solidjs/router');
   const done = async () => {};
   return {
     getAccount: query(async () => structuredClone(store.account), 'account'),
-    getCurrentUser: query(async () => null, 'current-user'),
     revokeSession: action(async (id: string, _form: FormData) => {
       store.account.sessions = store.account.sessions!.filter((session) => session.id !== id);
     }, 'revoke-session'),
     renameMe: action(done, 'rename-me'),
     revokeOtherSessions: action(done, 'revoke-other-sessions'),
     deleteAccount: action(done, 'delete-account'),
-    signInAgain: action(done, 'sign-in-again'),
   };
 });
 

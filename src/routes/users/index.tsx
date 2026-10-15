@@ -5,7 +5,7 @@ import { env } from 'virtual:env/client';
 
 import UserAvatar from '~/components/user-avatar';
 import { formatDate } from '~/lib/format';
-import { type UserList, getUsers } from '~/lib/users';
+import { type UserList, getUsers } from '~/data/users';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 

@@ -61,21 +61,22 @@ const { me, places } = vi.hoisted(() => {
   return { me, places };
 });
 
-vi.mock('~/lib/account', () => ({
+vi.mock('~/data/session', () => ({
   getCurrentUser: vi.fn(async () => me.current),
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
 }));
 const { parishes } = vi.hoisted(() => ({
   parishes: { saved: [] as FormData[] },
 }));
-vi.mock('~/lib/parishes', async () => {
+vi.mock('~/data/parishes', async () => {
   const { action } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   return {
-    getParishList: vi.fn(async () => [
+    getParishes: vi.fn(async () => [
       { id: 5, nameRu: 'Губаницы', nameFi: 'Hevaa', note: null, villages: 1, sources: 1 },
       { id: 6, nameRu: 'Курляндия', nameFi: null, note: 'Не приход', villages: 0, sources: 0 },
     ]),
+    getParishOptions: vi.fn(async () => [{ id: 5, name: 'Губаницы' }]),
     getParishEdit: vi.fn(async (id: number) =>
       id === 5 ? { id: 5, version: 2, nameRu: 'Губаницы', nameFi: 'Hevaa', note: null } : null,
     ),
@@ -85,7 +86,7 @@ vi.mock('~/lib/parishes', async () => {
     }, 'save-parish'),
   };
 });
-vi.mock('~/lib/places', async () => {
+vi.mock('~/data/places', async () => {
   const { action } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   return {
@@ -107,7 +108,6 @@ vi.mock('~/lib/places', async () => {
           }
         : null,
     ),
-    getParishes: vi.fn(async () => [{ id: 5, name: 'Губаницы' }]),
     // Like the server: a refusal throws its error; a save redirects to the
     // list with the search the form carried.
     savePlace: action(async (form: FormData) => {

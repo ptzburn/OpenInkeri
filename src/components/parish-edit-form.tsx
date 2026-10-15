@@ -1,7 +1,7 @@
 import { Show, createMemo } from 'solid-js';
 
 import { FormActions, TextInput, useFormErrors } from '~/components/form-fields';
-import { type ParishEdit, type ParishEditData, getParishEdit, saveParish } from '~/lib/parishes';
+import { type ParishEdit, type ParishEditData, getParishEdit, saveParish } from '~/data/parishes';
 import { m } from '~/paraglide/messages.js';
 
 // What a new parish's form starts from.

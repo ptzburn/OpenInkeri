@@ -9,7 +9,7 @@ import SettingsIcon from '~icons/ri/user-settings-line';
 
 import UserAvatar from '~/components/user-avatar';
 import { formatDate } from '~/lib/format';
-import { getUser } from '~/lib/users';
+import { getUser } from '~/data/users';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 

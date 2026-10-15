@@ -2,7 +2,7 @@ import { createMemo } from 'solid-js';
 import Moon from '~icons/ri/moon-line';
 import Sun from '~icons/ri/sun-line';
 
-import { getTheme, saveTheme } from '~/lib/theme';
+import { getTheme, saveTheme } from '~/data/theme';
 import { m } from '~/paraglide/messages.js';
 
 // daisyUI's theme-controller swap: while the checkbox is checked the page

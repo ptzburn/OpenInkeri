@@ -1,7 +1,7 @@
 import { type Action, useSubmissions } from '@solidjs/router';
 import { For, Show } from 'solid-js';
 
-import type { FormError } from '~/lib/forms';
+import type { FormError } from '~/lib/form-error';
 import { m } from '~/paraglide/messages.js';
 
 // What the admins' edit forms share: their refused saves, their fields (a

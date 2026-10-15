@@ -3,7 +3,7 @@ import SignInIcon from '~icons/ri/login-box-line';
 import SignOutIcon from '~icons/ri/logout-box-r-line';
 
 import UserAvatar from '~/components/user-avatar';
-import { getCurrentUser, signOut } from '~/lib/account';
+import { getCurrentUser, signOut } from '~/data/session';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 

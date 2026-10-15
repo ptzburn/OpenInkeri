@@ -27,8 +27,8 @@ const { getUsers, gate } = vi.hoisted(() => {
   return { getUsers, gate };
 });
 
-vi.mock('~/lib/users', () => ({ getUsers, getUser: vi.fn() }));
-vi.mock('~/lib/account', () => ({ getCurrentUser: vi.fn(async () => null) }));
+vi.mock('~/data/users', () => ({ getUsers, getUser: vi.fn() }));
+vi.mock('~/data/session', () => ({ getCurrentUser: vi.fn(async () => null) }));
 
 function renderAt(url: string) {
   window.history.replaceState(null, '', url);

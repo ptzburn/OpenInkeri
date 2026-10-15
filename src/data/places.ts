@@ -76,11 +76,6 @@ export interface PlaceEditData {
   spellings: string[];
 }
 
-export interface ParishOption {
-  id: number;
-  name: string;
-}
-
 /** Every place, by Russian name, with its spellings and how many records link to it. */
 export const getPlaces = query(async (): Promise<PlaceListData> => {
   'use server';
@@ -163,19 +158,6 @@ export const getPlaceEdit = query(async (id: number): Promise<PlaceEditData | nu
 
 /** What a component's getPlaceEdit read holds (undefined while redirecting). */
 export type PlaceEdit = PlaceEditData | null | undefined;
-
-/** The parishes a place can belong to. */
-export const getParishes = query(async (): Promise<ParishOption[]> => {
-  'use server';
-  adminOnly();
-  const parishes = await db.query.parish.findMany({
-    columns: { id: true, nameRu: true },
-    orderBy: { nameRu: 'asc' },
-  });
-  return parishes.map((p) => ({ id: p.id, name: p.nameRu }));
-}, 'parishes');
-
-export type Parishes = ParishOption[] | undefined;
 
 // --- The form ----------------------------------------------------------------------
 

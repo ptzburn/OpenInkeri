@@ -1,26 +1,127 @@
-// Editing a baptism record: server functions for admins only. The edit
-// page's form (src/components/baptism-edit-form.tsx) reads a record with
-// getBaptismEdit and the places and clergy to choose from with
-// getEditOptions, and saves through updateBaptism.
+// The records pages' data: server functions ('use server') behind router
+// queries and actions, like ./users.ts. Reading records is for signed-in
+// users: a signed-out visitor is redirected to sign-in, which also makes the
+// read the page's guard. Editing is for admins.
 //
-// A save covers the record, its baptism details and its child, father and
-// mother, and goes to D1 as one batch (one transaction) with a change_log
-// entry holding the record before and after. record.raw, the row as first
-// transcribed, is never edited.
+// The edit page's form (src/components/baptism-edit-form.tsx) reads a
+// record with getBaptismEdit and the places and clergy to choose from with
+// getBaptismEditOptions, and saves through saveBaptism. A save covers the
+// record, its baptism details and its child, father and mother, and goes to
+// D1 as one batch (one transaction) with a change_log entry holding the
+// record before and after. record.raw, the row as first transcribed, is
+// never edited.
 import { action, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
-import { and, eq } from 'drizzle-orm';
+import { and, count, eq, sql } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { parsePartialDate } from '~/lib/format';
-import { baptismLocations, recordKinds, recordStatuses, sexes } from '~/lib/record-kinds';
-import { recordSearchText } from '~/lib/search-text';
+import {
+  type RecordKind,
+  baptismLocations,
+  recordKinds,
+  recordStatuses,
+  sexes,
+} from '~/lib/record-kinds';
+import { foldForSearch, recordSearchText } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
-import { changeLog, persona, record, recordBaptism } from '~/server/database/schema';
+import { changeLog, persona, record, recordBaptism, source } from '~/server/database/schema';
 import { fieldsAtFault, optionalId, refuse, rowId, text, version } from '~/server/forms';
-import { adminOnly } from '~/server/guards';
+import { adminOnly, signedIn } from '~/server/guards';
+
+export const RECORDS_PAGE_SIZE = 50;
+
+/**
+ * One page of records of one kind, in register order, optionally narrowed to
+ * those whose names or village contain `search` (case-insensitive, ё = е).
+ * `page` counts from 1 and is clamped to the pages there are. Also returns
+ * how many records each kind has, whatever the search, for the kind tabs.
+ *
+ * Only baptisms have columns on the page yet: the other kinds' fields are
+ * read here once their registers are imported.
+ */
+export const getRecords = query(async (kind: RecordKind, search: string, page: number) => {
+  'use server';
+  signedIn();
+  kind = v.parse(v.picklist(recordKinds), kind);
+  const folded = foldForSearch(search);
+  // %, _ and \ in the search are literal characters, not patterns.
+  const pattern = `%${folded.replace(/[\\%_]/g, '\\$&')}%`;
+  // The relational query aliases its tables, so the filter takes the table
+  // it is applied to.
+  const filter = (table: typeof record) =>
+    and(
+      sql`${table.sourceId} in (select ${source.id} from ${source} where ${source.kind} = ${kind})`,
+      folded ? sql`${table.searchText} like ${pattern} escape '\\'` : undefined,
+    )!;
+
+  const totals = await db
+    .select({ kind: source.kind, records: count() })
+    .from(record)
+    .innerJoin(source, eq(record.sourceId, source.id))
+    .groupBy(source.kind);
+  const counts = Object.fromEntries(
+    recordKinds.map((k) => [k, totals.find((t) => t.kind === k)?.records ?? 0]),
+  ) as Record<RecordKind, number>;
+
+  const total = await db.$count(record, filter(record));
+  const pages = Math.max(1, Math.ceil(total / RECORDS_PAGE_SIZE));
+  const current = Math.min(Math.max(1, Math.trunc(page) || 1), pages);
+
+  const rows = await db.query.record.findMany({
+    where: { RAW: filter },
+    orderBy: { id: 'asc' },
+    limit: RECORDS_PAGE_SIZE,
+    offset: (current - 1) * RECORDS_PAGE_SIZE,
+    columns: { id: true, status: true, date: true, placeText: true, note: true },
+    with: {
+      place: { columns: { nameRu: true, nameFi: true } },
+      baptism: {
+        columns: { birthDate: true, stillborn: true, multipleBirth: true, illegitimate: true },
+      },
+      personas: { columns: { role: true, nameRu: true, nameFi: true }, orderBy: { id: 'asc' } },
+    },
+  });
+
+  const named = (personas: (typeof rows)[number]['personas'], role: string) => {
+    const persona = personas.find((p) => p.role === role);
+    return persona ? { ru: persona.nameRu, fi: persona.nameFi } : null;
+  };
+
+  return {
+    kind,
+    counts,
+    total,
+    page: current,
+    pages,
+    records: rows.map((r) => ({
+      id: r.id,
+      lost: r.status === 'lost',
+      baptismDate: r.date,
+      birthDate: r.baptism?.birthDate ?? null,
+      stillborn: r.baptism?.stillborn ?? false,
+      multipleBirth: r.baptism?.multipleBirth ?? null,
+      illegitimate: r.baptism?.illegitimate ?? false,
+      village: r.place ? { ru: r.place.nameRu, fi: r.place.nameFi } : null,
+      villageAsWritten: r.placeText,
+      child: named(r.personas, 'child'),
+      father: named(r.personas, 'father'),
+      mother: named(r.personas, 'mother'),
+      note: r.note,
+    })),
+  };
+}, 'records');
+
+/**
+ * What a component's getRecords read holds: undefined on a server render
+ * that redirects a signed-out visitor (see UserList in ./users.ts).
+ */
+export type RecordList = Awaited<ReturnType<typeof getRecords>> | undefined;
+export type RecordRow = NonNullable<RecordList>['records'][number];
+
+// --- Editing a baptism -------------------------------------------------------------
 
 /** The roles the edit form edits, one person each. */
 export const editedRoles = ['child', 'father', 'mother'] as const;
@@ -72,7 +173,7 @@ export interface BaptismEditData {
   people: Record<EditedRole, BaptismEditPerson | null>;
 }
 
-export interface EditOptionsData {
+export interface BaptismEditOptionsData {
   places: { id: number; name: string; parish: string | null }[];
   clergy: { id: number; name: string }[];
 }
@@ -134,7 +235,7 @@ export const getBaptismEdit = query(async (id: number): Promise<BaptismEditData 
 export type BaptismEdit = BaptismEditData | null | undefined;
 
 /** The places and clergy an edited record can point to, by name. */
-export const getEditOptions = query(async (): Promise<EditOptionsData> => {
+export const getBaptismEditOptions = query(async (): Promise<BaptismEditOptionsData> => {
   'use server';
   adminOnly();
   const [places, clergy] = await Promise.all([
@@ -149,9 +250,9 @@ export const getEditOptions = query(async (): Promise<EditOptionsData> => {
     places: places.map((p) => ({ id: p.id, name: p.nameRu, parish: p.parish?.nameRu ?? null })),
     clergy: clergy.map((c) => ({ id: c.id, name: c.nameRu })),
   };
-}, 'edit-options');
+}, 'baptism-edit-options');
 
-export type EditOptions = EditOptionsData | undefined;
+export type BaptismEditOptions = BaptismEditOptionsData | undefined;
 
 // --- The form ----------------------------------------------------------------------
 
@@ -238,7 +339,7 @@ function personValues(input: Record<string, unknown>, role: EditedRole) {
  * A person whose fields are all emptied is removed from the record; one
  * given a name where there was none is added.
  */
-export const updateBaptism = action(async (formData: FormData) => {
+export const saveBaptism = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const parsed = v.safeParse(form, Object.fromEntries(formData));
@@ -364,4 +465,4 @@ export const updateBaptism = action(async (formData: FormData) => {
       page: input.returnPage,
     }),
   );
-}, 'update-baptism');
+}, 'save-baptism');

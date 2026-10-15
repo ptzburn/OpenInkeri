@@ -1,8 +1,7 @@
 // The parishes pages' data: server functions ('use server') behind router
 // queries, like ./places.ts. The list is for signed-in users; creating and
 // editing parishes is for admins. A save writes the parish and a change_log
-// entry in one D1 batch. (The parishes a place can pick from are
-// getParishes in ./places.ts.)
+// entry in one D1 batch.
 import { action, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
 import { and, count, eq, isNotNull } from 'drizzle-orm';
@@ -36,6 +35,11 @@ export interface ParishRow {
   sources: number;
 }
 
+export interface ParishOption {
+  id: number;
+  name: string;
+}
+
 export interface ParishEditData {
   id: number;
   version: number;
@@ -45,7 +49,7 @@ export interface ParishEditData {
 }
 
 /** Every parish, by Russian name, with how many places and registers belong to it. */
-export const getParishList = query(async (): Promise<ParishRow[]> => {
+export const getParishes = query(async (): Promise<ParishRow[]> => {
   'use server';
   signedIn();
   const [parishes, places, sources] = await Promise.all([
@@ -70,10 +74,23 @@ export const getParishList = query(async (): Promise<ParishRow[]> => {
       sources: sourceCounts.get(p.id) ?? 0,
     }))
     .sort((a, b) => a.nameRu.localeCompare(b.nameRu, 'ru'));
-}, 'parish-list');
+}, 'parishes');
 
-/** What a component's getParishList read holds (undefined while redirecting). */
+/** What a component's getParishes read holds (undefined while redirecting). */
 export type ParishList = ParishRow[] | undefined;
+
+/** The parishes a place can belong to, for the place form's select. */
+export const getParishOptions = query(async (): Promise<ParishOption[]> => {
+  'use server';
+  adminOnly();
+  const parishes = await db.query.parish.findMany({
+    columns: { id: true, nameRu: true },
+    orderBy: { nameRu: 'asc' },
+  });
+  return parishes.map((p) => ({ id: p.id, name: p.nameRu }));
+}, 'parish-options');
+
+export type ParishOptions = ParishOption[] | undefined;
 
 async function loadParish(id: number) {
   return db.query.parish.findFirst({

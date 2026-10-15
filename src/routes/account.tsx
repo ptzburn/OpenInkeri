@@ -9,16 +9,15 @@ import MailIcon from '~icons/ri/mail-line';
 import UserAvatar from '~/components/user-avatar';
 import {
   type AccountData,
-  type ActionError,
   type DeleteAccountError,
   deleteAccount,
   getAccount,
-  getCurrentUser,
   renameMe,
   revokeOtherSessions,
   revokeSession,
-  signInAgain,
-} from '~/lib/account';
+} from '~/data/account';
+import { getCurrentUser, signInAgain } from '~/data/session';
+import type { ActionError } from '~/lib/form-error';
 import { describeUserAgent, formatDate } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
 

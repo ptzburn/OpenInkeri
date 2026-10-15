@@ -4,8 +4,8 @@ import { Show } from 'solid-js';
 
 import EditPage from '~/components/edit-page';
 import ParishEditForm from '~/components/parish-edit-form';
-import { getParishEdit } from '~/lib/parishes';
-import { idParam } from '~/lib/search';
+import { getParishEdit } from '~/data/parishes';
+import { idParam } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 

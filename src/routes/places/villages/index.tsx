@@ -11,17 +11,17 @@ import EditLinkCell from '~/components/edit-link-cell';
 import SearchBox from '~/components/search-box';
 import { kindLabels, statusLabels } from '~/components/place-labels';
 import PlacesTabs from '~/components/places-tabs';
-import { getCurrentUser } from '~/lib/account';
+import { getCurrentUser } from '~/data/session';
 import { localName } from '~/lib/format';
 import { mapLink } from '~/lib/place-kinds';
-import { type PlaceList, type PlaceRow, getPlaces } from '~/lib/places';
-import { stringParams } from '~/lib/search';
+import { type PlaceList, type PlaceRow, getPlaces } from '~/data/places';
+import { stringParams } from '~/lib/route-params';
 import { foldForSearch } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
 // Signed-in users only: getPlaces redirects a signed-out visitor to sign-in
-// (src/lib/places.ts). ?q= is the search and ?parish= narrows the list to
+// (src/data/places.ts). ?q= is the search and ?parish= narrows the list to
 // one parish (the parishes list links there), so both survive reloads, can
 // be shared, and come back after editing a village.
 export const route = defineFileRoute('/places/villages/', {

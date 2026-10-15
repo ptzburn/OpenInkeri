@@ -3,7 +3,7 @@ import { Show, createMemo } from 'solid-js';
 
 import EditPage from '~/components/edit-page';
 import ParishEditForm from '~/components/parish-edit-form';
-import { requireAdmin } from '~/lib/account';
+import { requireAdmin } from '~/data/session';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 

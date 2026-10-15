@@ -41,11 +41,10 @@ const { getRecords } = vi.hoisted(() => {
   return { getRecords };
 });
 
-vi.mock('~/lib/records', () => ({ getRecords, RECORDS_PAGE_SIZE: 50 }));
 // Who is signed in: nobody, unless a test makes them an admin.
 const { me, editing } = vi.hoisted(() => {
   const me: { current: { isAdmin: boolean } | null } = { current: null };
-  // The edit dialog's server functions: record 2 (Maria's) as stored, the
+  // The edit page's server functions: record 2 (Maria's) as stored, the
   // places and clergy to pick from, and a save that records its form and
   // can be made to fail.
   const editing = {
@@ -92,14 +91,16 @@ const { me, editing } = vi.hoisted(() => {
   return { me, editing };
 });
 
-vi.mock('~/lib/account', () => ({ getCurrentUser: vi.fn(async () => me.current) }));
-vi.mock('~/lib/record-edit', async () => {
+vi.mock('~/data/session', () => ({ getCurrentUser: vi.fn(async () => me.current) }));
+vi.mock('~/data/records', async () => {
   const { action } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   return {
+    getRecords,
+    RECORDS_PAGE_SIZE: 50,
     editedRoles: ['child', 'father', 'mother'],
     getBaptismEdit: vi.fn(async (id: number) => (id === 2 ? editing.record() : null)),
-    getEditOptions: vi.fn(async () => ({
+    getBaptismEditOptions: vi.fn(async () => ({
       places: [
         { id: 1, name: 'Горки', parish: 'Губаницы' },
         { id: 2, name: 'Волгово', parish: 'Губаницы' },
@@ -108,7 +109,7 @@ vi.mock('~/lib/record-edit', async () => {
     })),
     // Like the server: a refusal throws its error; a save redirects to the
     // list place the form carried.
-    updateBaptism: action(async (form: FormData) => {
+    saveBaptism: action(async (form: FormData) => {
       editing.saved.push(form);
       if (editing.failWith) throw editing.failWith;
       const back = new URLSearchParams();
@@ -122,7 +123,7 @@ vi.mock('~/lib/record-edit', async () => {
       }
       const query = back.toString();
       throw redirect(query ? `/records?${query}` : '/records');
-    }, 'update-baptism'),
+    }, 'save-baptism'),
   };
 });
 

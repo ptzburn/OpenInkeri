@@ -5,13 +5,13 @@ import { FormActions, Select, TextInput, useFormErrors } from '~/components/form
 import { PARTIAL_DATE_PATTERN, formatPartialDate } from '~/lib/format';
 import {
   type BaptismEdit,
-  type EditOptions,
+  type BaptismEditOptions,
   type EditedRole,
   editedRoles,
   getBaptismEdit,
-  getEditOptions,
-  updateBaptism,
-} from '~/lib/record-edit';
+  getBaptismEditOptions,
+  saveBaptism,
+} from '~/data/records';
 import { baptismLocations, recordStatuses } from '~/lib/record-kinds';
 import { m } from '~/paraglide/messages.js';
 
@@ -49,7 +49,7 @@ export interface ListPlace {
 
 /**
  * The admin's form for one baptism record: the record, its baptism details
- * and its child, father and mother. It posts to the updateBaptism action
+ * and its child, father and mother. It posts to the saveBaptism action
  * (and works before JavaScript loads); a save redirects to the list at
  * `returnTo`, and Cancel goes to `cancelHref`. A save the server refuses
  * keeps the form as typed, says why and marks the fields at fault.
@@ -62,12 +62,12 @@ export default function BaptismEditForm(props: {
   const record = createMemo((): Promise<BaptismEdit> => getBaptismEdit(props.id), {
     name: 'baptism-edit',
   });
-  const options = createMemo((): Promise<EditOptions> => getEditOptions(), {
+  const options = createMemo((): Promise<BaptismEditOptions> => getBaptismEditOptions(), {
     name: 'edit-options',
   });
   // This form's refused saves (the latest shown, its fields marked).
   const { error, invalid } = useFormErrors(
-    updateBaptism,
+    saveBaptism,
     (form) => form.get('id') === String(props.id),
   );
 
@@ -77,7 +77,7 @@ export default function BaptismEditForm(props: {
     <Show when={record()} keyed fallback={<p>{m.record_edit_missing()}</p>}>
       {(r) => (
         // While a save is in flight the router marks the form aria-busy.
-        <form method="post" action={updateBaptism} class="group flex flex-col gap-6">
+        <form method="post" action={saveBaptism} class="group flex flex-col gap-6">
           <input type="hidden" name="returnKind" value={props.returnTo.kind ?? ''} />
           <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
           <input type="hidden" name="returnPage" value={props.returnTo.page ?? ''} />

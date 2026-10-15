@@ -7,20 +7,20 @@ import AddIcon from '~icons/ri/add-line';
 
 import EditLinkCell from '~/components/edit-link-cell';
 import PlacesTabs from '~/components/places-tabs';
-import { getCurrentUser } from '~/lib/account';
-import { type ParishList, type ParishRow, getParishList } from '~/lib/parishes';
+import { getCurrentUser } from '~/data/session';
+import { type ParishList, type ParishRow, getParishes } from '~/data/parishes';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
-// Signed-in users only: getParishList redirects a signed-out visitor to
-// sign-in (src/lib/parishes.ts). A few dozen parishes at most: no search
+// Signed-in users only: getParishes redirects a signed-out visitor to
+// sign-in (src/data/parishes.ts). A few dozen parishes at most: no search
 // and no pages.
 export const route = defineFileRoute('/places/parishes/', {
-  preload: () => void getParishList(),
+  preload: () => void getParishes(),
 });
 
 export default function Parishes() {
-  const list = createMemo((): Promise<ParishList> => getParishList(), {
+  const list = createMemo((): Promise<ParishList> => getParishes(), {
     name: 'parishes-list',
   });
   // The list dims while it reloads (after a save) and while a link from

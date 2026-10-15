@@ -4,8 +4,9 @@ import { Show } from 'solid-js';
 
 import EditPage from '~/components/edit-page';
 import PlaceEditForm from '~/components/place-edit-form';
-import { getParishes, getPlaceEdit } from '~/lib/places';
-import { idParam, stringParams } from '~/lib/search';
+import { getParishOptions } from '~/data/parishes';
+import { getPlaceEdit } from '~/data/places';
+import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
@@ -18,7 +19,7 @@ export const route = defineFileRoute('/places/villages/:id/edit', {
     const id = idParam(params.id);
     if (id) {
       void getPlaceEdit(id);
-      void getParishes();
+      void getParishOptions();
     }
   },
 });

@@ -8,7 +8,7 @@ import Team from '~icons/ri/team-line';
 import { env } from 'virtual:env/client';
 
 import AccountMenu from '~/components/account-menu';
-import { getCurrentUser } from '~/lib/account';
+import { getCurrentUser } from '~/data/session';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 

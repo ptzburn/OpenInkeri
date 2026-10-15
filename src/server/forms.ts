@@ -5,7 +5,7 @@ import 'server-only';
 import { respond } from '@solidjs/web';
 import * as v from 'valibot';
 
-import type { FormError } from '~/lib/forms';
+import type { FormError } from '~/lib/form-error';
 
 /** Whitespace runs as one space, trimmed: for one-line values like names. */
 export const collapse = (s: string) => s.replace(/\s+/g, ' ').trim();

@@ -8,7 +8,7 @@ import { Router } from '~/router';
 
 import Sidebar from './sidebar';
 
-vi.mock('~/lib/account', () => ({
+vi.mock('~/data/session', () => ({
   getCurrentUser: vi.fn(async () => ({
     id: 'u1',
     name: 'Milan',
@@ -19,7 +19,7 @@ vi.mock('~/lib/account', () => ({
   signOut: vi.fn(),
 }));
 
-vi.mock('~/lib/theme', () => ({
+vi.mock('~/data/theme', () => ({
   themes: ['light', 'dark'],
   getTheme: vi.fn(async () => 'light'),
   saveTheme: vi.fn(),

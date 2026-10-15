@@ -3,17 +3,17 @@ import { defineFileRoute } from '@solidjs/router/fs';
 
 import EditPage from '~/components/edit-page';
 import PlaceEditForm from '~/components/place-edit-form';
-import { getParishes } from '~/lib/places';
-import { stringParams } from '~/lib/search';
+import { getParishOptions } from '~/data/parishes';
+import { stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
-// Admins only: getParishes redirects anyone else (signed out to sign-in,
+// Admins only: getParishOptions redirects anyone else (signed out to sign-in,
 // others home). The list's ?q= and ?parish= ride along, as on the edit
 // page; a new village starts in the parish the list was narrowed to.
 export const route = defineFileRoute('/places/villages/new', {
   search: stringParams('q', 'parish'),
-  preload: () => void getParishes(),
+  preload: () => void getParishOptions(),
 });
 
 export default function NewVillage() {

@@ -10,14 +10,8 @@ import {
   mapLink,
   placeKinds,
 } from '~/lib/place-kinds';
-import {
-  type PlaceEdit,
-  type PlaceEditData,
-  type Parishes,
-  getParishes,
-  getPlaceEdit,
-  savePlace,
-} from '~/lib/places';
+import { type ParishOptions, getParishOptions } from '~/data/parishes';
+import { type PlaceEdit, type PlaceEditData, getPlaceEdit, savePlace } from '~/data/places';
 import { m } from '~/paraglide/messages.js';
 
 // What a new place's form starts from.
@@ -56,7 +50,9 @@ export default function PlaceEditForm(props: {
         : { ...blank, parishId: Number(props.returnTo.parish) || null },
     { name: 'place-edit' },
   );
-  const parishes = createMemo((): Promise<Parishes> => getParishes(), { name: 'parishes' });
+  const parishes = createMemo((): Promise<ParishOptions> => getParishOptions(), {
+    name: 'parish-options',
+  });
   // This form's refused saves (the latest shown, its fields marked).
   const { error, invalid } = useFormErrors(
     savePlace,

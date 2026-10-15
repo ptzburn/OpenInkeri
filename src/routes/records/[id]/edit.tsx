@@ -4,8 +4,8 @@ import { Show } from 'solid-js';
 
 import BaptismEditForm from '~/components/baptism-edit-form';
 import EditPage from '~/components/edit-page';
-import { getBaptismEdit, getEditOptions } from '~/lib/record-edit';
-import { idParam, stringParams } from '~/lib/search';
+import { getBaptismEdit, getBaptismEditOptions } from '~/data/records';
+import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
@@ -18,7 +18,7 @@ export const route = defineFileRoute('/records/:id/edit', {
     const id = idParam(params.id);
     if (id) {
       void getBaptismEdit(id);
-      void getEditOptions();
+      void getBaptismEditOptions();
     }
   },
 });
