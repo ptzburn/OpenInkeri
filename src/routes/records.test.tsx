@@ -4,6 +4,7 @@ import '@solidjs/diagnostics/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
+import { ToastProvider } from '~/components/toaster';
 import { Router } from '~/router';
 
 // The records page through the real router, with getRecords answering from
@@ -37,6 +38,22 @@ const { getRecords } = vi.hoisted(() => {
     groom: null as ReturnType<typeof person> | null,
     bride: null as ReturnType<typeof person> | null,
     deceased: null as ReturnType<typeof person> | null,
+    holding: null as {
+      holdingNo: string | null;
+      estateText: string | null;
+      tenantText: string | null;
+    } | null,
+    members: [] as {
+      id: number;
+      ru: string | null;
+      fi: string | null;
+      relation: { ru: string; fi: string | null; en: string | null } | null;
+      relationAsWritten: string | null;
+      hasWife: boolean | null;
+      birthDate: string | null;
+      deathDate: string | null;
+      note: string | null;
+    }[],
     note: null as string | null,
   };
   const baptisms = Array.from({ length: 120 }, (_, i) => ({
@@ -83,8 +100,41 @@ const { getRecords } = vi.hoisted(() => {
       },
       { ...row, id: 302, date: '1917-12-18', stillborn: true, deceased: person(null) },
     ],
+    households: [
+      {
+        ...row,
+        id: 401,
+        date: '1927',
+        villageAsWritten: 'Kirkonkylä',
+        holding: { holdingNo: '3', estateText: null, tenantText: null },
+        members: [
+          {
+            id: 40,
+            ru: null,
+            fi: 'Myyry Nikolai Kaarlonp.',
+            relation: { ru: 'Глава', fi: null, en: 'Head' },
+            relationAsWritten: 'Глава',
+            hasWife: null,
+            birthDate: '1858-07-28',
+            deathDate: '1936-10-09',
+            note: 'vihitty 14.05.1878',
+          },
+          {
+            id: 41,
+            ru: null,
+            fi: 'Waris Maria Aatamint.',
+            relation: { ru: 'Жена', fi: null, en: null },
+            relationAsWritten: 'Жена',
+            hasWife: null,
+            birthDate: '1860-04-03',
+            deathDate: null,
+            note: null,
+          },
+        ],
+      },
+    ],
   } as Record<string, (typeof baptisms)[number][]>;
-  const counts = { baptisms: 120, marriages: 1, deaths: 2, households: 0, taxpayers: 0 };
+  const counts = { baptisms: 120, marriages: 1, deaths: 2, households: 1, taxpayers: 0 };
   const getRecords = vi.fn(async (kind: string, search: string, page: number) => {
     const found = (entries[kind] ?? []).filter(
       (e) =>
@@ -107,10 +157,16 @@ const { me, editing } = vi.hoisted(() => {
   // records its form and can be made to fail.
   const editing = {
     saved: [] as FormData[],
+    deleted: [] as FormData[],
     failWith: null as null | { message: string; fields?: string[] },
     record: () => ({
       id: 2,
       kind: 'baptisms' as const,
+      sourceId: 1,
+      page: '12об',
+      language: 'ru',
+      holding: null,
+      members: [],
       version: 4,
       status: 'ok' as const,
       date: '1895-03-12',
@@ -138,6 +194,11 @@ const { me, editing } = vi.hoisted(() => {
     death: () => ({
       id: 301,
       kind: 'deaths' as const,
+      sourceId: 2,
+      page: null,
+      language: 'ru',
+      holding: null,
+      members: [],
       version: 1,
       status: 'ok' as const,
       date: '1918-01-07',
@@ -167,19 +228,45 @@ const { me, editing } = vi.hoisted(() => {
         mother: null,
       },
     }),
+    household: () => ({
+      id: 401,
+      kind: 'households' as const,
+      sourceId: 3,
+      page: null,
+      language: 'fi',
+      version: 1,
+      status: 'ok' as const,
+      date: '1927',
+      placeText: 'Kirkonkylä',
+      placeId: null,
+      note: null,
+      baptism: null,
+      death: null,
+      holding: { holdingNo: '3', estateText: null, estatePlaceId: null, tenantText: null },
+      people: {},
+      members: [
+        person({
+          id: 40,
+          role: 'member',
+          sex: 'male',
+          nameFi: 'Myyry Nikolai Kaarlonp.',
+          relationTermId: 1,
+          relationText: 'Глава',
+          birthDate: '1858-07-28',
+        }),
+        person({ id: 41, role: 'member', sex: 'female', nameFi: 'Waris Maria Aatamint.' }),
+      ],
+    }),
   };
   function person(fields: Record<string, unknown>) {
     const names = ['name', 'given', 'patronymic', 'surname', 'maiden'].flatMap((part) => [
       `${part}Ru`,
       `${part}Fi`,
     ]);
-    const other = ['sex', 'deathDate', 'origin', 'ageText', 'rankText', 'religionText'].concat([
-      'civilStatusText',
-      'residenceText',
-      'residenceId',
-      'birthplaceText',
-      'birthplaceId',
-    ]);
+    const other = ['sex', 'birthDate', 'deathDate', 'origin', 'ageText', 'rankText'].concat(
+      ['religionText', 'civilStatusText', 'residenceText', 'residenceId', 'birthplaceText'],
+      ['birthplaceId', 'relationText', 'relationTermId', 'hasWife', 'note', 'noteOriginal'],
+    );
     return {
       ...Object.fromEntries([...names, ...other].map((name) => [name, null])),
       ...fields,
@@ -188,7 +275,10 @@ const { me, editing } = vi.hoisted(() => {
   return { me, editing };
 });
 
-vi.mock('~/data/session', () => ({ getCurrentUser: vi.fn(async () => me.current) }));
+vi.mock('~/data/session', () => ({
+  getCurrentUser: vi.fn(async () => me.current),
+  requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
+}));
 vi.mock('~/data/records', async () => {
   const { action } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
@@ -196,7 +286,13 @@ vi.mock('~/data/records', async () => {
     getRecords,
     RECORDS_PAGE_SIZE: 50,
     getRecordEdit: vi.fn(async (id: number) =>
-      id === 2 ? editing.record() : id === 301 ? editing.death() : null,
+      id === 2
+        ? editing.record()
+        : id === 301
+          ? editing.death()
+          : id === 401
+            ? editing.household()
+            : null,
     ),
     getRecordEditOptions: vi.fn(async () => ({
       places: [
@@ -204,7 +300,21 @@ vi.mock('~/data/records', async () => {
         { id: 2, name: 'Волгово', parish: 'Губаницы' },
       ],
       clergy: [{ id: 7, name: 'Берг' }],
+      relations: [
+        { id: 1, name: 'Глава' },
+        { id: 2, name: 'Жена' },
+      ],
+      sources: [
+        { id: 1, title: 'Губаницы: крещения', kind: 'baptisms', language: 'ru' },
+        { id: 2, title: 'Губаницы: умершие', kind: 'deaths', language: 'ru' },
+        { id: 3, title: 'Губаницы: общий список', kind: 'households', language: 'fi' },
+      ],
     })),
+    // Like the server: a delete redirects to the list place the form carried.
+    deleteRecord: action(async (form: FormData) => {
+      editing.deleted.push(form);
+      throw redirect('/records?kind=deaths');
+    }, 'delete-record'),
     // Like the server: a refusal throws its error; a save redirects to the
     // list place the form carried.
     saveRecord: action(async (form: FormData) => {
@@ -228,7 +338,13 @@ vi.mock('~/data/records', async () => {
 function renderAt(url: string) {
   window.history.replaceState(null, '', url);
   return render(() => (
-    <Router>{(props) => <Loading fallback="Loading">{props.children}</Loading>}</Router>
+    <Router>
+      {(props) => (
+        <ToastProvider>
+          <Loading fallback="Loading">{props.children}</Loading>
+        </ToastProvider>
+      )}
+    </Router>
   ));
 }
 
@@ -240,6 +356,7 @@ afterEach(() => {
   cleanup();
   me.current = null;
   editing.saved = [];
+  editing.deleted = [];
   editing.failWith = null;
   getRecords.mockClear();
 });
@@ -300,13 +417,13 @@ describe('/records', () => {
     expect(baptisms).toHaveClass('tab-active');
     expect(baptisms).toHaveTextContent('120');
 
-    fireEvent.click(screen.getByRole('link', { name: /Households/ }));
+    fireEvent.click(screen.getByRole('link', { name: /Taxpayers/ }));
     expect(await screen.findByText('There are no records of this type yet.')).toBeInTheDocument();
-    expect(getRecords).toHaveBeenLastCalledWith('households', 'ребёнок', 1);
-    expect(screen.getByRole('link', { name: /Households/ })).toHaveClass('tab-active');
+    expect(getRecords).toHaveBeenLastCalledWith('taxpayers', 'ребёнок', 1);
+    expect(screen.getByRole('link', { name: /Taxpayers/ })).toHaveClass('tab-active');
     expect(tabs.querySelectorAll('.tab')).toHaveLength(5);
     // The search form sends the kind along, for searching before JavaScript.
-    expect(container.querySelector('input[type=hidden][name=kind]')).toHaveValue('households');
+    expect(container.querySelector('input[type=hidden][name=kind]')).toHaveValue('taxpayers');
   });
 
   test('marriages show the bride and groom, with their ages and villages', async () => {
@@ -343,6 +460,20 @@ describe('/records', () => {
     expect(row).toHaveTextContent('Медниково');
     expect(row).toHaveTextContent('воспаление лёгких');
     expect(row.nextElementSibling).toHaveTextContent('Stillborn');
+  });
+
+  test('households list their people, with relation, dates and notes', async () => {
+    renderAt('/records?kind=households');
+    const head = await screen.findByText('Myyry Nikolai Kaarlonp.');
+    const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
+    expect(headers).toEqual(['Locality', 'Household', 'People']);
+    const row = head.closest('tr')!;
+    expect(row).toHaveTextContent('Kirkonkylä');
+    // The relation in the reader's language, else in Russian.
+    expect(head.closest('li')).toHaveTextContent(
+      'Myyry Nikolai Kaarlonp. — Head · 28.7.1858 – 9.10.1936vihitty 14.05.1878',
+    );
+    expect(row.querySelectorAll('li')[1]).toHaveTextContent('Waris Maria Aatamint. — Жена');
   });
 
   test('an unknown ?kind= shows baptisms', async () => {
@@ -524,5 +655,121 @@ describe('editing a death', () => {
     expect(saved.get('id')).toBe('301');
     expect(saved.get('causeText')).toBe('дифтерия');
     expect(saved.get('returnKind')).toBe('deaths');
+  });
+});
+
+describe('editing a household', () => {
+  const field = (name: string) =>
+    document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
+
+  async function openHousehold() {
+    me.current = { isAdmin: true };
+    renderAt('/records?kind=households');
+    await screen.findByText('Myyry Nikolai Kaarlonp.');
+    fireEvent.click(screen.getByRole('link', { name: 'Edit record' }));
+    await waitFor(() => expect(field('members.0.nameFi')).toBeTruthy());
+    return document.querySelector('main form') as HTMLFormElement;
+  }
+
+  test('opens with its people numbered, and one blank to add', async () => {
+    await openHousehold();
+    expect(field('holdingNo')).toHaveValue('3');
+    expect(field('placeText')).toHaveValue('Kirkonkylä');
+    expect(field('members.0.id')).toHaveValue('40');
+    expect(field('members.0.relationTermId')).toHaveValue('1');
+    expect(field('members.0.birthDate')).toHaveValue('28.7.1858');
+    expect(field('members.1.nameFi')).toHaveValue('Waris Maria Aatamint.');
+    // The blank one has no id: saving it with a name adds the person.
+    expect(field('members.2.nameFi')).toHaveValue('');
+    expect(field('members.2.id')).toBeNull();
+    expect(field('members.3.nameFi')).toBeNull();
+    // A register's fields and a farm's aren't here.
+    expect(field('child.nameRu')).toBeNull();
+    expect(field('estateText')).toBeNull();
+  });
+
+  test('Add person brings another blank, and a save posts them all', async () => {
+    const form = await openHousehold();
+    fireEvent.click(screen.getByRole('button', { name: 'Add person' }));
+    await waitFor(() => expect(field('members.3.nameFi')).toBeTruthy());
+    fireEvent.input(field('members.2.nameFi'), { target: { value: 'Myyry Juho Nikolainp.' } });
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/records'));
+    const [saved] = editing.saved;
+    expect(saved.get('members.0.id')).toBe('40');
+    expect(saved.get('members.2.nameFi')).toBe('Myyry Juho Nikolainp.');
+    expect(saved.get('members.3.nameFi')).toBe('');
+    expect(saved.get('returnKind')).toBe('households');
+  });
+});
+
+describe('adding and deleting records', () => {
+  const field = (name: string) =>
+    document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
+
+  test("only admins get Add record, and it opens a new record of the tab's type", async () => {
+    renderAt('/records?kind=deaths');
+    await screen.findByText('Aleksanteri Juosepinp. Tattari');
+    expect(screen.queryByRole('link', { name: 'Add record' })).toBeNull();
+    cleanup();
+
+    me.current = { isAdmin: true };
+    renderAt('/records?kind=deaths');
+    const add = await screen.findByRole('link', { name: 'Add record' });
+    expect(add).toHaveAttribute('href', '/records/new?kind=deaths');
+    fireEvent.click(add);
+    await screen.findByRole('heading', { level: 1, name: 'New record' });
+    await waitFor(() => expect(field('deceased.nameRu')).toBeTruthy());
+    // Empty, with no id; the sources offered are the type's.
+    expect(field('id')).toHaveValue('');
+    expect(field('causeText')).toHaveValue('');
+    const sources = [...(field('sourceId') as HTMLSelectElement).options].map((o) => o.text);
+    expect(sources).toEqual(['Губаницы: умершие']);
+    // Nothing to delete yet.
+    expect(screen.queryByRole('button', { name: 'Delete record' })).toBeNull();
+  });
+
+  test('a new record is saved with its source and page, and confirmed with a toast', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?kind=deaths');
+    await waitFor(() => expect(field('deceased.nameRu')).toBeTruthy());
+    fireEvent.input(field('page'), { target: { value: '15' } });
+    fireEvent.input(field('deceased.nameRu'), { target: { value: 'Иван Петров' } });
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/records'));
+    const [saved] = editing.saved;
+    expect(saved.get('id')).toBe('');
+    expect(saved.get('sourceId')).toBe('2');
+    expect(saved.get('page')).toBe('15');
+    expect(saved.get('deceased.nameRu')).toBe('Иван Петров');
+    expect(await screen.findByRole('status')).toHaveTextContent('Record added.');
+  });
+
+  test('a record says when its type has no source yet', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?kind=marriages');
+    expect(await screen.findByText('Add a source of this type first.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Add source' })).toHaveAttribute(
+      'href',
+      '/sources/new',
+    );
+  });
+
+  test('an existing record shows its source and page, and can be deleted', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/2/edit');
+    await waitFor(() => expect(field('sourceId')).toHaveValue('1'));
+    expect(field('page')).toHaveValue('12об');
+
+    const box = screen.getByRole('checkbox', { name: 'I want to delete this record' });
+    fireEvent.click(box);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete record' }));
+    await waitFor(() => expect(window.location.pathname).toBe('/records'));
+    const [deleted] = editing.deleted;
+    expect(deleted.get('id')).toBe('2');
+    expect(deleted.get('version')).toBe('4');
+    expect(await screen.findByRole('status')).toHaveTextContent('Record deleted.');
   });
 });

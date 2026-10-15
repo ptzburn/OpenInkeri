@@ -113,6 +113,8 @@ const MAIDEN_FI = new Set(['o.s.', 'os.', 'geb.', 'ur.', 'sünd.']);
 const PATRONYMIC_RU_MALE = /(ов|ев|ёв|ин|ович|евич|ич|\u00a0сын)$/;
 const PATRONYMIC_RU_FEMALE = /(ова|ева|ёва|ина|овна|евна|ична|инична|\u00a0дочь)$/;
 const PATRONYMIC_FI = /.(p\.|t\.|s\.|S\.|T\.|poika|tytär|sohn)$/;
+// Swedish: Matson, Erson, Persdotter, abbreviated s:on, d:r.
+const PATRONYMIC_SV = /.(son|s:on|dotter|d:r)$/;
 const PARTICLES = new Set(['фон', 'де', 'ван', 'von', 'de', 'van']);
 
 export type NameParts = {
@@ -129,7 +131,7 @@ const join = (tokens: string[]) =>
 
 export function splitName(
   cell: string,
-  language: 'ru' | 'fi',
+  language: 'ru' | 'fi' | 'sv',
   sex: 'male' | 'female',
 ): NameParts | null {
   let text = value(cell);
@@ -143,7 +145,7 @@ export function splitName(
 
   // Two-word patronymics ("Andruksen p.", "Иона дочь") become one token,
   // joined by a no-break space until the parts are returned.
-  if (language === 'fi') {
+  if (language !== 'ru') {
     text = text
       .replace(/(^|\s)o\. s\./g, '$1o.s.')
       .replace(/(\S) (p\.|t\.|poika|tytär)(?= |$)/g, '$1\u00a0$2');
@@ -170,7 +172,9 @@ export function splitName(
   const isPatronymic = (t: string) =>
     language === 'fi'
       ? PATRONYMIC_FI.test(t)
-      : (sex === 'male' ? PATRONYMIC_RU_MALE : PATRONYMIC_RU_FEMALE).test(t);
+      : language === 'sv'
+        ? PATRONYMIC_SV.test(t)
+        : (sex === 'male' ? PATRONYMIC_RU_MALE : PATRONYMIC_RU_FEMALE).test(t);
 
   // A man's name of two words is a given name and a surname ("Карл Илвес").
   // Otherwise the patronymic sits after the given names and before the

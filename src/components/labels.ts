@@ -3,7 +3,13 @@
 // edit form edits). Each map is a Record over the list's type, so an option
 // added without its label fails the type check here.
 import type { CoordinateStatus, PlaceKind } from '~/lib/place-kinds';
-import type { BaptismLocation, RecordKind, RecordStatus, Sex } from '~/lib/record-kinds';
+import type {
+  BaptismLocation,
+  RecordKind,
+  RecordStatus,
+  Sex,
+  SourceLanguage,
+} from '~/lib/record-kinds';
 import type { EditedRole } from '~/lib/record-people';
 import { m } from '~/paraglide/messages.js';
 
@@ -15,6 +21,15 @@ export const recordKindLabels: Labels<RecordKind> = {
   deaths: m.records_kind_deaths,
   households: m.records_kind_households,
   taxpayers: m.records_kind_taxpayers,
+};
+
+export const sourceLanguageLabels: Labels<SourceLanguage> = {
+  ru: m.source_language_ru,
+  fi: m.source_language_fi,
+  sv: m.source_language_sv,
+  de: m.source_language_de,
+  et: m.source_language_et,
+  la: m.source_language_la,
 };
 
 export const recordStatusLabels: Labels<RecordStatus> = {

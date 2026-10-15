@@ -1,0 +1,190 @@
+import { For, Show, createMemo } from 'solid-js';
+
+import type { QueryData } from '~/lib/query-data';
+import { FIELD_MAX } from '~/lib/field-limits';
+import {
+  DeleteSection,
+  FormActions,
+  Select,
+  TextInput,
+  useFormDone,
+  useFormErrors,
+} from '~/components/form-fields';
+import { recordKindLabels, sourceLanguageLabels } from '~/components/labels';
+import { useToast } from '~/components/toaster';
+import { getParishOptions } from '~/data/parishes';
+import { type SourceEditData, deleteSource, getSourceEdit, saveSource } from '~/data/sources';
+import { recordKinds, sourceLanguages } from '~/lib/record-kinds';
+import { m } from '~/paraglide/messages.js';
+
+// What a new source's form starts from: a baptism register in Russian.
+const blank: SourceEditData = {
+  id: 0,
+  version: 0,
+  title: '',
+  kind: 'baptisms',
+  parishId: null,
+  archiveReference: null,
+  yearFrom: null,
+  yearTo: null,
+  language: 'ru',
+  note: null,
+  records: 0,
+};
+
+/**
+ * The admin's form for one source, or for a new one without `id`: its
+ * title, type, parish, archive reference, years and language, and a note.
+ * It posts to the saveSource action (and works before JavaScript loads); a
+ * save redirects to the sources list with a toast, and Cancel goes to
+ * `cancelHref`. A save the server refuses keeps the form as typed, says why
+ * and marks the fields at fault. While records belong to the source its
+ * type is fixed and it can't be deleted.
+ */
+export default function SourceEditForm(props: { id?: number; cancelHref: string }) {
+  const source = createMemo(
+    (): Promise<QueryData<typeof getSourceEdit>> | SourceEditData =>
+      props.id ? getSourceEdit(props.id) : blank,
+    { name: 'source-edit' },
+  );
+  const parishes = createMemo(
+    (): Promise<QueryData<typeof getParishOptions>> => getParishOptions(),
+    { name: 'source-parishes' },
+  );
+  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
+  // This form's refused saves (the latest shown, its fields marked).
+  const { error, invalid } = useFormErrors(saveSource, isThisForm);
+  // A save lands on the sources list with a toast, naming the source as
+  // saved (a new title shows).
+  const toast = useToast();
+  useFormDone(saveSource, isThisForm, (form) => {
+    const posted = form.get('title');
+    const title = typeof posted === 'string' ? posted.trim() : '';
+    toast(props.id ? m.source_saved({ title }) : m.source_created({ title }));
+  });
+
+  return (
+    // Keyed: each source (and each fresh read of it) gets a fresh form.
+    <Show when={source()} keyed fallback={<p>{m.source_edit_missing()}</p>}>
+      {(s) => (
+        <>
+          {/* While a save is in flight the router marks the form aria-busy. */}
+          <form method="post" action={saveSource} class="group flex max-w-3xl flex-col gap-6">
+            <input type="hidden" name="id" value={s.id || ''} />
+            <input type="hidden" name="version" value={s.version} />
+
+            <div class="grid gap-x-4 sm:grid-cols-2">
+              <div class="sm:col-span-2">
+                <TextInput
+                  name="title"
+                  label={m.sources_col_title()}
+                  value={s.title}
+                  required
+                  maxlength={FIELD_MAX.line}
+                  invalid={invalid('title')}
+                />
+              </div>
+              {/* A disabled select posts nothing: its value rides along hidden. */}
+              <Show when={s.records > 0}>
+                <input type="hidden" name="kind" value={s.kind} />
+              </Show>
+              <label class="fieldset">
+                <span class="fieldset-legend">{m.sources_col_kind()}</span>
+                <select
+                  name={s.records > 0 ? undefined : 'kind'}
+                  disabled={s.records > 0}
+                  class={['select w-full', { 'select-error': invalid('kind') }]}
+                  aria-invalid={invalid('kind') ? 'true' : undefined}
+                >
+                  <For each={recordKinds}>
+                    {(k) => (
+                      <option value={k} selected={k === s.kind}>
+                        {recordKindLabels[k]()}
+                      </option>
+                    )}
+                  </For>
+                </select>
+                <Show when={s.records > 0}>
+                  <span class="label">{m.source_kind_locked()}</span>
+                </Show>
+              </label>
+              <Select
+                name="parishId"
+                label={m.sources_col_parish()}
+                value={s.parishId}
+                none={m.form_none()}
+                options={(parishes() ?? []).map((p) => ({ value: p.id, label: p.name }))}
+                invalid={invalid('parishId')}
+              />
+              <TextInput
+                name="yearFrom"
+                label={m.source_year_from()}
+                value={s.yearFrom === null ? null : String(s.yearFrom)}
+                pattern="\d{4}"
+                maxlength={4}
+                invalid={invalid('yearFrom')}
+              />
+              <TextInput
+                name="yearTo"
+                label={m.source_year_to()}
+                value={s.yearTo === null ? null : String(s.yearTo)}
+                pattern="\d{4}"
+                maxlength={4}
+                invalid={invalid('yearTo')}
+              />
+              <Select
+                name="language"
+                label={m.source_language()}
+                value={s.language}
+                none={m.form_none()}
+                options={sourceLanguages.map((l) => ({
+                  value: l,
+                  label: sourceLanguageLabels[l](),
+                }))}
+                invalid={invalid('language')}
+              />
+              <TextInput
+                name="archiveReference"
+                label={m.source_archive()}
+                value={s.archiveReference}
+                hint={m.source_archive_hint()}
+                maxlength={FIELD_MAX.line}
+                invalid={invalid('archiveReference')}
+              />
+              <label class="fieldset sm:col-span-2">
+                <span class="fieldset-legend">{m.form_note()}</span>
+                <textarea
+                  name="note"
+                  rows={4}
+                  maxlength={FIELD_MAX.text}
+                  class={['textarea w-full', { 'textarea-error': invalid('note') }]}
+                  aria-invalid={invalid('note') ? 'true' : undefined}
+                >
+                  {s.note ?? ''}
+                </textarea>
+              </label>
+            </div>
+
+            <FormActions
+              error={error()}
+              cancelHref={props.cancelHref}
+              class="border-t border-base-300 pt-4"
+            />
+          </form>
+          <Show when={s.id}>
+            <DeleteSection
+              action={deleteSource}
+              id={s.id}
+              version={s.version}
+              title={m.source_delete()}
+              text={m.source_delete_text()}
+              confirmLabel={m.source_delete_confirm()}
+              inUse={s.records ? m.source_delete_in_use({ count: s.records }) : undefined}
+              deleted={m.source_deleted({ title: s.title })}
+            />
+          </Show>
+        </>
+      )}
+    </Show>
+  );
+}

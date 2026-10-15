@@ -94,6 +94,15 @@ export function localName(names: { ru: string | null; fi: string | null } | null
   return (ru ? (names.ru ?? names.fi) : (names.fi ?? names.ru)) ?? '';
 }
 
+/** A term (a vocabulary's value) in the reader's language, or in Russian when it has no translation. */
+export function localTerm(
+  term: { ru: string; fi: string | null; en: string | null } | null,
+): string {
+  if (!term) return '';
+  const locale = getLocale();
+  return (locale === 'fi' ? term.fi : locale === 'en' ? term.en : null) ?? term.ru;
+}
+
 /**
  * Whether the lists show a Finnish-name column: not in Russian, where the
  * Russian name is all the reader needs. The locale only changes with a page

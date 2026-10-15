@@ -1,5 +1,6 @@
 import { useMatch } from '@solidjs/router';
 import { Loading, Show, createMemo } from 'solid-js';
+import Archive from '~icons/ri/archive-line';
 import Book from '~icons/ri/book-open-line';
 import Map from '~icons/ri/map-2-line';
 import MapPin from '~icons/ri/map-pin-2-line';
@@ -44,6 +45,12 @@ export default function Sidebar() {
                 <a class="data-active:menu-active" href={paths.records()}>
                   <Book class="size-5" aria-hidden="true" />
                   {m.records_title()}
+                </a>
+              </li>
+              <li>
+                <a class="data-active:menu-active" href={paths.sources()}>
+                  <Archive class="size-5" aria-hidden="true" />
+                  {m.sources_title()}
                 </a>
               </li>
               <li>

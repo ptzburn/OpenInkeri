@@ -8,17 +8,6 @@ export type RecordKind = (typeof recordKinds)[number];
 export const isRecordKind = (value: unknown): value is RecordKind =>
   recordKinds.includes(value as RecordKind);
 
-/** The kinds the records page lists with their own columns and admins edit. */
-export const editableKinds = [
-  'baptisms',
-  'marriages',
-  'deaths',
-] as const satisfies readonly RecordKind[];
-export type EditableKind = (typeof editableKinds)[number];
-
-export const isEditableKind = (value: unknown): value is EditableKind =>
-  editableKinds.includes(value as EditableKind);
-
 // Other values with a fixed set of options, which the edit form offers too.
 export const recordStatuses = ['ok', 'lost', 'illegible'] as const;
 export const baptismLocations = [
@@ -30,6 +19,10 @@ export const baptismLocations = [
   'other',
 ] as const;
 export const sexes = ['male', 'female'] as const;
+
+/** The languages a source's original can be in (source.language). */
+export const sourceLanguages = ['ru', 'fi', 'sv', 'de', 'et', 'la'] as const;
+export type SourceLanguage = (typeof sourceLanguages)[number];
 
 export type RecordStatus = (typeof recordStatuses)[number];
 export type BaptismLocation = (typeof baptismLocations)[number];

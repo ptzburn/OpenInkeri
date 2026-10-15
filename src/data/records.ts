@@ -4,13 +4,13 @@
 // read the page's guard. Editing is for admins.
 //
 // The edit page's form (src/components/record-edit-form.tsx) reads a
-// baptism, marriage or death record with getRecordEdit and the places and
-// clergy to choose from with getRecordEditOptions, and saves through
+// record of any kind with getRecordEdit and the places, clergy and
+// relations to choose from with getRecordEditOptions, and saves through
 // saveRecord. A save covers the record, its kind's details (record_baptism,
-// record_death) and the people the form edits (~/lib/record-people), and
-// goes to D1 as one batch (one transaction) with a change_log entry holding
-// the record before and after. record.raw, the row as first transcribed, is
-// never edited.
+// record_death, record_holding) and the people the form edits
+// (~/lib/record-people), and goes to D1 as one batch (one transaction) with
+// a change_log entry holding the record before and after. record.raw, the
+// row as first transcribed, is never edited.
 import { action, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
 import { and, count, eq, sql } from 'drizzle-orm';
@@ -20,11 +20,9 @@ import { FIELD_MAX } from '~/lib/field-limits';
 import { parsePartialDate } from '~/lib/format';
 import {
   type BaptismLocation,
-  type EditableKind,
   type RecordKind,
   type Sex,
   baptismLocations,
-  isEditableKind,
   recordKinds,
   recordStatuses,
   sexes,
@@ -34,6 +32,9 @@ import {
   type NameField,
   type PersonField,
   editedRoles,
+  isListKind,
+  listFields,
+  listRoles,
   nameFields,
   personFieldsOf,
   sexOfRole,
@@ -49,9 +50,10 @@ import {
   record,
   recordBaptism,
   recordDeath,
+  recordHolding,
   source,
 } from '~/server/database/schema';
-import { fieldsAtFault, optionalId, refuse, rowId, text, version } from '~/server/forms';
+import { fieldsAtFault, line, optionalId, refuse, rowId, text, version } from '~/server/forms';
 import { adminOnly, signedIn } from '~/server/guards';
 
 export const RECORDS_PAGE_SIZE = 50;
@@ -62,8 +64,8 @@ export const RECORDS_PAGE_SIZE = 50;
  * `page` counts from 1 and is clamped to the pages there are. Also returns
  * how many records each kind has, whatever the search, for the kind tabs.
  *
- * Each row carries the fields of every listed kind (baptisms, marriages,
- * deaths); the page shows the current kind's.
+ * Each row carries the fields of every kind; the page shows the current
+ * kind's. A list's rows (households, taxpayers' farms) carry their people.
  */
 export const getRecords = query(async (kind: RecordKind, search: string, page: number) => {
   'use server';
@@ -105,9 +107,26 @@ export const getRecords = query(async (kind: RecordKind, search: string, page: n
         columns: { birthDate: true, stillborn: true, multipleBirth: true, illegitimate: true },
       },
       death: { columns: { burialDate: true, causeText: true, stillborn: true } },
+      holding: { columns: { holdingNo: true, estateText: true, tenantText: true } },
       personas: {
-        columns: { role: true, nameRu: true, nameFi: true, ageText: true, residenceText: true },
-        with: { residence: { columns: { nameRu: true, nameFi: true } } },
+        columns: {
+          id: true,
+          role: true,
+          nameRu: true,
+          nameFi: true,
+          ageText: true,
+          residenceText: true,
+          relationText: true,
+          hasWife: true,
+          birthDate: true,
+          deathDate: true,
+          note: true,
+          noteOriginal: true,
+        },
+        with: {
+          residence: { columns: { nameRu: true, nameFi: true } },
+          relation: { columns: { ru: true, fi: true, en: true } },
+        },
         orderBy: { id: 'asc' },
       },
     },
@@ -153,6 +172,21 @@ export const getRecords = query(async (kind: RecordKind, search: string, page: n
       groom: named(r.personas, 'groom'),
       bride: named(r.personas, 'bride'),
       deceased: named(r.personas, 'deceased'),
+      // A household or farm: its number, estate and tenant, and its people.
+      holding: r.holding,
+      members: isListKind(kind)
+        ? r.personas.map((p) => ({
+            id: p.id,
+            ru: p.nameRu,
+            fi: p.nameFi,
+            relation: p.relation,
+            relationAsWritten: p.relationText,
+            hasWife: p.hasWife,
+            birthDate: p.birthDate,
+            deathDate: p.deathDate,
+            note: p.note ?? p.noteOriginal,
+          }))
+        : [],
       note: r.note,
     })),
   };
@@ -170,6 +204,7 @@ export interface RecordEditPerson extends Record<NameField, string | null> {
   id: number;
   role: string;
   sex: (typeof sexes)[number] | null;
+  birthDate: string | null;
   deathDate: string | null;
   origin: string | null;
   ageText: string | null;
@@ -180,11 +215,22 @@ export interface RecordEditPerson extends Record<NameField, string | null> {
   residenceId: number | null;
   birthplaceText: string | null;
   birthplaceId: number | null;
+  relationText: string | null;
+  relationTermId: number | null;
+  hasWife: boolean | null;
+  note: string | null;
+  noteOriginal: string | null;
 }
 
 export interface RecordEditData {
+  /** 0 for a record not created yet. */
   id: number;
-  kind: EditableKind;
+  kind: RecordKind;
+  sourceId: number | null;
+  /** The page as the source numbers it ("221об"). */
+  page: string | null;
+  /** The language of the original register: ru, fi, sv… */
+  language: string | null;
   version: number;
   status: (typeof recordStatuses)[number];
   date: string | null;
@@ -209,13 +255,25 @@ export interface RecordEditData {
     causeTermId: number | null;
     stillborn: boolean;
   } | null;
-  /** The first person in each role the kind's form edits (a record names one of each). */
+  holding: {
+    holdingNo: string | null;
+    estateText: string | null;
+    estatePlaceId: number | null;
+    tenantText: string | null;
+  } | null;
+  /** A register's people: the first person in each role its form edits. */
   people: Partial<Record<EditedRole, RecordEditPerson | null>>;
+  /** A list's people, all of them, in order. */
+  members: RecordEditPerson[];
 }
 
 export interface RecordEditOptionsData {
   places: { id: number; name: string; parish: string | null }[];
   clergy: { id: number; name: string }[];
+  /** How a person belongs to a household or farm ("Сын", "Боболь"). */
+  relations: { id: number; name: string }[];
+  /** The sources a record can be in: one of its own type. */
+  sources: { id: number; title: string; kind: RecordKind; language: string | null }[];
 }
 
 const personaColumns = {
@@ -223,6 +281,7 @@ const personaColumns = {
   role: true,
   sex: true,
   ...(Object.fromEntries(nameFields.map((f) => [f, true])) as Record<NameField, true>),
+  birthDate: true,
   deathDate: true,
   origin: true,
   ageText: true,
@@ -233,6 +292,11 @@ const personaColumns = {
   residenceId: true,
   birthplaceText: true,
   birthplaceId: true,
+  relationText: true,
+  relationTermId: true,
+  hasWife: true,
+  note: true,
+  noteOriginal: true,
 } as const;
 
 // A record as the edit form edits it, and as change_log records it.
@@ -242,6 +306,8 @@ async function loadRecord(id: number) {
     columns: {
       id: true,
       version: true,
+      sourceId: true,
+      page: true,
       status: true,
       date: true,
       placeText: true,
@@ -249,46 +315,62 @@ async function loadRecord(id: number) {
       note: true,
     },
     with: {
-      source: { columns: { kind: true } },
+      source: { columns: { kind: true, language: true } },
       baptism: { columns: { recordId: false } },
       death: { columns: { recordId: false } },
+      holding: { columns: { recordId: false } },
       personas: { columns: personaColumns, orderBy: { id: 'asc' } },
     },
   });
 }
 
-/** One baptism, marriage or death record for the edit page, or null if there is none. */
+/** One record for the edit page, or null if there is none. */
 export const getRecordEdit = query(async (id: number): Promise<RecordEditData | null> => {
   'use server';
   adminOnly();
   const found = await loadRecord(v.parse(rowId, id));
-  const kind = found?.source.kind;
-  if (!found || !isEditableKind(kind)) return null;
-  const { source: _, personas, ...rest } = found;
+  if (!found) return null;
+  const { source, personas, ...rest } = found;
+  const kind = source.kind;
+  if (isListKind(kind)) {
+    const members = personas.filter((p) => p.role === listRoles[kind]);
+    return { ...rest, kind, language: source.language, people: {}, members };
+  }
   const people = Object.fromEntries(
     editedRoles[kind].map((role: EditedRole) => [
       role,
       personas.find((p) => p.role === role) ?? null,
     ]),
   );
-  return { ...rest, kind, people };
+  return { ...rest, kind, language: source.language, people, members: [] };
 }, 'record-edit');
 
-/** The places and clergy an edited record can point to, by name. */
+/** The sources, places, clergy and relations an edited record can point to, by name. */
 export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsData> => {
   'use server';
   adminOnly();
-  const [places, clergy] = await Promise.all([
+  const [places, clergy, relations, sources] = await Promise.all([
     db.query.place.findMany({
       columns: { id: true, nameRu: true },
       with: { parish: { columns: { nameRu: true } } },
       orderBy: { nameRu: 'asc' },
     }),
     db.query.clergy.findMany({ columns: { id: true, nameRu: true }, orderBy: { nameRu: 'asc' } }),
+    db.query.term.findMany({
+      where: { vocabulary: 'relation' },
+      columns: { id: true, ru: true },
+      orderBy: { ru: 'asc' },
+    }),
+    db.query.source.findMany({
+      columns: { id: true, title: true, kind: true, language: true },
+      orderBy: { title: 'asc' },
+    }),
   ]);
   return {
     places: places.map((p) => ({ id: p.id, name: p.nameRu, parish: p.parish?.nameRu ?? null })),
     clergy: clergy.map((c) => ({ id: c.id, name: c.nameRu })),
+    relations: relations.map((t) => ({ id: t.id, name: t.ru })),
+    sources,
   };
 }, 'record-edit-options');
 
@@ -308,8 +390,10 @@ const choice = <T extends readonly [string, ...string[]]>(options: T) =>
     v.transform((s) => s || null),
     v.nullable(v.picklist(options)),
   );
+// An unticked box isn't posted at all: its default makes it false, where
+// a bare optional would leave the key out and the update would skip it.
 const checkbox = v.pipe(
-  v.optional(v.string()),
+  v.optional(v.string(), ''),
   v.transform((s) => s === 'on'),
 );
 const recordId = v.pipe(v.string(), v.transform(Number), rowId);
@@ -321,8 +405,10 @@ const common = {
   returnKind: v.optional(v.picklist(recordKinds)),
   returnQ: v.optional(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
   returnPage: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,5}$/))),
-  id: recordId,
+  id: optionalId, // empty for a new record
   version,
+  sourceId: v.pipe(v.string(), v.transform(Number), rowId),
+  page: line(),
   status: v.picklist(recordStatuses),
   date,
   note: text,
@@ -356,10 +442,19 @@ const kindFields = {
     causeText: text,
     stillborn: checkbox,
   },
-} satisfies Record<EditableKind, v.ObjectEntries>;
+  households: { ...place, holdingNo: line() },
+  taxpayers: {
+    ...place,
+    holdingNo: line(),
+    estatePlaceId: optionalId,
+    estateText: text,
+    tenantText: text,
+  },
+} satisfies Record<RecordKind, v.ObjectEntries>;
 
 const personField = {
   sex: choice(sexes),
+  birthDate: date,
   deathDate: date,
   origin: text,
   ageText: text,
@@ -370,74 +465,154 @@ const personField = {
   residenceText: text,
   birthplaceId: optionalId,
   birthplaceText: text,
+  relationTermId: optionalId,
+  relationText: text,
+  hasWife: checkbox,
+  note: text,
+  noteOriginal: text,
 } satisfies Record<PersonField, v.GenericSchema>;
 
-// A kind's whole form: its people's fields are named "role.field".
-const formOf = (kind: EditableKind) =>
+// A list's form numbers its people: "members.0.nameRu", "members.0.id" (empty
+// for a person added in the form). At most this many in one save.
+const MAX_MEMBERS = 200;
+const memberIndexes = (entries: Record<string, unknown>) =>
+  [...new Set(Object.keys(entries).flatMap((key) => key.match(/^members\.(\d{1,3})\./)?.[1] ?? []))]
+    .map(Number)
+    .sort((a, b) => a - b);
+
+// One person's fields, named "<prefix>.<field>".
+const personEntries = (prefix: string, fields: readonly PersonField[]) => [
+  ...nameFields.map((f) => [`${prefix}.${f}`, text] as const),
+  ...fields.map((f) => [`${prefix}.${f}`, personField[f]] as const),
+];
+
+// A kind's whole form: a register's people are named "role.field", a
+// list's "members.N.field".
+const formOf = (kind: RecordKind, members: number[]) =>
   v.object({
     ...common,
     ...kindFields[kind],
     ...Object.fromEntries(
-      editedRoles[kind].flatMap((role) => [
-        ...nameFields.map((f) => [`${role}.${f}`, text] as const),
-        ...personFieldsOf(kind, role).map((f) => [`${role}.${f}`, personField[f]] as const),
-      ]),
+      isListKind(kind)
+        ? members.flatMap((n) => [
+            [`members.${n}.id`, optionalId] as const,
+            ...personEntries(`members.${n}`, listFields[kind]),
+          ])
+        : editedRoles[kind].flatMap((role: EditedRole) =>
+            personEntries(role, personFieldsOf(kind, role)),
+          ),
     ),
   });
 
 type Values = Record<string, string | number | boolean | null>;
 
 // The values of one person in the parsed form.
-function personValues(input: Values, kind: EditableKind, role: EditedRole): Values {
-  return Object.fromEntries(
-    [...nameFields, ...personFieldsOf(kind, role)].map((f) => [f, input[`${role}.${f}`] ?? null]),
-  );
-}
+const personValues = (input: Values, prefix: string, fields: readonly PersonField[]): Values =>
+  Object.fromEntries([...nameFields, ...fields].map((f) => [f, input[`${prefix}.${f}`] ?? null]));
 
 /**
- * Saves the edit page's form over a baptism, marriage or death record, then
- * redirects to the records list where the admin came from (the redirect
- * revalidates, so the list shows the change). The record's kind comes from
- * the database, not the form. Refused, with the fields at fault, when a
- * value doesn't read; and when the record changed since the page loaded it
- * (its version moved on), so one admin's save doesn't silently undo
- * another's. The check reads the version just before the batch, so two
- * saves within the same moment could still both pass.
+ * Saves the edit page's form over a record, then redirects to the records
+ * list where the admin came from (the redirect revalidates, so the list
+ * shows the change). The record's kind comes from the database, not the
+ * form. Refused, with the fields at fault, when a value doesn't read; and
+ * when the record changed since the page loaded it (its version moved on),
+ * so one admin's save doesn't silently undo another's. The check reads the
+ * version just before the batch, so two saves within the same moment could
+ * still both pass.
  *
  * A person whose fields are all emptied is removed from the record; one
- * given a name where there was none is added.
+ * given a name where there was none is added (in a list, as many as the
+ * form brings).
  */
 export const saveRecord = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
-  const id = v.safeParse(recordId, entries.id);
+  const id = v.safeParse(optionalId, entries.id);
   if (!id.success) throw refuse({ message: m.form_invalid(), fields: ['id'] }, 400);
+  const sourceId = v.safeParse(recordId, entries.sourceId);
+  const chosen = sourceId.success
+    ? await db.query.source.findFirst({
+        where: { id: sourceId.output },
+        columns: { id: true, kind: true },
+      })
+    : null;
+  if (!chosen) throw refuse({ message: m.form_invalid(), fields: ['sourceId'] }, 400);
 
-  const before = await loadRecord(id.output);
-  const kind = before?.source.kind;
-  if (!before || !isEditableKind(kind)) throw refuse({ message: m.record_edit_missing() }, 404);
-  const parsed = v.safeParse(formOf(kind), entries);
+  // An existing record keeps its type: it can move only to another source
+  // of the same type. A new one takes its source's.
+  const existing = id.output ? await loadRecord(id.output) : null;
+  if (id.output && !existing) throw refuse({ message: m.record_edit_missing() }, 404);
+  const kind = existing?.source.kind ?? chosen.kind;
+  if (chosen.kind !== kind) {
+    throw refuse({ message: m.record_edit_source_kind(), fields: ['sourceId'] }, 400);
+  }
+  const indexes = memberIndexes(entries);
+  if (indexes.length > MAX_MEMBERS) throw refuse({ message: m.form_invalid() }, 400);
+  const parsed = v.safeParse(formOf(kind, indexes), entries);
   if (!parsed.success) {
     throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }
   const input = parsed.output as typeof parsed.output & Values;
-  if (before.version !== input.version) {
+  if (existing && existing.version !== input.version) {
     throw refuse({ message: m.record_edit_conflict() }, 409);
   }
 
+  // A new record gets its id first: its details and people point to it.
+  // Then the save goes on as for any record, from the empty one.
   const now = new Date();
   const stamp = { updatedAt: now, updatedBy: user.id };
-  const statements = [];
-  const people = editedRoles[kind].map((role: EditedRole) => ({
-    role,
-    values: personValues(input, kind, role),
-    current: before.personas.find((p) => p.role === role) ?? null,
-  }));
+  let before = existing;
+  if (!before) {
+    const [created] = await db
+      .insert(record)
+      .values({ sourceId: chosen.id, status: input.status, createdBy: user.id, ...stamp })
+      .returning({ id: record.id });
+    before = (await loadRecord(created.id))!;
+  }
+  const created = !existing;
+  const rid = before.id;
 
+  // Who the form edits: a register's roles, or a list's people by index.
+  type Edited = {
+    key: string;
+    role: PersonaRole;
+    values: Values;
+    current: (typeof before.personas)[number] | null;
+  };
+  let edited: Edited[];
+  if (isListKind(kind)) {
+    const role = listRoles[kind];
+    edited = indexes.map((n) => {
+      const personaId = input[`members.${n}.id`] as number | null;
+      return {
+        key: String(n),
+        role,
+        values: personValues(input, `members.${n}`, listFields[kind]),
+        current: personaId
+          ? (before.personas.find((p) => p.id === personaId && p.role === role) ?? null)
+          : null,
+      };
+    });
+    // A person the form names who is no longer on the record: someone else
+    // changed it, though its version check missed it.
+    if (edited.some((e) => input[`members.${e.key}.id`] && !e.current)) {
+      throw refuse({ message: m.record_edit_conflict() }, 409);
+    }
+  } else {
+    edited = editedRoles[kind].map((role: EditedRole) => ({
+      key: role,
+      role,
+      values: personValues(input, role, personFieldsOf(kind, role)),
+      current: before.personas.find((p) => p.role === role) ?? null,
+    }));
+  }
+
+  const statements = [];
   const kept = [];
-  for (const { role, values, current } of people) {
-    const empty = Object.values(values).every((value) => value === null);
+  for (const { role, values, current } of edited) {
+    // An unticked box says nothing either.
+    const empty = Object.values(values).every((value) => value === null || value === false);
     // The deceased died on the record's date.
     if (role === 'deceased' && !empty) values.deathDate = input.date;
     if (current && empty) {
@@ -454,10 +629,11 @@ export const saveRecord = action(async (formData: FormData) => {
     } else if (!empty) {
       statements.push(
         db.insert(persona).values({
-          recordId: input.id,
+          recordId: rid,
           role,
           ...values,
-          sex: 'sex' in values ? (values.sex as Sex | null) : (sexOfRole[role] ?? null),
+          sex:
+            'sex' in values ? (values.sex as Sex | null) : (sexOfRole[role as EditedRole] ?? null),
           createdBy: user.id,
           ...stamp,
         }),
@@ -467,7 +643,7 @@ export const saveRecord = action(async (formData: FormData) => {
   }
 
   // The kind's details: one row beside the record, written whole.
-  let details: { baptism?: object; death?: object } = {};
+  let details: { baptism?: object; death?: object; holding?: object } = {};
   if (kind === 'baptisms') {
     const baptism = {
       birthDate: input.birthDate as string | null,
@@ -482,7 +658,7 @@ export const saveRecord = action(async (formData: FormData) => {
     statements.push(
       db
         .insert(recordBaptism)
-        .values({ recordId: input.id, ...baptism })
+        .values({ recordId: rid, ...baptism })
         .onConflictDoUpdate({ target: recordBaptism.recordId, set: baptism }),
     );
     details = { baptism: { ...before.baptism, ...baptism } };
@@ -496,10 +672,27 @@ export const saveRecord = action(async (formData: FormData) => {
     statements.push(
       db
         .insert(recordDeath)
-        .values({ recordId: input.id, ...death })
+        .values({ recordId: rid, ...death })
         .onConflictDoUpdate({ target: recordDeath.recordId, set: death }),
     );
     details = { death: { ...before.death, ...death } };
+  } else if (isListKind(kind)) {
+    // A household has only its number; a farm also its estate and tenant.
+    const holding = {
+      holdingNo: input.holdingNo as string | null,
+      ...(kind === 'taxpayers' && {
+        estateText: input.estateText as string | null,
+        estatePlaceId: input.estatePlaceId as number | null,
+        tenantText: input.tenantText as string | null,
+      }),
+    };
+    statements.push(
+      db
+        .insert(recordHolding)
+        .values({ recordId: rid, ...holding })
+        .onConflictDoUpdate({ target: recordHolding.recordId, set: holding }),
+    );
+    details = { holding: { ...before.holding, ...holding } };
   }
 
   const placed = 'placeId' in input;
@@ -509,7 +702,7 @@ export const saveRecord = action(async (formData: FormData) => {
   // search_text: every name in the record (people the form doesn't edit,
   // like a lay baptizer, too), its place and where its people lived, as
   // written and the places' names.
-  const others = before.personas.filter((p) => !people.some((e) => e.current?.id === p.id));
+  const others = before.personas.filter((p) => !edited.some((e) => e.current?.id === p.id));
   const everyone = [...others, ...kept] as {
     nameRu: string | null;
     nameFi: string | null;
@@ -530,6 +723,8 @@ export const saveRecord = action(async (formData: FormData) => {
       : [],
   );
   const fields = {
+    sourceId: chosen.id,
+    page: input.page as string | null,
     status: input.status,
     date: input.date,
     placeId,
@@ -549,8 +744,9 @@ export const saveRecord = action(async (formData: FormData) => {
   statements.unshift(
     db
       .update(record)
-      .set({ ...fields, version: before.version + 1, ...stamp })
-      .where(and(eq(record.id, input.id), eq(record.version, before.version))),
+      // A new record stays at its first version.
+      .set({ ...fields, version: created ? before.version : before.version + 1, ...stamp })
+      .where(and(eq(record.id, rid), eq(record.version, before.version))),
   );
 
   const { source: _, ...beforeLog } = before;
@@ -558,15 +754,19 @@ export const saveRecord = action(async (formData: FormData) => {
     db.insert(changeLog).values({
       userId: user.id,
       entity: 'record',
-      entityId: input.id,
-      action: 'update',
-      before: beforeLog,
+      entityId: rid,
+      action: created ? 'create' : 'update',
+      before: created ? null : beforeLog,
       after: {
         ...beforeLog,
         ...fields,
-        version: before.version + 1,
+        version: created ? before.version : before.version + 1,
         ...details,
-        people: Object.fromEntries(people.map(({ role, values }) => [role, values])),
+        people: edited.map(({ key, current, values }) => ({
+          key,
+          id: current?.id ?? null,
+          ...values,
+        })),
       },
     }),
   );
@@ -575,13 +775,78 @@ export const saveRecord = action(async (formData: FormData) => {
     await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
   } catch (error) {
     console.error('Saving a record failed', error);
+    // A new record whose details or people couldn't be written goes again.
+    if (created) await db.delete(record).where(eq(record.id, rid));
     throw refuse({ message: m.form_failed() }, 500);
   }
-  throw redirect(
-    paths.records({
-      kind: input.returnKind === 'baptisms' ? undefined : input.returnKind, // the default
-      q: input.returnQ || undefined,
-      page: input.returnPage,
-    }),
-  );
+  // A new record is the last of its type, so the list opens on its last
+  // page (unsearched); an edit returns to where the admin came from.
+  if (created) {
+    const total = await db.$count(
+      record,
+      sql`${record.sourceId} in (select ${source.id} from ${source} where ${source.kind} = ${kind})`,
+    );
+    const last = Math.ceil(total / RECORDS_PAGE_SIZE);
+    throw redirect(
+      paths.records({
+        kind: kind === 'baptisms' ? undefined : kind,
+        page: last > 1 ? String(last) : undefined,
+      }),
+    );
+  }
+  throw redirect(backToList(input));
 }, 'save-record');
+
+// The records list as a form came from it (kind, search, page). The
+// redirect is built from these, never taken whole from the request.
+const backToList = (input: { returnKind?: RecordKind; returnQ?: string; returnPage?: string }) =>
+  paths.records({
+    kind: input.returnKind === 'baptisms' ? undefined : input.returnKind, // the default
+    q: input.returnQ || undefined,
+    page: input.returnPage,
+  });
+
+const deletion = v.object({
+  returnKind: common.returnKind,
+  returnQ: common.returnQ,
+  returnPage: common.returnPage,
+  id: recordId,
+  version,
+  confirm: v.literal('on'),
+});
+
+/**
+ * Deletes the edit page's record, with its details and the people it names
+ * (on delete cascade), once its confirm box is ticked, then redirects to the
+ * records list it came from. change_log keeps the record as it was. Refused,
+ * like a save, when it changed since the page loaded it.
+ */
+export const deleteRecord = action(async (formData: FormData) => {
+  'use server';
+  const user = adminOnly();
+  const parsed = v.safeParse(deletion, Object.fromEntries(formData));
+  if (!parsed.success) throw refuse({ message: m.record_delete_unconfirmed() }, 400);
+  const input = parsed.output;
+
+  const before = await loadRecord(input.id);
+  if (!before) throw refuse({ message: m.record_edit_missing() }, 404);
+  if (before.version !== input.version) throw refuse({ message: m.record_edit_conflict() }, 409);
+
+  const { source: _, ...beforeLog } = before;
+  try {
+    await db.batch([
+      db.delete(record).where(and(eq(record.id, input.id), eq(record.version, input.version))),
+      db.insert(changeLog).values({
+        userId: user.id,
+        entity: 'record',
+        entityId: input.id,
+        action: 'delete',
+        before: beforeLog,
+      }),
+    ]);
+  } catch (error) {
+    console.error('Deleting a record failed', error);
+    throw refuse({ message: m.record_delete_failed() }, 500);
+  }
+  throw redirect(backToList(input));
+}, 'delete-record');

@@ -6,20 +6,15 @@ import { For, Show, createMemo, isPending } from 'solid-js';
 import { env } from 'virtual:env/client';
 import PreviousIcon from '~icons/ri/arrow-left-s-line';
 import NextIcon from '~icons/ri/arrow-right-s-line';
+import AddIcon from '~icons/ri/add-line';
 
 import type { QueryData } from '~/lib/query-data';
 import { recordKindLabels } from '~/components/labels';
 import EditLinkCell from '~/components/edit-link-cell';
 import SearchBox from '~/components/search-box';
 import { getCurrentUser } from '~/data/session';
-import { formatPartialDate, localName } from '~/lib/format';
-import {
-  type EditableKind,
-  type RecordKind,
-  isEditableKind,
-  isRecordKind,
-  recordKinds,
-} from '~/lib/record-kinds';
+import { formatPartialDate, localName, localTerm } from '~/lib/format';
+import { type RecordKind, isRecordKind, recordKinds } from '~/lib/record-kinds';
 import { type RecordRow, getRecords } from '~/data/records';
 import { stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
@@ -49,12 +44,10 @@ export default function Records() {
       getRecords(kind(), search.q ?? '', pageNumber(search.page)),
     { name: 'records-list' },
   );
-  // The kinds with columns of their own; the others have no records yet.
-  const listed = () => (isEditableKind(kind()) ? (kind() as EditableKind) : undefined);
   // Admins edit records on their edit page; the server functions check the
   // role again, so this only decides what is offered.
   const me = createMemo(() => getCurrentUser(), { name: 'records-me' });
-  const canEdit = () => !!me()?.isAdmin && !!listed();
+  const canEdit = () => !!me()?.isAdmin;
 
   // A search goes in the URL in place of the current entry, from page 1.
   const searchFor = (value: string) =>
@@ -73,9 +66,20 @@ export default function Records() {
   return (
     <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
       <Title>{`${m.records_title()} - ${env.VITE_APP_NAME}`}</Title>
-      <header class="flex items-center gap-2">
+      <header class="flex flex-wrap items-center gap-2">
         <h1 class="text-2xl font-bold">{m.records_title()}</h1>
         <span class="badge badge-sm">{list()?.total}</span>
+        {/* A new record of the open tab's type; the list's place rides
+            along for Cancel. */}
+        <Show when={canEdit()}>
+          <a
+            href={paths.records.new({ kind: search.kind, q: search.q, page: search.page })}
+            class="btn ml-auto btn-sm btn-primary"
+          >
+            <AddIcon class="size-4" aria-hidden="true" />
+            {m.records_add()}
+          </a>
+        </Show>
       </header>
       {/* Every tab links to /records, so the current one is marked by kind. */}
       <nav aria-label={m.records_kinds_label()} class="tabs tabs-border overflow-x-auto">
@@ -105,13 +109,11 @@ export default function Records() {
         </Show>
       </SearchBox>
       <div class="transition-opacity" style={{ opacity: isPending(list) ? 0.5 : 1 }}>
-        {/* Households and taxpayers have no columns yet; they get theirs when
-            their lists are imported. */}
         <Show
-          when={listed() && list()?.records.length}
+          when={list()?.records.length}
           fallback={
             <p class="py-6 text-center text-base-content/60">
-              {!listed()
+              {!list()?.counts[kind()]
                 ? m.records_kind_empty()
                 : search.q
                   ? m.records_no_match({ search: search.q })
@@ -123,7 +125,7 @@ export default function Records() {
             <table class="table table-sm">
               <thead>
                 <tr>
-                  <For each={columns[listed() ?? 'baptisms']}>{(label) => <th>{label()}</th>}</For>
+                  <For each={columns[kind()]}>{(label) => <th>{label()}</th>}</For>
                   <Show when={canEdit()}>
                     <th>
                       <span class="sr-only">{m.records_col_actions()}</span>
@@ -137,7 +139,7 @@ export default function Records() {
                 <For each={list()?.records ?? []} keyed={(row) => row.id}>
                   {(row) => (
                     <RecordTableRow
-                      kind={listed() ?? 'baptisms'}
+                      kind={kind()}
                       row={row()}
                       // The link carries the list's place, to return to it.
                       editHref={
@@ -212,7 +214,7 @@ function PageLink(props: {
 }
 
 // The columns of each kind's table, before the edit link's.
-const columns: Record<EditableKind, (() => string)[]> = {
+const columns: Record<RecordKind, (() => string)[]> = {
   baptisms: [
     m.records_col_born,
     m.records_col_baptised,
@@ -232,9 +234,16 @@ const columns: Record<EditableKind, (() => string)[]> = {
     m.records_col_cause,
     m.records_col_note,
   ],
+  households: [m.records_col_village, m.records_col_household, m.records_col_people],
+  taxpayers: [
+    m.records_col_estate,
+    m.records_col_village,
+    m.records_col_farm,
+    m.records_col_people,
+  ],
 };
 
-function RecordTableRow(props: { kind: EditableKind; row: RecordRow; editHref?: string }) {
+function RecordTableRow(props: { kind: RecordKind; row: RecordRow; editHref?: string }) {
   const date = (value: string | null) => (
     <td class="tabular-nums whitespace-nowrap">{formatPartialDate(value)}</td>
   );
@@ -313,6 +322,27 @@ function RecordTableRow(props: { kind: EditableKind; row: RecordRow; editHref?: 
         <td>{props.row.cause}</td>
         {note()}
       </Show>
+      <Show when={props.kind === 'households'}>
+        <td>
+          {lost()}
+          <Place place={props.row.village} asWritten={props.row.villageAsWritten} />
+        </td>
+        <td class="tabular-nums">{props.row.holding?.holdingNo}</td>
+        <td>
+          <Members members={props.row.members} />
+        </td>
+      </Show>
+      <Show when={props.kind === 'taxpayers'}>
+        <td>{props.row.holding?.estateText}</td>
+        <td>
+          {lost()}
+          <Place place={props.row.village} asWritten={props.row.villageAsWritten} />
+        </td>
+        <td class="tabular-nums">{props.row.holding?.holdingNo}</td>
+        <td>
+          <Members members={props.row.members} />
+        </td>
+      </Show>
       <EditLinkCell href={props.editHref} label={m.record_edit_open()} />
     </tr>
   );
@@ -351,5 +381,46 @@ function Spouse(props: { person: RecordRow['groom'] }) {
         </div>
       )}
     </Show>
+  );
+}
+
+// A household's or farm's people, one a line: the name, how they belong to
+// it, and what the list says of them.
+function Members(props: { members: RecordRow['members'] }) {
+  return (
+    <ul class="flex flex-col gap-0.5">
+      <For each={props.members} keyed={(p) => p.id}>
+        {(p) => (
+          <li>
+            <span class="font-medium">{localName(p())}</span>
+            <Show when={localTerm(p().relation) || p().relationAsWritten}>
+              {(relation) => (
+                <span
+                  class="text-base-content/60"
+                  title={
+                    p().relation && p().relationAsWritten !== p().relation?.ru
+                      ? (p().relationAsWritten ?? undefined)
+                      : undefined
+                  }
+                >
+                  {` — ${relation()}`}
+                </span>
+              )}
+            </Show>
+            <Show when={p().hasWife}>
+              <span class="text-base-content/60">{`, ${m.records_with_wife()}`}</span>
+            </Show>
+            <Show when={p().birthDate || p().deathDate}>
+              <span class="text-xs whitespace-nowrap text-base-content/60 tabular-nums">
+                {` · ${formatPartialDate(p().birthDate)} – ${formatPartialDate(p().deathDate)}`}
+              </span>
+            </Show>
+            <Show when={p().note}>
+              {(note) => <span class="block text-xs text-base-content/60">{note()}</span>}
+            </Show>
+          </li>
+        )}
+      </For>
+    </ul>
   );
 }
