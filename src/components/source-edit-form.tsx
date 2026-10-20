@@ -4,9 +4,12 @@ import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
 import {
   DeleteSection,
+  FieldError,
   FormActions,
   Select,
+  TextArea,
   TextInput,
+  ariaInvalid,
   useFormDone,
   useFormErrors,
 } from '~/components/form-fields';
@@ -93,8 +96,8 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
                 <select
                   name={s.records > 0 ? undefined : 'kind'}
                   disabled={s.records > 0}
-                  class={['select w-full', { 'select-error': invalid('kind') }]}
-                  aria-invalid={invalid('kind') ? 'true' : undefined}
+                  class="validator select w-full"
+                  aria-invalid={ariaInvalid(invalid('kind'))}
                 >
                   <For each={recordKinds}>
                     {(k) => (
@@ -104,6 +107,7 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
                     )}
                   </For>
                 </select>
+                <FieldError fault={invalid('kind')} />
                 <Show when={s.records > 0}>
                   <span class="label">{m.source_kind_locked()}</span>
                 </Show>
@@ -122,6 +126,8 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
                 value={s.yearFrom === null ? null : String(s.yearFrom)}
                 pattern="\d{4}"
                 maxlength={4}
+                inputmode="numeric"
+                error={m.source_year_hint()}
                 invalid={invalid('yearFrom')}
               />
               <TextInput
@@ -130,6 +136,8 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
                 value={s.yearTo === null ? null : String(s.yearTo)}
                 pattern="\d{4}"
                 maxlength={4}
+                inputmode="numeric"
+                error={m.source_year_hint()}
                 invalid={invalid('yearTo')}
               />
               <Select
@@ -151,18 +159,15 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
                 maxlength={FIELD_MAX.line}
                 invalid={invalid('archiveReference')}
               />
-              <label class="fieldset sm:col-span-2">
-                <span class="fieldset-legend">{m.form_note()}</span>
-                <textarea
-                  name="note"
-                  rows={4}
-                  maxlength={FIELD_MAX.text}
-                  class={['textarea w-full', { 'textarea-error': invalid('note') }]}
-                  aria-invalid={invalid('note') ? 'true' : undefined}
-                >
-                  {s.note ?? ''}
-                </textarea>
-              </label>
+              <TextArea
+                name="note"
+                label={m.form_note()}
+                value={s.note}
+                rows={4}
+                maxlength={FIELD_MAX.text}
+                invalid={invalid('note')}
+                class="sm:col-span-2"
+              />
             </div>
 
             <FormActions

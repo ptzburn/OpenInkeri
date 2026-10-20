@@ -9,8 +9,14 @@ import { useToast } from '~/components/toaster';
 import { m } from '~/paraglide/messages.js';
 
 // What the admins' edit forms share: their refused saves, their fields (a
-// label above the control, marked when the server refused its value) and
-// the Save and Cancel bar.
+// label above the control, and under it why its value is wrong) and the
+// Save and Cancel bar.
+
+/**
+ * Why a field is at fault: undefined while it's fine; after a refused save,
+ * the server's reason for it, or '' when the server gave none of its own.
+ */
+export type Fault = string | undefined;
 
 /**
  * The latest refused save of one form, for an action whose forms post a
@@ -28,8 +34,8 @@ export function useFormErrors<U>(
     for (const submission of submissions) submission.clear();
   });
   const error = () => submissions.at(-1)?.error as FormError | undefined;
-  /** Whether the latest refusal named this field. */
-  const invalid = (field: string) => error()?.fields?.includes(field) ?? false;
+  /** Why the latest refusal named this field, if it did. */
+  const invalid = (field: string): Fault => error()?.fields?.[field];
   return { error, invalid };
 }
 
@@ -100,15 +106,36 @@ export function FormActions(props: { error?: FormError; cancelHref: string; clas
   );
 }
 
+/**
+ * Why a field's value is wrong, right after its control (which has daisyUI's
+ * `validator` class). It shows while the control is invalid: to the browser
+ * (`required`, `pattern`), once the admin has left it or tried to save, or to
+ * the server (`aria-invalid`, from `fault`). It says the server's reason,
+ * else `error`, else to check the value.
+ */
+export function FieldError(props: { fault: Fault; error?: string }) {
+  return (
+    <span class="validator-hint hidden">
+      {props.fault || props.error || m.form_field_invalid()}
+    </span>
+  );
+}
+
+/** The aria-invalid of a control the server refused. */
+export const ariaInvalid = (fault: Fault) => (fault === undefined ? undefined : 'true');
+
 export function TextInput(props: {
   name: string;
   label: string;
   value: string | null | undefined;
-  invalid: boolean;
+  invalid: Fault;
   required?: boolean;
   maxlength?: number;
   pattern?: string;
+  inputmode?: 'numeric';
   hint?: string;
+  /** What a value the browser rejects should be, e.g. "Four digits". */
+  error?: string;
 }) {
   return (
     <label class="fieldset">
@@ -119,10 +146,43 @@ export function TextInput(props: {
         required={props.required}
         maxlength={props.maxlength ?? FIELD_MAX.text}
         pattern={props.pattern}
-        class={['input w-full', { 'input-error': props.invalid }]}
-        aria-invalid={props.invalid ? 'true' : undefined}
+        inputmode={props.inputmode}
+        class="validator input w-full"
+        aria-invalid={ariaInvalid(props.invalid)}
       />
+      <FieldError fault={props.invalid} error={props.error} />
       <Show when={props.hint}>{(hint) => <span class="label">{hint()}</span>}</Show>
+    </label>
+  );
+}
+
+export function TextArea(props: {
+  name: string;
+  label: string;
+  value: string | null | undefined;
+  invalid: Fault;
+  rows: number;
+  maxlength?: number;
+  hint?: string;
+  /** The wrapper's classes, e.g. a grid column span. */
+  class?: string;
+}) {
+  return (
+    <label class={['fieldset', props.class]}>
+      <span class="fieldset-legend">{props.label}</span>
+      <textarea
+        name={props.name}
+        rows={props.rows}
+        maxlength={props.maxlength}
+        class="validator textarea w-full"
+        aria-invalid={ariaInvalid(props.invalid)}
+      >
+        {props.value ?? ''}
+      </textarea>
+      <FieldError fault={props.invalid} />
+      <Show when={props.hint}>
+        {(hint) => <span class="label whitespace-normal">{hint()}</span>}
+      </Show>
     </label>
   );
 }
@@ -137,7 +197,7 @@ export function Select(props: {
   value: string | number | null | undefined;
   options: Option[];
   none?: string;
-  invalid: boolean;
+  invalid: Fault;
 }) {
   const current = () => String(props.value ?? '');
   return (
@@ -145,8 +205,8 @@ export function Select(props: {
       <span class="fieldset-legend">{props.label}</span>
       <select
         name={props.name}
-        class={['select w-full', { 'select-error': props.invalid }]}
-        aria-invalid={props.invalid ? 'true' : undefined}
+        class="validator select w-full"
+        aria-invalid={ariaInvalid(props.invalid)}
       >
         <Show when={props.none}>
           {(label) => (
@@ -163,6 +223,7 @@ export function Select(props: {
           )}
         </For>
       </select>
+      <FieldError fault={props.invalid} />
     </label>
   );
 }

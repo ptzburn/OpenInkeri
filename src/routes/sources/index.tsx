@@ -7,7 +7,7 @@ import AddIcon from '~icons/ri/add-line';
 
 import type { QueryData } from '~/lib/query-data';
 import { localName } from '~/lib/format';
-import { isRecordKind } from '~/lib/record-kinds';
+import { type SourceLanguage, sourceLanguages } from '~/lib/record-kinds';
 import { recordKindLabels, sourceLanguageLabels } from '~/components/labels';
 import EditLinkCell from '~/components/edit-link-cell';
 import { getCurrentUser } from '~/data/session';
@@ -92,8 +92,11 @@ export default function Sources() {
 const years = (from: number | null, to: number | null) =>
   from && to && from !== to ? `${from}–${to}` : String(from ?? to ?? '');
 
+// A language's name, or its code when the app has no name for it.
+const languageName = (code: string | null) =>
+  sourceLanguages.find((l) => l === code) ? sourceLanguageLabels[code as SourceLanguage]() : code;
+
 function SourceTableRow(props: { source: SourceRow; editHref?: string }) {
-  const language = () => props.source.language;
   return (
     <tr>
       <td>
@@ -107,17 +110,10 @@ function SourceTableRow(props: { source: SourceRow; editHref?: string }) {
       <td class="whitespace-nowrap tabular-nums">
         {years(props.source.yearFrom, props.source.yearTo)}
       </td>
-      <td>
-        {(() => {
-          const code = language();
-          return code && code in sourceLanguageLabels
-            ? sourceLanguageLabels[code as keyof typeof sourceLanguageLabels]()
-            : code;
-        })()}
-      </td>
+      <td>{languageName(props.source.language)}</td>
       {/* The count opens the records of the source's type. */}
       <td class="text-right tabular-nums">
-        <Show when={props.source.records && isRecordKind(props.source.kind)} fallback={0}>
+        <Show when={props.source.records} fallback={0}>
           <a
             href={paths.records({
               kind: props.source.kind === 'baptisms' ? undefined : props.source.kind,

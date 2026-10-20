@@ -18,6 +18,7 @@ import {
   fieldsAtFault,
   line,
   optionalId,
+  parseForm,
   refuse,
   requiredLine,
   rowId,
@@ -166,14 +167,9 @@ const form = v.pipe(
 export const saveSource = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = v.safeParse(form, Object.fromEntries(formData));
+  const parsed = parseForm(form, Object.fromEntries(formData));
   if (!parsed.success) {
-    const fields = fieldsAtFault(parsed.issues);
-    const message =
-      fields.includes('yearTo') && !fields.includes('yearFrom')
-        ? m.source_years_order()
-        : m.form_invalid();
-    throw refuse({ message, fields }, 400);
+    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }
   const { id, version, ...fields } = parsed.output;
 
@@ -183,14 +179,14 @@ export const saveSource = action(async (formData: FormData) => {
     throw refuse({ message: m.source_edit_conflict() }, 409);
   }
   if (before && before.kind !== fields.kind && (await countRecords(before.id))) {
-    throw refuse({ message: m.source_kind_locked(), fields: ['kind'] }, 409);
+    throw refuse({ message: m.form_invalid(), fields: { kind: m.source_kind_locked() } }, 409);
   }
   // A parish deleted since the page loaded.
   if (
     fields.parishId &&
     !(await db.query.parish.findFirst({ where: { id: fields.parishId }, columns: { id: true } }))
   ) {
-    throw refuse({ message: m.form_invalid(), fields: ['parishId'] }, 400);
+    throw refuse({ message: m.form_invalid(), fields: { parishId: '' } }, 400);
   }
 
   const stamp = { updatedAt: new Date(), updatedBy: user.id };

@@ -16,6 +16,7 @@ import {
   fieldsAtFault,
   finnishName,
   optionalId,
+  parseForm,
   refuse,
   rowId,
   russianName,
@@ -145,7 +146,7 @@ const form = v.object({
 export const saveParish = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = v.safeParse(form, Object.fromEntries(formData));
+  const parsed = parseForm(form, Object.fromEntries(formData));
   if (!parsed.success) {
     throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }
@@ -165,7 +166,7 @@ export const saveParish = action(async (formData: FormData) => {
       columns: { id: true },
     }))
   ) {
-    throw refuse({ message: m.form_invalid(), fields: ['churchPlaceId'] }, 400);
+    throw refuse({ message: m.form_invalid(), fields: { churchPlaceId: '' } }, 400);
   }
 
   const stamp = { updatedAt: new Date(), updatedBy: user.id };

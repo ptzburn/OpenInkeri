@@ -1,8 +1,10 @@
-import { Loading } from 'solid-js';
+import { Loading, flush } from 'solid-js';
+import { captureArtifact } from '@solidjs/diagnostics';
 import '@solidjs/diagnostics/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
+import type { FormError } from '~/lib/form-error';
 import { ToastProvider } from '~/components/toaster';
 import { Router } from '~/router';
 
@@ -14,6 +16,7 @@ const { me, sources } = vi.hoisted(() => {
   const sources = {
     saved: [] as FormData[],
     deleted: [] as FormData[],
+    failWith: null as null | FormError,
     list: () => [
       {
         id: 1,
@@ -75,6 +78,7 @@ vi.mock('~/data/sources', async () => {
         : null;
     }),
     saveSource: action(async (form: FormData) => {
+      if (sources.failWith) throw sources.failWith;
       sources.saved.push(form);
       throw redirect('/sources');
     }, 'save-source'),
@@ -106,6 +110,7 @@ afterEach(() => {
   me.current = null;
   sources.saved = [];
   sources.deleted = [];
+  sources.failWith = null;
 });
 
 describe('/sources', () => {
@@ -128,6 +133,29 @@ describe('/sources', () => {
     expect(screen.queryByRole('link', { name: 'Edit source' })).toBeNull();
   });
 
+  test('opening a source to edit from the list causes no diagnostics', async () => {
+    // A first visit loads the edit page's code; the capture is the second.
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/edit');
+    await waitFor(() => expect(field('title')).toBeTruthy());
+    cleanup();
+
+    me.current = { isAdmin: true };
+    renderAt('/sources');
+    await screen.findByText('Губаницы: список рожденных и крещенных');
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(screen.getAllByRole('link', { name: 'Edit source' })[0]);
+        await waitFor(() =>
+          expect(field('title')).toHaveValue('Губаницы: список рожденных и крещенных'),
+        );
+        flush();
+      },
+      { scenario: 'sources-open-edit' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+  });
+
   test('a new source starts empty and is saved with what was typed', async () => {
     me.current = { isAdmin: true };
     renderAt('/sources');
@@ -147,6 +175,30 @@ describe('/sources', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Source “Губаницы: венчания 1920-х” added.',
     );
+  });
+
+  test('a refused save says why under the fields at fault', async () => {
+    me.current = { isAdmin: true };
+    sources.failWith = {
+      message: 'Check the marked fields.',
+      fields: { yearTo: 'The first year is after the last.', archiveReference: '' },
+    };
+    renderAt('/sources/5/edit');
+    await waitFor(() => expect(field('title')).toBeTruthy());
+    // Each field's error waits, hidden, for the browser or the server.
+    expect(field('yearFrom')!.nextElementSibling).toHaveTextContent('Four digits, e.g. 1895');
+    expect(field('yearFrom')!.nextElementSibling).toHaveClass('validator-hint', 'hidden');
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Check the marked fields.');
+    expect(window.location.pathname).toBe('/sources/5/edit');
+    expect(field('yearTo')).toHaveAttribute('aria-invalid', 'true');
+    expect(field('yearTo')!.nextElementSibling).toHaveTextContent(
+      'The first year is after the last.',
+    );
+    // No reason of the server's own: the field's own error says it.
+    expect(field('archiveReference')!.nextElementSibling).toHaveTextContent('Check this value.');
+    expect(field('yearFrom')).not.toHaveAttribute('aria-invalid');
   });
 
   test('a source with records keeps its type and cannot be deleted', async () => {

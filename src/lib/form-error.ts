@@ -8,7 +8,10 @@ export interface ActionError {
   message: string;
 }
 
-/** A refused save: a message, and the names of the fields at fault. */
+/**
+ * A refused save: a message, and the fields at fault by name, each with why
+ * ('' when the server has no reason of its own: the field's hint says it).
+ */
 export interface FormError extends ActionError {
-  fields?: string[];
+  fields?: Record<string, string>;
 }

@@ -44,6 +44,7 @@ import {
   fieldsAtFault,
   finnishName,
   optionalId,
+  parseForm,
   refuse,
   rowId,
   russianName,
@@ -288,7 +289,7 @@ const form = v.object({
 export const savePlace = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = v.safeParse(form, Object.fromEntries(formData));
+  const parsed = parseForm(form, Object.fromEntries(formData));
   if (!parsed.success) {
     throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }

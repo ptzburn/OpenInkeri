@@ -65,10 +65,22 @@ export const version = v.pipe(
   v.integer(),
 );
 
-/** The form fields a failed parse found at fault, by name. */
-export function fieldsAtFault(issues: readonly v.BaseIssue<unknown>[]): string[] {
-  const keys = issues.map((issue) => issue.path?.[0]?.key);
-  return [...new Set(keys.filter((key): key is string => typeof key === 'string'))];
+/**
+ * Parses a form's values. An issue without a message of its own gets '',
+ * not Valibot's English one, so fieldsAtFault passes on only the reasons
+ * the app wrote (in the reader's language).
+ */
+export const parseForm = <S extends v.GenericSchema>(schema: S, input: unknown) =>
+  v.safeParse(schema, input, { message: '' });
+
+/** The form fields a failed parseForm found at fault, by name, each with its first reason. */
+export function fieldsAtFault(issues: readonly v.BaseIssue<unknown>[]): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const issue of issues) {
+    const key = issue.path?.[0]?.key;
+    if (typeof key === 'string') fields[key] ||= issue.message;
+  }
+  return fields;
 }
 
 /**

@@ -5,9 +5,13 @@ import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
 import {
   DeleteSection,
+  type Fault,
+  FieldError,
   FormActions,
   Select,
+  TextArea,
   TextInput,
+  ariaInvalid,
   useFormDone,
   useFormErrors,
 } from '~/components/form-fields';
@@ -30,6 +34,7 @@ import {
 import { type RecordKind, baptismLocations, recordStatuses, sexes } from '~/lib/record-kinds';
 import {
   type EditedRole,
+  type ListKind,
   type PersonField,
   editedRoles,
   isListKind,
@@ -128,8 +133,6 @@ export default function RecordEditForm(props: {
     (): Option[] => (options()?.relations ?? []).map((t) => ({ value: t.id, label: t.name })),
     { name: 'edit-relations' },
   );
-  // Blank people at the end of a list's form, to add.
-  const [added, setAdded] = createSignal(1, { name: 'edit-added-people' });
   const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
   // This form's refused saves (the latest shown, its fields marked).
   const { error, invalid } = useFormErrors(saveRecord, isThisForm);
@@ -230,18 +233,15 @@ export default function RecordEditForm(props: {
                       invalid={invalid}
                     />
                   </Show>
-                  <label class="fieldset sm:col-span-2">
-                    <span class="fieldset-legend">{m.records_col_note()}</span>
-                    <textarea
-                      name="note"
-                      maxlength={FIELD_MAX.text}
-                      rows={3}
-                      class={['textarea w-full', { 'textarea-error': invalid('note') }]}
-                      aria-invalid={invalid('note') ? 'true' : undefined}
-                    >
-                      {r.note ?? ''}
-                    </textarea>
-                  </label>
+                  <TextArea
+                    name="note"
+                    label={m.records_col_note()}
+                    value={r.note}
+                    rows={3}
+                    maxlength={FIELD_MAX.text}
+                    invalid={invalid('note')}
+                    class="sm:col-span-2"
+                  />
                 </Section>
 
                 <Show when={r.kind === 'baptisms'}>
@@ -399,47 +399,14 @@ export default function RecordEditForm(props: {
                   }
                 >
                   {(kind) => (
-                    <>
-                      <For each={r.members}>
-                        {(person, i) => (
-                          <PersonFields
-                            prefix={`members.${i()}`}
-                            legend={`${i() + 1}. ${
-                              relations().find((t) => t.value === person.relationTermId)?.label ??
-                              person.relationText ??
-                              ''
-                            }`}
-                            fields={listFields[kind()]}
-                            person={person}
-                            latin={languageOf(r)}
-                            places={places()}
-                            relations={relations()}
-                            invalid={invalid}
-                          />
-                        )}
-                      </For>
-                      <For each={Array.from({ length: added() }, (_, k) => r.members.length + k)}>
-                        {(n) => (
-                          <PersonFields
-                            prefix={`members.${n}`}
-                            legend={`${n + 1}. ${m.record_edit_new_person()}`}
-                            fields={listFields[kind()]}
-                            person={null}
-                            latin={languageOf(r)}
-                            places={places()}
-                            relations={relations()}
-                            invalid={invalid}
-                          />
-                        )}
-                      </For>
-                      <button
-                        type="button"
-                        class="btn self-start"
-                        onClick={() => setAdded((n) => n + 1)}
-                      >
-                        {m.record_edit_add_person()}
-                      </button>
-                    </>
+                    <ListPeople
+                      kind={kind()}
+                      members={r.members}
+                      latin={languageOf(r)}
+                      places={places()}
+                      relations={relations()}
+                      invalid={invalid}
+                    />
                   )}
                 </Show>
               </section>
@@ -474,6 +441,68 @@ export default function RecordEditForm(props: {
   );
 }
 
+// A list's people, numbered in the form ("members.0.nameRu"), then blank
+// ones to add: one, and another for each click on Add person. It is drawn
+// inside the form's keyed Show, so each record starts again with one blank.
+function ListPeople(props: {
+  kind: ListKind;
+  members: RecordEditPerson[];
+  latin: string | null;
+  places: Option[];
+  relations: Option[];
+  invalid: (field: string) => Fault;
+}) {
+  const [added, setAdded] = createSignal(1, { name: 'edit-added-people' });
+  // The blanks' numbers, after the people already on the record.
+  const blanks = createMemo(
+    () => {
+      const first = props.members.length;
+      return Array.from({ length: added() }, (_, k) => first + k);
+    },
+    { name: 'edit-blank-people' },
+  );
+
+  return (
+    <>
+      <For each={props.members}>
+        {(person, i) => (
+          <PersonFields
+            prefix={`members.${i()}`}
+            legend={`${i() + 1}. ${
+              props.relations.find((t) => t.value === person.relationTermId)?.label ??
+              person.relationText ??
+              ''
+            }`}
+            fields={listFields[props.kind]}
+            person={person}
+            latin={props.latin}
+            places={props.places}
+            relations={props.relations}
+            invalid={props.invalid}
+          />
+        )}
+      </For>
+      <For each={blanks()}>
+        {(n) => (
+          <PersonFields
+            prefix={`members.${n}`}
+            legend={`${n + 1}. ${m.record_edit_new_person()}`}
+            fields={listFields[props.kind]}
+            person={null}
+            latin={props.latin}
+            places={props.places}
+            relations={props.relations}
+            invalid={props.invalid}
+          />
+        )}
+      </For>
+      <button type="button" class="btn self-start" onClick={() => setAdded((n) => n + 1)}>
+        {m.record_edit_add_person()}
+      </button>
+    </>
+  );
+}
+
 // A place picked from the list, and the place as the source writes it.
 function PlaceInputs(props: {
   idName: string;
@@ -482,7 +511,7 @@ function PlaceInputs(props: {
   id: number | null | undefined;
   text: string | null | undefined;
   places: Option[];
-  invalid: (field: string) => boolean;
+  invalid: (field: string) => Fault;
 }) {
   return (
     <>
@@ -529,7 +558,7 @@ function PersonFields(props: {
   latin: string | null;
   places: Option[];
   relations: Option[];
-  invalid: (field: string) => boolean;
+  invalid: (field: string) => Fault;
 }) {
   const field = (name: string) => `${props.prefix}.${name}`;
   const value = (name: string) =>
@@ -657,17 +686,17 @@ function PersonFields(props: {
             {([part, label]) => (
               <>
                 <span class="text-sm">{label()}</span>
-                <input
+                <NamePartInput
                   name={field(`${part}Ru`)}
-                  value={value(`${part}Ru`) ?? ''}
-                  aria-label={`${label()}, ${m.record_edit_part_ru()}`}
-                  class="input input-sm w-full"
+                  value={value(`${part}Ru`)}
+                  label={`${label()}, ${m.record_edit_part_ru()}`}
+                  invalid={props.invalid(field(`${part}Ru`))}
                 />
-                <input
+                <NamePartInput
                   name={field(`${part}Fi`)}
-                  value={value(`${part}Fi`) ?? ''}
-                  aria-label={`${label()}, ${swedish() ? m.record_edit_part_sv() : m.record_edit_part_fi()}`}
-                  class="input input-sm w-full"
+                  value={value(`${part}Fi`)}
+                  label={`${label()}, ${swedish() ? m.record_edit_part_sv() : m.record_edit_part_fi()}`}
+                  invalid={props.invalid(field(`${part}Fi`))}
                 />
               </>
             )}
@@ -675,6 +704,28 @@ function PersonFields(props: {
         </div>
       </div>
     </fieldset>
+  );
+}
+
+// One cell of the name parts grid: its label is the row's and the column's.
+function NamePartInput(props: {
+  name: string;
+  value: string | null;
+  label: string;
+  invalid: Fault;
+}) {
+  return (
+    <div class="flex flex-col">
+      <input
+        name={props.name}
+        value={props.value ?? ''}
+        maxlength={FIELD_MAX.text}
+        aria-label={props.label}
+        class="validator input input-sm w-full"
+        aria-invalid={ariaInvalid(props.invalid)}
+      />
+      <FieldError fault={props.invalid} />
+    </div>
   );
 }
 
@@ -693,21 +744,19 @@ function DateInput(props: {
   name: string;
   label: string;
   value: string | null | undefined;
-  invalid: boolean;
+  invalid: Fault;
 }) {
   return (
-    <label class="fieldset">
-      <span class="fieldset-legend">{props.label}</span>
-      <input
-        name={props.name}
-        value={formatPartialDate(props.value)}
-        pattern={PARTIAL_DATE_PATTERN}
-        inputmode="numeric"
-        class={['input w-full', { 'input-error': props.invalid }]}
-        aria-invalid={props.invalid ? 'true' : undefined}
-      />
-      <span class="label">{m.record_edit_date_hint()}</span>
-    </label>
+    <TextInput
+      name={props.name}
+      label={props.label}
+      value={formatPartialDate(props.value)}
+      pattern={PARTIAL_DATE_PATTERN}
+      inputmode="numeric"
+      maxlength={FIELD_MAX.line}
+      hint={m.record_edit_date_hint()}
+      invalid={props.invalid}
+    />
   );
 }
 

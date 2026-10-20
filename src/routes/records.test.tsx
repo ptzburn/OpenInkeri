@@ -4,6 +4,7 @@ import '@solidjs/diagnostics/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
+import type { FormError } from '~/lib/form-error';
 import { ToastProvider } from '~/components/toaster';
 import { Router } from '~/router';
 
@@ -158,7 +159,7 @@ const { me, editing } = vi.hoisted(() => {
   const editing = {
     saved: [] as FormData[],
     deleted: [] as FormData[],
-    failWith: null as null | { message: string; fields?: string[] },
+    failWith: null as null | FormError,
     record: () => ({
       id: 2,
       kind: 'baptisms' as const,
@@ -586,7 +587,10 @@ describe('editing a baptism', () => {
   });
 
   test('a refused save stays, says why and marks the fields', async () => {
-    editing.failWith = { message: 'Check the marked fields.', fields: ['date'] };
+    editing.failWith = {
+      message: 'Check the marked fields.',
+      fields: { date: '', sourceId: 'That source holds another type of record.' },
+    };
     const form = await openMaria();
     fireEvent.submit(form);
 
@@ -594,6 +598,11 @@ describe('editing a baptism', () => {
     expect(window.location.pathname).toBe('/records/2/edit');
     expect(field('date')).toHaveAttribute('aria-invalid', 'true');
     expect(field('birthDate')).not.toHaveAttribute('aria-invalid');
+    // Under each field, why: the server's reason, or to check the value.
+    expect(field('sourceId').nextElementSibling).toHaveTextContent(
+      'That source holds another type of record.',
+    );
+    expect(field('date').nextElementSibling).toHaveTextContent('Check this value.');
   });
 
   test('Cancel and the back link return to the list unsaved', async () => {
@@ -688,6 +697,28 @@ describe('editing a household', () => {
     expect(field('estateText')).toBeNull();
   });
 
+  test('opening a household and adding people cause no diagnostics', async () => {
+    // A first visit loads the edit page's code behind the spinner; the
+    // capture is the second opening, from the list, and Add person.
+    await openHousehold();
+    cleanup();
+
+    me.current = { isAdmin: true };
+    renderAt('/records?kind=households');
+    await screen.findByText('Myyry Nikolai Kaarlonp.');
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(screen.getByRole('link', { name: 'Edit record' }));
+        await waitFor(() => expect(field('members.2.nameFi')).toBeTruthy());
+        fireEvent.click(screen.getByRole('button', { name: 'Add person' }));
+        await waitFor(() => expect(field('members.3.nameFi')).toBeTruthy());
+        flush();
+      },
+      { scenario: 'household-edit-add-person' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+  });
+
   test('Add person brings another blank, and a save posts them all', async () => {
     const form = await openHousehold();
     fireEvent.click(screen.getByRole('button', { name: 'Add person' }));
@@ -728,6 +759,28 @@ describe('adding and deleting records', () => {
     expect(sources).toEqual(['Губаницы: умершие']);
     // Nothing to delete yet.
     expect(screen.queryByRole('button', { name: 'Delete record' })).toBeNull();
+  });
+
+  test('opening a new record from the list causes no diagnostics', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?kind=households');
+    await waitFor(() => expect(field('members.0.nameFi')).toBeTruthy());
+    cleanup();
+
+    me.current = { isAdmin: true };
+    renderAt('/records?kind=households');
+    const add = await screen.findByRole('link', { name: 'Add record' });
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(add);
+        // A new household: one blank person, none on the record yet.
+        await waitFor(() => expect(field('members.0.nameFi')).toBeTruthy());
+        expect(field('members.1.nameFi')).toBeNull();
+        flush();
+      },
+      { scenario: 'record-new-open' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
   });
 
   test('a new record is saved with its source and page, and confirmed with a toast', async () => {

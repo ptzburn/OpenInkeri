@@ -8,6 +8,7 @@ import {
   DeleteSection,
   FormActions,
   Select,
+  TextArea,
   TextInput,
   postedName,
   useFormDone,
@@ -117,18 +118,15 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
                 />
                 <p class="label">{m.parish_church_hint()}</p>
               </div>
-              <label class="fieldset sm:col-span-2">
-                <span class="fieldset-legend">{m.form_note()}</span>
-                <textarea
-                  name="note"
-                  rows={4}
-                  maxlength={FIELD_MAX.text}
-                  class={['textarea w-full', { 'textarea-error': invalid('note') }]}
-                  aria-invalid={invalid('note') ? 'true' : undefined}
-                >
-                  {p.note ?? ''}
-                </textarea>
-              </label>
+              <TextArea
+                name="note"
+                label={m.form_note()}
+                value={p.note}
+                rows={4}
+                maxlength={FIELD_MAX.text}
+                invalid={invalid('note')}
+                class="sm:col-span-2"
+              />
             </div>
 
             <FormActions

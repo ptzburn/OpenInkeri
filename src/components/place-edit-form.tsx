@@ -9,6 +9,7 @@ import {
   DeleteSection,
   FormActions,
   Select,
+  TextArea,
   TextInput,
   postedName,
   useFormDone,
@@ -159,30 +160,22 @@ export default function PlaceEditForm(props: {
                   {m.villages_show_on_map()}
                 </a>
               </Show>
-              <label class="fieldset">
-                <span class="fieldset-legend">{m.place_edit_spellings()}</span>
-                <textarea
-                  name="spellings"
-                  rows={6}
-                  class={['textarea w-full', { 'textarea-error': invalid('spellings') }]}
-                  aria-invalid={invalid('spellings') ? 'true' : undefined}
-                >
-                  {p.spellings.join('\n')}
-                </textarea>
-                <span class="label whitespace-normal">{m.place_edit_spellings_hint()}</span>
-              </label>
-              <label class="fieldset">
-                <span class="fieldset-legend">{m.form_note()}</span>
-                <textarea
-                  name="note"
-                  maxlength={FIELD_MAX.text}
-                  rows={6}
-                  class={['textarea w-full', { 'textarea-error': invalid('note') }]}
-                  aria-invalid={invalid('note') ? 'true' : undefined}
-                >
-                  {p.note ?? ''}
-                </textarea>
-              </label>
+              <TextArea
+                name="spellings"
+                label={m.place_edit_spellings()}
+                value={p.spellings.join('\n')}
+                rows={6}
+                hint={m.place_edit_spellings_hint()}
+                invalid={invalid('spellings')}
+              />
+              <TextArea
+                name="note"
+                label={m.form_note()}
+                value={p.note}
+                rows={6}
+                maxlength={FIELD_MAX.text}
+                invalid={invalid('note')}
+              />
             </div>
 
             <FormActions

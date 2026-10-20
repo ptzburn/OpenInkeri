@@ -53,7 +53,16 @@ import {
   recordHolding,
   source,
 } from '~/server/database/schema';
-import { fieldsAtFault, line, optionalId, refuse, rowId, text, version } from '~/server/forms';
+import {
+  fieldsAtFault,
+  line,
+  optionalId,
+  parseForm,
+  refuse,
+  rowId,
+  text,
+  version,
+} from '~/server/forms';
 import { adminOnly, signedIn } from '~/server/guards';
 
 export const RECORDS_PAGE_SIZE = 50;
@@ -529,7 +538,7 @@ export const saveRecord = action(async (formData: FormData) => {
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
   const id = v.safeParse(optionalId, entries.id);
-  if (!id.success) throw refuse({ message: m.form_invalid(), fields: ['id'] }, 400);
+  if (!id.success) throw refuse({ message: m.form_invalid(), fields: { id: '' } }, 400);
   const sourceId = v.safeParse(recordId, entries.sourceId);
   const chosen = sourceId.success
     ? await db.query.source.findFirst({
@@ -537,7 +546,7 @@ export const saveRecord = action(async (formData: FormData) => {
         columns: { id: true, kind: true },
       })
     : null;
-  if (!chosen) throw refuse({ message: m.form_invalid(), fields: ['sourceId'] }, 400);
+  if (!chosen) throw refuse({ message: m.form_invalid(), fields: { sourceId: '' } }, 400);
 
   // An existing record keeps its type: it can move only to another source
   // of the same type. A new one takes its source's.
@@ -545,11 +554,14 @@ export const saveRecord = action(async (formData: FormData) => {
   if (id.output && !existing) throw refuse({ message: m.record_edit_missing() }, 404);
   const kind = existing?.source.kind ?? chosen.kind;
   if (chosen.kind !== kind) {
-    throw refuse({ message: m.record_edit_source_kind(), fields: ['sourceId'] }, 400);
+    throw refuse(
+      { message: m.form_invalid(), fields: { sourceId: m.record_edit_source_kind() } },
+      400,
+    );
   }
   const indexes = memberIndexes(entries);
   if (indexes.length > MAX_MEMBERS) throw refuse({ message: m.form_invalid() }, 400);
-  const parsed = v.safeParse(formOf(kind, indexes), entries);
+  const parsed = parseForm(formOf(kind, indexes), entries);
   if (!parsed.success) {
     throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }

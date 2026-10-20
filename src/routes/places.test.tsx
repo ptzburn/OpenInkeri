@@ -4,6 +4,7 @@ import '@solidjs/diagnostics/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
+import type { FormError } from '~/lib/form-error';
 import { ToastProvider } from '~/components/toaster';
 import { Router } from '~/router';
 
@@ -13,7 +14,7 @@ const { me, places } = vi.hoisted(() => {
   const me: { current: { isAdmin: boolean } | null } = { current: null };
   const places = {
     saved: [] as FormData[],
-    failWith: null as null | { message: string; fields?: string[] },
+    failWith: null as null | FormError,
     deleted: [] as FormData[],
     // What links to Горки on its edit page.
     uses: { records: 0, birthplaces: 0, churches: 0 },
@@ -317,7 +318,7 @@ describe('editing a village', () => {
   });
 
   test('a refused save stays, says why and marks the fields', async () => {
-    places.failWith = { message: 'Check the marked fields.', fields: ['coordinates'] };
+    places.failWith = { message: 'Check the marked fields.', fields: { coordinates: '' } };
     const form = await openGorki();
     fireEvent.submit(form);
 
@@ -600,7 +601,7 @@ describe('reactivity', () => {
 
   test('a refused save', async () => {
     me.current = { isAdmin: true };
-    places.failWith = { message: 'Check the marked fields.', fields: ['coordinates'] };
+    places.failWith = { message: 'Check the marked fields.', fields: { coordinates: '' } };
     renderAt('/places/villages/1/edit');
     await waitFor(() => expect(field('nameRu')).toHaveValue('Горки'));
     await capture('village-save-refused', async () => {
