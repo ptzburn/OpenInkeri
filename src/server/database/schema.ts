@@ -263,6 +263,9 @@ export const person = snakeCase.table('person', {
   birthDate: text(),
   deathDate: text(),
   note: text(),
+  // The names in one lowercase string (ё as е), for searching, as
+  // record.searchText: see ~/lib/search-text.
+  searchText: text(),
   ...audit(),
 });
 

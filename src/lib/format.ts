@@ -30,6 +30,11 @@ export function formatPartialDate(date: string | null | undefined): string {
     .join('.');
 }
 
+/** A person's life years as known: 12.3.1895–1960, 1895–, –1960; '' when neither is. */
+export function lifespan(born: string | null, died: string | null): string {
+  return born || died ? `${formatPartialDate(born)}–${formatPartialDate(died)}` : '';
+}
+
 /**
  * The reverse of formatPartialDate: '12.3.1895', '3.1895' or '1895' (leading
  * zeros allowed) as stored, '1895-03-12'. '' is null; anything else, or a

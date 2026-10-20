@@ -5,6 +5,7 @@ import Book from '~icons/ri/book-open-line';
 import Map from '~icons/ri/map-2-line';
 import MapPin from '~icons/ri/map-pin-2-line';
 import Team from '~icons/ri/team-line';
+import Group from '~icons/ri/group-line';
 // Typed client env, validated and baked in at build time (see env.ts).
 import { env } from 'virtual:env/client';
 
@@ -45,6 +46,12 @@ export default function Sidebar() {
                 <a class="data-active:menu-active" href={paths.records()}>
                   <Book class="size-5" aria-hidden="true" />
                   {m.records_title()}
+                </a>
+              </li>
+              <li>
+                <a class="data-active:menu-active" href={paths.people()}>
+                  <Group class="size-5" aria-hidden="true" />
+                  {m.people_title()}
                 </a>
               </li>
               <li>

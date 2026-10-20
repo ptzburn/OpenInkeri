@@ -1,16 +1,14 @@
 import { Title } from '@solidjs/meta';
 import { useSearchParams } from '@solidjs/router';
-import type { JSX } from '@solidjs/web';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createMemo, isPending } from 'solid-js';
 import { env } from 'virtual:env/client';
-import PreviousIcon from '~icons/ri/arrow-left-s-line';
-import NextIcon from '~icons/ri/arrow-right-s-line';
 import AddIcon from '~icons/ri/add-line';
 
 import type { QueryData } from '~/lib/query-data';
 import { recordKindLabels } from '~/components/labels';
 import EditLinkCell from '~/components/edit-link-cell';
+import Pagination from '~/components/pagination';
 import SearchBox from '~/components/search-box';
 import { getCurrentUser } from '~/data/session';
 import { formatPartialDate, localName, localTerm } from '~/lib/format';
@@ -155,61 +153,15 @@ export default function Records() {
               </tbody>
             </table>
           </div>
-          <Show when={(list()?.pages ?? 1) > 1}>
-            <nav
-              aria-label={m.records_pagination_label()}
-              class="mt-4 flex items-center justify-center gap-4"
-            >
-              <div class="join">
-                <PageLink
-                  href={pageLink((list()?.page ?? 1) - 1)}
-                  disabled={(list()?.page ?? 1) <= 1}
-                  label={m.records_previous()}
-                >
-                  <PreviousIcon class="size-5" aria-hidden="true" />
-                </PageLink>
-                <span class="join-item btn pointer-events-none btn-sm">
-                  {m.records_page_of({ page: list()?.page ?? 1, pages: list()?.pages ?? 1 })}
-                </span>
-                <PageLink
-                  href={pageLink((list()?.page ?? 1) + 1)}
-                  disabled={(list()?.page ?? 1) >= (list()?.pages ?? 1)}
-                  label={m.records_next()}
-                >
-                  <NextIcon class="size-5" aria-hidden="true" />
-                </PageLink>
-              </div>
-            </nav>
-          </Show>
+          <Pagination
+            page={list()?.page ?? 1}
+            pages={list()?.pages ?? 1}
+            link={pageLink}
+            label={m.records_pagination_label()}
+          />
         </Show>
       </div>
     </main>
-  );
-}
-
-function PageLink(props: {
-  href: string;
-  disabled: boolean;
-  label: string;
-  children: JSX.Element;
-}) {
-  return (
-    <Show
-      when={!props.disabled}
-      fallback={
-        <span
-          class="join-item btn btn-disabled btn-sm"
-          aria-disabled="true"
-          aria-label={props.label}
-        >
-          {props.children}
-        </span>
-      }
-    >
-      <a href={props.href} class="join-item btn btn-sm" aria-label={props.label}>
-        {props.children}
-      </a>
-    </Show>
   );
 }
 

@@ -188,7 +188,13 @@ const { me, editing } = vi.hoisted(() => {
       death: null,
       people: {
         child: person({ id: 10, role: 'child', sex: 'female', nameRu: 'Мария', givenRu: 'Мария' }),
-        father: person({ id: 11, role: 'father', sex: 'male', nameRu: 'Иоанн Адамов Варис' }),
+        father: person({
+          id: 11,
+          role: 'father',
+          sex: 'male',
+          nameRu: 'Иоанн Адамов Варис',
+          person: { id: 7, name: { ru: 'Иван Варис', fi: 'Juho Varis' } },
+        }),
         mother: null,
       },
     }),
@@ -267,6 +273,7 @@ const { me, editing } = vi.hoisted(() => {
     const other = ['sex', 'birthDate', 'deathDate', 'origin', 'ageText', 'rankText'].concat(
       ['religionText', 'civilStatusText', 'residenceText', 'residenceId', 'birthplaceText'],
       ['birthplaceId', 'relationText', 'relationTermId', 'hasWife', 'note', 'noteOriginal'],
+      ['person'],
     );
     return {
       ...Object.fromEntries([...names, ...other].map((name) => [name, null])),
@@ -503,6 +510,16 @@ describe('editing a baptism', () => {
   }
   const field = (name: string) =>
     document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
+
+  test('each saved mention links to its person, or to linking one', async () => {
+    await openMaria();
+    // The father is linked to a person; the child isn't yet.
+    expect(screen.getByRole('link', { name: 'Juho Varis' })).toHaveAttribute('href', '/people/7');
+    expect(screen.getByRole('link', { name: 'Link to person' })).toHaveAttribute(
+      'href',
+      '/people/link/10',
+    );
+  });
 
   test('opening the edit page from the list causes no diagnostics', async () => {
     // A first visit loads the edit page's code behind the spinner (in the

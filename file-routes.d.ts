@@ -61,6 +61,30 @@ declare module "virtual:file-routes" {
       $$route?: undefined;
     },
     {
+      path: "/people/:id/edit";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/people/[id]/edit")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/people/[id]/edit")>;
+    },
+    {
+      path: "/people/:id/";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/people/[id]/index")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/people/[id]/index")>;
+    },
+    {
+      path: "/people/";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/people/index")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/people/index")>;
+    },
+    {
+      path: "/people/link/:persona";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/people/link/[persona]")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/people/link/[persona]")>;
+    },
+    {
       path: "/places/parishes/:id/edit";
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/places/parishes/[id]/edit")>;
@@ -211,6 +235,14 @@ declare module "virtual:file-routes" {
       children?: undefined;
     },
     {
+      path: "/people/";
+      id: "/people/";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/people/index")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/people/index")>;
+      children?: undefined;
+    },
+    {
       path: "/sign-in";
       id: "/sign-in";
       page: true;
@@ -235,6 +267,14 @@ declare module "virtual:file-routes" {
       children?: undefined;
     },
     {
+      path: "/people/:id/";
+      id: "/people/:id/";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/people/[id]/index")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/people/[id]/index")>;
+      children?: undefined;
+    },
+    {
       path: "/records/new";
       id: "/records/new";
       page: true;
@@ -248,6 +288,14 @@ declare module "virtual:file-routes" {
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/sources/new")>;
       $$route: FileRouteEagerRef<typeof import("./src/routes/sources/new")>;
+      children?: undefined;
+    },
+    {
+      path: "/people/:id/edit";
+      id: "/people/:id/edit";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/people/[id]/edit")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/people/[id]/edit")>;
       children?: undefined;
     },
     {
@@ -296,6 +344,14 @@ declare module "virtual:file-routes" {
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/places/villages/new")>;
       $$route: FileRouteEagerRef<typeof import("./src/routes/places/villages/new")>;
+      children?: undefined;
+    },
+    {
+      path: "/people/link/:persona";
+      id: "/people/link/:persona";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/people/link/[persona]")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/people/link/[persona]")>;
       children?: undefined;
     },
     {

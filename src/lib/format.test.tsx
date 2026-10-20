@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vite-plus/test';
 
-import { describeUserAgent, formatDate, formatPartialDate, parsePartialDate } from './format';
+import {
+  describeUserAgent,
+  formatDate,
+  formatPartialDate,
+  lifespan,
+  parsePartialDate,
+} from './format';
 
 describe('formatDate', () => {
   test('writes day.month.year without leading zeros', () => {
@@ -20,6 +26,15 @@ describe('formatPartialDate', () => {
     expect(formatPartialDate('1895-03')).toBe('3.1895');
     expect(formatPartialDate('1895')).toBe('1895');
     expect(formatPartialDate(null)).toBe('');
+  });
+});
+
+describe('lifespan', () => {
+  test('writes the years known, with a dash between', () => {
+    expect(lifespan('1895-03-02', '1960')).toBe('2.3.1895–1960');
+    expect(lifespan('1895', null)).toBe('1895–');
+    expect(lifespan(null, '1960')).toBe('–1960');
+    expect(lifespan(null, null)).toBe('');
   });
 });
 

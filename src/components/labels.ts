@@ -11,6 +11,7 @@ import type {
   SourceLanguage,
 } from '~/lib/record-kinds';
 import type { EditedRole } from '~/lib/record-people';
+import type { PersonaRole } from '~/server/database/schema';
 import { m } from '~/paraglide/messages.js';
 
 type Labels<T extends string> = Record<T, () => string>;
@@ -59,6 +60,14 @@ export const editedRoleLabels: Labels<EditedRole> = {
   groom: m.records_col_groom,
   bride: m.records_col_bride,
   deceased: m.records_col_deceased,
+};
+
+/** Every role a mention can have, as the person page names it. */
+export const personaRoleLabels: Labels<PersonaRole> = {
+  ...editedRoleLabels,
+  lay_baptizer: m.person_role_lay_baptizer,
+  member: m.person_role_member,
+  taxpayer: m.person_role_taxpayer,
 };
 
 export const placeKindLabels: Labels<PlaceKind> = {

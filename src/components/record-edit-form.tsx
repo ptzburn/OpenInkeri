@@ -22,7 +22,7 @@ import {
   recordStatusLabels,
   sexLabels,
 } from '~/components/labels';
-import { PARTIAL_DATE_PATTERN, formatPartialDate } from '~/lib/format';
+import { PARTIAL_DATE_PATTERN, formatPartialDate, localName } from '~/lib/format';
 import {
   type RecordEditData,
   type RecordEditPerson,
@@ -654,7 +654,32 @@ function PersonFields(props: {
     <fieldset class="fieldset rounded-box border border-base-300 p-4">
       <legend class="fieldset-legend">{props.legend}</legend>
       <Show when={props.person}>
-        {(person) => <input type="hidden" name={field('id')} value={person().id} />}
+        {(person) => (
+          <>
+            <input type="hidden" name={field('id')} value={person().id} />
+            {/* The person this mention is, or a link to say who (a page of
+                its own: what is typed here and not saved yet is left). */}
+            <p class="mb-2 text-sm">
+              <Show
+                when={person().person}
+                fallback={
+                  <a href={paths.people.link(person().id)} class="link">
+                    {m.record_edit_link_person()}
+                  </a>
+                }
+              >
+                {(linked) => (
+                  <>
+                    {m.record_edit_person()}:{' '}
+                    <a href={paths.people(linked().id)()} class="link font-medium">
+                      {localName(linked().name)}
+                    </a>
+                  </>
+                )}
+              </Show>
+            </p>
+          </>
+        )}
       </Show>
       <div class="grid gap-x-4 sm:grid-cols-2">
         <TextInput

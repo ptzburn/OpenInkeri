@@ -17,7 +17,6 @@ import { and, count, eq, sql } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
-import { parsePartialDate } from '~/lib/format';
 import {
   type BaptismLocation,
   type RecordKind,
@@ -58,6 +57,7 @@ import {
   line,
   optionalId,
   parseForm,
+  partialDate,
   refuse,
   rowId,
   text,
@@ -229,6 +229,8 @@ export interface RecordEditPerson extends Record<NameField, string | null> {
   hasWife: boolean | null;
   note: string | null;
   noteOriginal: string | null;
+  /** The person this mention is linked to, by the names on their page. */
+  person: { id: number; name: { ru: string | null; fi: string | null } } | null;
 }
 
 export interface RecordEditData {
@@ -306,6 +308,7 @@ const personaColumns = {
   hasWife: true,
   note: true,
   noteOriginal: true,
+  personId: true,
 } as const;
 
 // A record as the edit form edits it, and as change_log records it.
@@ -339,8 +342,26 @@ export const getRecordEdit = query(async (id: number): Promise<RecordEditData | 
   adminOnly();
   const found = await loadRecord(v.parse(rowId, id));
   if (!found) return null;
-  const { source, personas, ...rest } = found;
+  const { source, personas: mentions, ...rest } = found;
   const kind = source.kind;
+  // Each mention with the person it is linked to.
+  const personIds = [
+    ...new Set(mentions.flatMap((p) => (p.personId === null ? [] : [p.personId]))),
+  ];
+  const linked = new Map(
+    personIds.length
+      ? (
+          await db.query.person.findMany({
+            where: { id: { in: personIds } },
+            columns: { id: true, nameRu: true, nameFi: true },
+          })
+        ).map((p) => [p.id, { id: p.id, name: { ru: p.nameRu, fi: p.nameFi } }])
+      : [],
+  );
+  const personas: RecordEditPerson[] = mentions.map(({ personId, ...p }) => ({
+    ...p,
+    person: personId === null ? null : (linked.get(personId) ?? null),
+  }));
   if (isListKind(kind)) {
     const members = personas.filter((p) => p.role === listRoles[kind]);
     return { ...rest, kind, language: source.language, people: {}, members };
@@ -385,13 +406,6 @@ export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsDat
 
 // --- The form ----------------------------------------------------------------------
 
-// A date typed as on the page (12.3.1895, 3.1895, 1895), stored as ISO.
-const date = v.pipe(
-  v.optional(v.string(), ''),
-  v.transform(parsePartialDate),
-  v.check((d) => d !== undefined),
-  v.transform((d) => d ?? null),
-);
 // A <select> of fixed values, where '' is "none".
 const choice = <T extends readonly [string, ...string[]]>(options: T) =>
   v.pipe(
@@ -419,7 +433,7 @@ const common = {
   sourceId: v.pipe(v.string(), v.transform(Number), rowId),
   page: line(),
   status: v.picklist(recordStatuses),
-  date,
+  date: partialDate,
   note: text,
 };
 
@@ -430,8 +444,8 @@ const place = { placeId: optionalId, placeText: text };
 const kindFields = {
   baptisms: {
     ...place,
-    birthDate: date,
-    emergencyDate: date,
+    birthDate: partialDate,
+    emergencyDate: partialDate,
     officiantId: optionalId,
     officiantText: text,
     location: choice(baptismLocations),
@@ -446,7 +460,7 @@ const kindFields = {
   marriages: {},
   deaths: {
     ...place,
-    burialDate: date,
+    burialDate: partialDate,
     burialPlaceText: text,
     causeText: text,
     stillborn: checkbox,
@@ -463,8 +477,8 @@ const kindFields = {
 
 const personField = {
   sex: choice(sexes),
-  birthDate: date,
-  deathDate: date,
+  birthDate: partialDate,
+  deathDate: partialDate,
   origin: text,
   ageText: text,
   rankText: text,

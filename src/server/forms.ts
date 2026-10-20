@@ -6,6 +6,7 @@ import { respond } from '@solidjs/web';
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
+import { parsePartialDate } from '~/lib/format';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import type { FormError } from '~/lib/form-error';
 
@@ -45,6 +46,14 @@ export const text = v.pipe(
   v.trim(),
   v.maxLength(FIELD_MAX.text),
   v.transform((s) => s || null),
+);
+
+/** A date typed as the pages show it (12.3.1895, 3.1895, 1895), stored as ISO; null when empty. */
+export const partialDate = v.pipe(
+  v.optional(v.string(), ''),
+  v.transform(parsePartialDate),
+  v.check((d) => d !== undefined),
+  v.transform((d) => d ?? null),
 );
 
 /** A row id: a positive integer. */
