@@ -415,5 +415,12 @@
   "link_already_text": "This mention is already linked to a person.",
   "link_open_person": "Open the person",
   "record_edit_link_person": "Link to person",
-  "record_edit_person": "Person"
+  "record_edit_person": "Person",
+  "suggest_title": "Possible mentions",
+  "suggest_intro": "Unlinked mentions that could be this person: the same given name, and a sex and birth year that fit. The more that matches, the higher they are. Check the record before linking.",
+  "suggest_none": "No unlinked mentions fit.",
+  "suggest_reason_patronymic": "same patronymic",
+  "suggest_reason_surname": "same surname",
+  "suggest_reason_born": "born ~{year}",
+  "suggest_reason_near": "{km} km from {name}"
 }

@@ -429,5 +429,12 @@
   "link_already_text": "Это упоминание уже связано с человеком.",
   "link_open_person": "Открыть человека",
   "record_edit_link_person": "Связать с человеком",
-  "record_edit_person": "Человек"
+  "record_edit_person": "Человек",
+  "suggest_title": "Возможные упоминания",
+  "suggest_intro": "Несвязанные упоминания, которые могут быть этим человеком: с тем же именем и подходящими полом и годом рождения. Чем больше совпадений, тем выше в списке. Проверьте запись, прежде чем связывать.",
+  "suggest_none": "Подходящих несвязанных упоминаний не найдено.",
+  "suggest_reason_patronymic": "то же отчество",
+  "suggest_reason_surname": "та же фамилия",
+  "suggest_reason_born": "род. ~{year}",
+  "suggest_reason_near": "{name}: {km} км"
 }

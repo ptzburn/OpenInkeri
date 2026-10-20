@@ -639,6 +639,10 @@ export const saveRecord = action(async (formData: FormData) => {
   for (const { role, values, current } of edited) {
     // An unticked box says nothing either.
     const empty = Object.values(values).every((value) => value === null || value === false);
+    // The given names folded, for finding mentions by them (the person
+    // page's suggestions).
+    values.givenRuFolded = values.givenRu ? foldForSearch(String(values.givenRu)) : null;
+    values.givenFiFolded = values.givenFi ? foldForSearch(String(values.givenFi)) : null;
     // The deceased died on the record's date.
     if (role === 'deceased' && !empty) values.deathDate = input.date;
     if (current && empty) {

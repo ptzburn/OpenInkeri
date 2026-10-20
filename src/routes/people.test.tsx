@@ -76,6 +76,32 @@ const { me, people } = vi.hoisted(() => {
   return { me, people };
 });
 
+// Maria's possible mentions: a mother in 1918, in a village near Горки.
+const getPersonSuggestions = vi.hoisted(() =>
+  vi.fn(async () => [
+    {
+      mention: {
+        personaId: 30,
+        recordId: 8,
+        kind: 'baptisms',
+        role: 'mother',
+        date: '1918-02-01',
+        birthDate: null,
+        name: { ru: 'Мария Иоанновна', fi: null },
+        age: null,
+        place: { ru: 'Пекколово', fi: 'Pekkola' },
+        placeAsWritten: 'Пеккола',
+      },
+      score: 6,
+      reasons: [
+        { kind: 'patronymic' },
+        { kind: 'surname' },
+        { kind: 'near', name: { ru: 'Горки', fi: 'Korkka' }, km: 4 },
+      ],
+    },
+  ]),
+);
+
 vi.mock('~/data/session', () => ({
   getCurrentUser: vi.fn(async () => me.current),
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
@@ -94,6 +120,7 @@ vi.mock('~/data/people', async () => {
       return { total: rows.length, page: 1, pages: 1, people: rows };
     }),
     getPerson: vi.fn(async (id: number) => (id === 1 ? people.person() : null)),
+    getPersonSuggestions,
     getPersonEdit: vi.fn(async (id: number) =>
       id === 1
         ? {
@@ -237,6 +264,29 @@ describe('a person', () => {
     await waitFor(() => expect(people.unlinked).toHaveLength(1));
     expect(people.unlinked[0].get('persona')).toBe('20');
     expect(people.unlinked[0].get('person')).toBe('1');
+  });
+
+  test('an admin sees possible mentions with the reasons, and links one', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/people/1');
+    const section = (await screen.findByRole('heading', { name: 'Possible mentions' }))
+      .parentElement!;
+    const row = (await within(section).findByText('Mother · Baptisms')).closest('li')!;
+    expect(row).toHaveTextContent('same patronymic');
+    expect(row).toHaveTextContent('same surname');
+    expect(row).toHaveTextContent('4 km from Korkka');
+    fireEvent.click(within(row).getByRole('button', { name: 'Link' }));
+    await waitFor(() => expect(people.linked).toHaveLength(1));
+    expect(people.linked[0].get('persona')).toBe('30');
+    expect(people.linked[0].get('person')).toBe('1');
+  });
+
+  test('others don’t get possible mentions', async () => {
+    me.current = { isAdmin: false };
+    renderAt('/people/1');
+    await screen.findByRole('heading', { level: 1, name: 'Maria Juhontytär' });
+    expect(screen.queryByRole('heading', { name: 'Possible mentions' })).toBeNull();
+    expect(screen.queryByText('Mother · Baptisms')).toBeNull();
   });
 
   test('a person who doesn’t exist says so', async () => {

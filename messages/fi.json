@@ -415,5 +415,12 @@
   "link_already_text": "Maininta on jo yhdistetty henkilöön.",
   "link_open_person": "Avaa henkilö",
   "record_edit_link_person": "Yhdistä henkilöön",
-  "record_edit_person": "Henkilö"
+  "record_edit_person": "Henkilö",
+  "suggest_title": "Mahdolliset maininnat",
+  "suggest_intro": "Yhdistämättömät maininnat, jotka voivat olla tämä henkilö: sama etunimi sekä sopiva sukupuoli ja syntymävuosi. Mitä enemmän täsmää, sitä korkeammalla ne ovat. Tarkista merkintä ennen yhdistämistä.",
+  "suggest_none": "Sopivia yhdistämättömiä mainintoja ei löytynyt.",
+  "suggest_reason_patronymic": "sama isännimi",
+  "suggest_reason_surname": "sama sukunimi",
+  "suggest_reason_born": "synt. ~{year}",
+  "suggest_reason_near": "{name}: {km} km"
 }

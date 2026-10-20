@@ -1,6 +1,7 @@
 import { Title } from '@solidjs/meta';
 import type { RouteProps } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
+import type { JSX } from '@solidjs/web';
 import { For, Show, createMemo, isPending } from 'solid-js';
 import { env } from 'virtual:env/client';
 import BackIcon from '~icons/ri/arrow-left-line';
@@ -8,21 +9,36 @@ import EditIcon from '~icons/ri/pencil-line';
 
 import type { QueryData } from '~/lib/query-data';
 import { personaRoleLabels, recordKindLabels, sexLabels } from '~/components/labels';
+import { useFormErrors } from '~/components/form-fields';
 import { getCurrentUser } from '~/data/session';
-import { type PersonMention, getPerson, unlinkPersona } from '~/data/people';
+import {
+  type PersonMention,
+  type PersonSuggestion,
+  getPerson,
+  getPersonSuggestions,
+  linkPersona,
+  unlinkPersona,
+} from '~/data/people';
 import { formatPartialDate, lifespan, localName } from '~/lib/format';
 import type { Relative } from '~/lib/person-family';
+import type { MatchReason } from '~/lib/person-match';
 import { idParam } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
 // Signed-in users only: getPerson redirects a signed-out visitor to sign-in.
-// Admins also get Edit, each mention's record and Unlink; the server
-// functions check the role again, so this only decides what is offered.
+// Admins also get Edit, each mention's record and Unlink, and the possible
+// mentions to link; the server functions check the role again, so this only
+// decides what is offered.
 export const route = defineFileRoute('/people/:id/', {
   preload: ({ params }) => {
     const id = idParam(params.id);
-    if (id) void getPerson(id);
+    // The suggestions too, so they arrive with the page (empty for all but
+    // admins, who alone see them).
+    if (id) {
+      void getPerson(id);
+      void getPersonSuggestions(id);
+    }
   },
 });
 
@@ -103,12 +119,37 @@ export default function Person(props: RouteProps<'/people/:id/'>) {
                 <ul class="list max-w-4xl rounded-box border border-base-300">
                   <For each={p().mentions} keyed={(mention) => mention.personaId}>
                     {(mention) => (
-                      <MentionRow mention={mention()} personId={p().id} canEdit={canEdit()} />
+                      <MentionRow mention={mention()}>
+                        <Show when={canEdit()}>
+                          <div class="flex items-center gap-1">
+                            <a
+                              href={paths.records(mention().recordId).edit()}
+                              class="btn btn-ghost btn-xs"
+                            >
+                              {m.person_open_record()}
+                            </a>
+                            <form method="post" action={unlinkPersona} class="group">
+                              <input type="hidden" name="persona" value={mention().personaId} />
+                              <input type="hidden" name="person" value={p().id} />
+                              <button
+                                type="submit"
+                                class="btn btn-ghost btn-xs group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
+                              >
+                                {m.person_unlink()}
+                              </button>
+                            </form>
+                          </div>
+                        </Show>
+                      </MentionRow>
                     )}
                   </For>
                 </ul>
               </Show>
             </section>
+
+            <Show when={canEdit()}>
+              <Suggestions personId={p().id} />
+            </Show>
           </div>
         )}
       </Show>
@@ -167,8 +208,8 @@ function Relatives(props: { title: string; relatives: Relative[] }) {
 }
 
 // One mention: when, in what role and record, the name as written there and
-// where they lived; for admins, the record and Unlink.
-function MentionRow(props: { mention: PersonMention; personId: number; canEdit: boolean }) {
+// where they lived; `children` go at the end of the row (an admin's buttons).
+function MentionRow(props: { mention: PersonMention; children?: JSX.Element }) {
   const when = () => formatPartialDate(props.mention.birthDate ?? props.mention.date);
   return (
     <li class="list-row items-center">
@@ -186,23 +227,98 @@ function MentionRow(props: { mention: PersonMention; personId: number; canEdit: 
           </Show>
         </span>
       </div>
-      <Show when={props.canEdit}>
-        <div class="flex items-center gap-1">
-          <a href={paths.records(props.mention.recordId).edit()} class="btn btn-ghost btn-xs">
-            {m.person_open_record()}
-          </a>
-          <form method="post" action={unlinkPersona} class="group">
-            <input type="hidden" name="persona" value={props.mention.personaId} />
-            <input type="hidden" name="person" value={props.personId} />
-            <button
-              type="submit"
-              class="btn btn-ghost btn-xs group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-            >
-              {m.person_unlink()}
-            </button>
-          </form>
-        </div>
-      </Show>
+      {props.children}
     </li>
   );
+}
+
+// An admin's "Possible mentions": unlinked mentions that could be this
+// person (~/lib/person-match), each with why and Link. The page's Loading
+// waits for them with the rest (the route preloads them): a boundary of
+// their own would flash its spinner. Linking reloads the page and the list.
+function Suggestions(props: { personId: number }) {
+  const suggestions = createMemo(
+    (): Promise<QueryData<typeof getPersonSuggestions>> => getPersonSuggestions(props.personId),
+    { name: 'person-suggestions' },
+  );
+  const { error } = useFormErrors(
+    linkPersona,
+    (form) => form.get('person') === String(props.personId),
+  );
+
+  return (
+    <section class="flex flex-col gap-3" aria-labelledby="person-suggestions">
+      <h2 id="person-suggestions" class="text-lg font-semibold">
+        {m.suggest_title()}
+      </h2>
+      <p class="max-w-3xl text-sm text-base-content/70">{m.suggest_intro()}</p>
+      <Show when={error()}>
+        {(e) => (
+          <div role="alert" class="alert max-w-4xl alert-error alert-soft">
+            {e().message}
+          </div>
+        )}
+      </Show>
+      <div class="transition-opacity" style={{ opacity: isPending(suggestions) ? 0.5 : 1 }}>
+        <Show
+          when={suggestions()?.length}
+          fallback={<p class="text-base-content/60">{m.suggest_none()}</p>}
+        >
+          <ul class="list max-w-4xl rounded-box border border-base-300">
+            <For each={suggestions() ?? []} keyed={(s) => s.mention.personaId}>
+              {(s) => <SuggestionRow suggestion={s()} personId={props.personId} />}
+            </For>
+          </ul>
+        </Show>
+      </div>
+    </section>
+  );
+}
+
+function SuggestionRow(props: { suggestion: PersonSuggestion; personId: number }) {
+  return (
+    <MentionRow mention={props.suggestion.mention}>
+      <div class="flex flex-wrap items-center justify-end gap-1">
+        <For each={props.suggestion.reasons}>
+          {(reason) => (
+            <span class="badge badge-soft badge-sm whitespace-nowrap badge-success">
+              {reasonText(reason)}
+            </span>
+          )}
+        </For>
+        <a
+          href={paths.records(props.suggestion.mention.recordId).edit()}
+          class="btn btn-ghost btn-xs"
+        >
+          {m.person_open_record()}
+        </a>
+        <form method="post" action={linkPersona} class="group">
+          <input type="hidden" name="persona" value={props.suggestion.mention.personaId} />
+          <input type="hidden" name="person" value={props.personId} />
+          <button
+            type="submit"
+            class="btn btn-xs btn-primary group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
+          >
+            {m.link_to_this()}
+          </button>
+        </form>
+      </div>
+    </MentionRow>
+  );
+}
+
+// Why a mention was suggested, in the reader's language.
+function reasonText(reason: MatchReason): string {
+  switch (reason.kind) {
+    case 'patronymic':
+      return m.suggest_reason_patronymic();
+    case 'surname':
+      return m.suggest_reason_surname();
+    case 'born':
+      return m.suggest_reason_born({ year: reason.year });
+    case 'village':
+      return localName(reason.name);
+    case 'near':
+      return m.suggest_reason_near({ km: reason.km, name: localName(reason.name) });
+  }
 }

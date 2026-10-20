@@ -7,11 +7,17 @@
 // change_log entry with the change.
 import { action, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
-import { and, count, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
 import { type Family, familyOf } from '~/lib/person-family';
+import {
+  type MatchMention,
+  type MatchReason,
+  nameGroups,
+  suggestionsFor,
+} from '~/lib/person-match';
 import { type RecordKind, type Sex, sexes } from '~/lib/record-kinds';
 import { type EditedRole, sexOfRole } from '~/lib/record-people';
 import { foldForSearch, recordSearchText } from '~/lib/search-text';
@@ -29,6 +35,7 @@ import {
   text,
   version,
 } from '~/server/forms';
+import { isAdmin } from '~/server/auth';
 import { adminOnly, signedIn } from '~/server/guards';
 
 export const PEOPLE_PAGE_SIZE = 50;
@@ -96,6 +103,13 @@ export interface PersonEditData {
   deathDate: string | null;
   note: string | null;
   mentions: number;
+}
+
+/** An unlinked mention that could be the person, and why it was suggested. */
+export interface PersonSuggestion {
+  mention: PersonMention;
+  score: number;
+  reasons: MatchReason[];
 }
 
 /** The mention an admin links on the link page, and the people it could be. */
@@ -173,7 +187,9 @@ export const getPeople = query(async (search: string, page: number): Promise<Peo
 }, 'people');
 
 // Mentions as the person page and the link page show them.
-async function loadMentions(where: { personId: number } | { id: number }) {
+async function loadMentions(
+  where: { personId: number } | { id: number } | { id: { in: number[] } },
+) {
   const rows = await db.query.persona.findMany({
     where,
     columns: {
@@ -319,6 +335,151 @@ export const getLinkCandidates = query(
   },
   'link-candidates',
 );
+
+// --- Suggestions ------------------------------------------------------------------
+
+// What the matching reads of a mention (~/lib/person-match), with its record.
+const matchColumns = {
+  id: true,
+  recordId: true,
+  role: true,
+  sex: true,
+  birthDate: true,
+  deathDate: true,
+  ageText: true,
+  givenRu: true,
+  givenFi: true,
+  patronymicRu: true,
+  patronymicFi: true,
+  surnameRu: true,
+  surnameFi: true,
+  maidenRu: true,
+  maidenFi: true,
+  residenceId: true,
+} as const;
+const matchRecord = {
+  columns: { date: true, placeId: true },
+  with: { baptism: { columns: { birthDate: true } } },
+} as const;
+
+/**
+ * The unlinked mentions that could be this person, best first (at most 20),
+ * each with why: see ~/lib/person-match. Candidates share a given name with
+ * one of the person's mentions (found through the folded given names), are
+ * of the same sex or unknown, and aren't lay baptizers (who are unnamed).
+ * Suggestions are for admins, who link: anyone else signed in gets none
+ * rather than a redirect, so the person page can preload them for everyone.
+ */
+export const getPersonSuggestions = query(async (id: number): Promise<PersonSuggestion[]> => {
+  'use server';
+  if (!isAdmin(signedIn())) return [];
+  const personId = v.parse(rowId, id);
+  const found = await db.query.person.findFirst({
+    where: { id: personId },
+    columns: { sex: true, birthDate: true, deathDate: true },
+  });
+  if (!found) return [];
+  // The name forms the registers write for one another: the given names
+  // mentions give in both languages, seen together at least twice (once
+  // may be a slip).
+  const [own, pairs] = await Promise.all([
+    db.query.persona.findMany({
+      where: { personId },
+      columns: matchColumns,
+      with: { record: matchRecord },
+    }),
+    db
+      .select({ ru: persona.givenRuFolded, fi: persona.givenFiFolded })
+      .from(persona)
+      .where(and(isNotNull(persona.givenRuFolded), isNotNull(persona.givenFiFolded)))
+      .groupBy(persona.givenRuFolded, persona.givenFiFolded)
+      .having(sql`count(*) >= 2`),
+  ]);
+  const groups = nameGroups(pairs.map((p) => [p.ru!, p.fi!]));
+  const givens = [
+    ...new Set(
+      own
+        .flatMap((p) => [p.givenRu, p.givenFi])
+        .filter((g): g is string => !!g)
+        .map(foldForSearch)
+        .flatMap(groups.forms),
+    ),
+  ];
+  if (!givens.length) return [];
+
+  // Mentions sharing a given name, unlinked, of a sex that fits.
+  const sex = found.sex ?? own.find((p) => p.sex)?.sex ?? null;
+  const candidateFilter = (table: typeof persona) =>
+    and(
+      isNull(table.personId),
+      sql`${table.role} <> 'lay_baptizer'`,
+      sql`(${inArray(table.givenRuFolded, givens)} or ${inArray(table.givenFiFolded, givens)})`,
+      sex ? sql`(${table.sex} is null or ${table.sex} = ${sex})` : undefined,
+    )!;
+  const [candidates, places] = await Promise.all([
+    db.query.persona.findMany({
+      where: { RAW: candidateFilter },
+      columns: matchColumns,
+      with: { record: matchRecord },
+    }),
+    db.query.place.findMany({
+      columns: { id: true, nameRu: true, nameFi: true, latitude: true, longitude: true },
+    }),
+  ]);
+
+  // The fathers in the records of the person's and the candidates' child
+  // and deceased mentions: they give those mentions their patronymic and
+  // surname.
+  const fatherless = [...own, ...candidates]
+    .filter((p) => p.role === 'child' || p.role === 'deceased')
+    .map((p) => p.recordId);
+  const fathers = new Map<number, MatchMention['father']>();
+  if (fatherless.length) {
+    const rows = await db.query.persona.findMany({
+      where: {
+        role: 'father',
+        RAW: (table) =>
+          sql`${table.recordId} in (select ${persona.recordId} from ${persona} where ${and(
+            or(eq(persona.personId, personId), candidateFilter(persona)),
+            sql`${persona.role} in ('child', 'deceased')`,
+          )})`,
+      },
+      columns: { recordId: true, givenRu: true, givenFi: true, surnameRu: true, surnameFi: true },
+    });
+    for (const { recordId, ...father } of rows) fathers.set(recordId, father);
+  }
+
+  const placeOf = new Map(
+    places.map((p) => [
+      p.id,
+      { id: p.id, name: { ru: p.nameRu, fi: p.nameFi }, lat: p.latitude, lon: p.longitude },
+    ]),
+  );
+  const asMatch = ({ id, record, residenceId, ...p }: (typeof own)[number]): MatchMention => {
+    const placeId = residenceId ?? record.placeId;
+    return {
+      ...p,
+      personaId: id,
+      date: record.date,
+      birthDate: p.birthDate ?? (p.role === 'child' ? (record.baptism?.birthDate ?? null) : null),
+      father: fathers.get(p.recordId) ?? null,
+      place: placeId ? (placeOf.get(placeId) ?? null) : null,
+    };
+  };
+
+  const matches = suggestionsFor(own.map(asMatch), found, candidates.map(asMatch), { groups });
+  if (!matches.length) return [];
+  const shown = new Map(
+    (await loadMentions({ id: { in: matches.map((m) => m.personaId) } })).map((f) => [
+      f.mention.personaId,
+      f.mention,
+    ]),
+  );
+  return matches.flatMap(({ personaId, score, reasons }) => {
+    const mention = shown.get(personaId);
+    return mention ? [{ mention, score, reasons }] : [];
+  });
+}, 'person-suggestions');
 
 // --- Editing a person --------------------------------------------------------------
 

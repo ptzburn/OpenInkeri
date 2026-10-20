@@ -304,6 +304,11 @@ export const persona = snakeCase.table(
     patronymicFi: text(),
     surnameFi: text(),
     maidenFi: text(),
+    // The given names folded (lowercase, ё as е; ~/lib/search-text), so the
+    // person page's suggestions find mentions by given name with an index:
+    // SQLite's lower() folds only ASCII. Written with the names.
+    givenRuFolded: text(),
+    givenFiFolded: text(),
 
     ageText: text(),
     birthDate: text(),
@@ -338,6 +343,8 @@ export const persona = snakeCase.table(
     index('persona_surname_fi_idx').on(t.surnameFi),
     index('persona_maiden_ru_idx').on(t.maidenRu),
     index('persona_residence_idx').on(t.residenceId),
+    index('persona_given_ru_folded_idx').on(t.givenRuFolded),
+    index('persona_given_fi_folded_idx').on(t.givenFiFolded),
   ],
 );
 
