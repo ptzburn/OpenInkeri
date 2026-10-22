@@ -1,8 +1,8 @@
-import { Loading } from 'solid-js';
+import { Loading, flush } from 'solid-js';
 import { captureArtifact } from '@solidjs/diagnostics';
 import { query } from '@solidjs/router';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, render, screen } from '@solidjs/testing-library';
+import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { AuthProvider } from '~/lib/auth-providers';
@@ -10,19 +10,22 @@ import { Router } from '~/router';
 
 // The sign-in page through the real router, with the server functions
 // replaced by a router query over the offered providers.
-const store = vi.hoisted(() => ({ providers: [] as AuthProvider[] }));
+const store = vi.hoisted(() => ({ providers: [] as AuthProvider[], unreachable: false }));
 
 vi.mock('~/data/session', async () => {
   const { action, query } = await import('@solidjs/router');
   return {
     getCurrentUser: query(async () => null, 'current-user'),
     getSignInProviders: query(async () => store.providers, 'sign-in-providers'),
-    signIn: action(async (_provider: AuthProvider, _form: FormData) => {}, 'sign-in'),
+    signIn: action(async (_provider: AuthProvider, _form: FormData) => {
+      if (store.unreachable) throw new Error('Could not reach the sign-in service. Try again.');
+    }, 'sign-in'),
   };
 });
 
 // globals: false, so testing-library can't unmount between tests itself.
 afterEach(() => {
+  store.unreachable = false;
   cleanup();
   query.clear();
 });
@@ -37,19 +40,32 @@ function renderSignIn(search = '') {
 describe('/sign-in', () => {
   test('offers a button for each configured provider, in order', async () => {
     store.providers = ['google', 'vk', 'github'];
-    const { artifact } = await captureArtifact(
-      async () => {
-        renderSignIn();
-        await screen.findByRole('button', { name: 'Continue with Google' });
-      },
-      { scenario: 'sign-in-providers' },
-    );
-    expect(artifact).toHaveNoDiagnostics();
+    renderSignIn();
+    await screen.findByRole('button', { name: 'Continue with Google' });
     expect(screen.getAllByRole('button').map((button) => button.textContent)).toEqual([
       'Continue with Google',
       'Continue with VK',
       'Continue with GitHub',
     ]);
+  });
+
+  test('says when a sign-in could not start', async () => {
+    store.providers = ['vk', 'github'];
+    // Mounted outside the capture: the first render is the server's in the
+    // app, while here the route module loads behind the spinner first.
+    renderSignIn();
+    const vk = await screen.findByRole('button', { name: 'Continue with VK' });
+    store.unreachable = true;
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(vk);
+        await screen.findByRole('alert');
+        flush();
+      },
+      { scenario: 'sign-in-unreachable' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not reach the sign-in service.');
   });
 
   test('leaves out providers without credentials', async () => {
