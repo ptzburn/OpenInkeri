@@ -1,8 +1,9 @@
-// Sign-in (with GitHub), sign-out and the account page's reads and writes,
-// as server functions behind router queries and actions: the forms post to
-// them before JavaScript loads, and after hydration the router calls them
-// over the transport. They call better-auth directly through auth.api.*;
-// Solid's server-function CSRF check guards them.
+// The account page's reads and writes (your profile, your sessions, deleting
+// your account), as server functions behind router queries and actions: the
+// forms post to them before JavaScript loads, and after hydration the router
+// calls them over the transport. They call better-auth directly through
+// auth.api.*; Solid's server-function CSRF check guards them. Who is signed
+// in, and signing in and out, are in ./session.ts.
 //
 // Input is validated with Valibot inside the 'use server' bodies only: the
 // compiler leaves those bodies (and imports only they use) out of the
@@ -12,9 +13,20 @@ import { getRequestEvent, redirect, respond } from '@solidjs/web';
 import { isAPIError } from 'better-auth/api';
 import * as v from 'valibot';
 
-import { paths } from '~/router';
+import type { AuthProvider } from '~/lib/auth-providers';
+import { FIELD_MAX } from '~/lib/field-limits';
+import type { ActionError } from '~/lib/form-error';
 import { m } from '~/paraglide/messages.js';
-import { LAST_ADMIN, auth, forwardCookies, isAdmin, requestHeaders } from '~/server/auth';
+import { paths } from '~/router';
+import {
+  LAST_ADMIN,
+  auth,
+  authProviders,
+  forwardCookies,
+  isAdmin,
+  requestHeaders,
+} from '~/server/auth';
+import { signedIn } from '~/server/guards';
 
 /**
  * The signed-in user's active sessions, through auth.api.listSessions, or
@@ -30,98 +42,6 @@ async function listSessions() {
   }
 }
 
-function signedIn() {
-  const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect(paths['sign-in']());
-  return user;
-}
-
-/** The signed-in user (set on the request by src/middleware.ts), or null. */
-export const getCurrentUser = query(async () => {
-  'use server';
-  const user = getRequestEvent()?.locals.user;
-  if (!user) return null;
-  // image is the GitHub avatar URL better-auth stored at sign-in.
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    image: user.image,
-    isAdmin: isAdmin(user),
-  };
-}, 'current-user');
-
-/** For pages that need a user: redirects signed-out visitors to sign-in. */
-export const requireUser = query(async () => {
-  'use server';
-  const user = getRequestEvent()?.locals.user;
-  if (!user) throw redirect(paths['sign-in']());
-  return { id: user.id, name: user.name, email: user.email };
-}, 'require-user');
-
-/** What a failed action carries in `submission.error` (see useSubmissions). */
-export interface ActionError {
-  message: string;
-}
-
-/**
- * Starts GitHub sign-in: better-auth stores the OAuth state in a cookie and
- * returns GitHub's authorize URL, which the browser is sent to. GitHub sends
- * the user back to /api/auth/callback/github, which signs them in (creating
- * the account on the first visit) and redirects home. A failure there lands
- * on /sign-in?error=<code>.
- */
-export const signInWithGitHub = action(async () => {
-  'use server';
-  return startGitHubSignIn(paths());
-}, 'sign-in-github');
-
-/**
- * Signs in once more and comes back to the account page: deleting the
- * account needs a session from the last day.
- */
-export const signInAgain = action(async () => {
-  'use server';
-  return startGitHubSignIn(paths.account());
-}, 'sign-in-again');
-
-async function startGitHubSignIn(callbackURL: string): Promise<never> {
-  let url: string | undefined;
-  try {
-    const { headers, response } = await auth.api.signInSocial({
-      body: {
-        provider: 'github',
-        callbackURL,
-        errorCallbackURL: paths['sign-in'](),
-      },
-      headers: requestHeaders(),
-      returnHeaders: true,
-    });
-    forwardCookies(headers);
-    url = response.url;
-  } catch (error) {
-    console.error('GitHub sign-in failed to start', error);
-  }
-  if (!url) {
-    throw respond({ message: m.sign_in_unreachable() } satisfies ActionError, {
-      status: 502,
-    });
-  }
-  throw redirect(url);
-}
-
-export const signOut = action(async () => {
-  'use server';
-  const { headers } = await auth.api.signOut({ headers: requestHeaders(), returnHeaders: true });
-  forwardCookies(headers);
-  // The single-flight refresh of the next page's queries runs in this same
-  // request, with the locals the middleware set before the sign-out.
-  // Clear the user there, or getCurrentUser still returns them.
-  getRequestEvent()!.locals.user = undefined;
-  getRequestEvent()!.locals.sessionId = undefined;
-  throw redirect(paths());
-}, 'sign-out');
-
 /**
  * What getAccount returns. Spelled out: the account page's types feed
  * `paths`, which this module uses, so an inferred type would be circular.
@@ -134,6 +54,8 @@ export interface AccountData {
     createdAt: Date;
     isAdmin: boolean;
   };
+  /** What Sign in again offers: the account's providers that sign-in offers. */
+  providers: AuthProvider[];
   sessions:
     | {
         id: string;
@@ -156,7 +78,13 @@ export const getAccount = query(async (): Promise<AccountData> => {
   'use server';
   const user = signedIn();
   const current = getRequestEvent()!.locals.sessionId;
-  const sessions = await listSessions();
+  const [sessions, accounts] = await Promise.all([
+    listSessions(),
+    auth.api.listUserAccounts({ headers: requestHeaders() }),
+  ]);
+  const linked = authProviders.filter((provider) =>
+    accounts.some((account) => account.providerId === provider),
+  );
   return {
     user: {
       name: user.name,
@@ -165,6 +93,8 @@ export const getAccount = query(async (): Promise<AccountData> => {
       createdAt: user.createdAt,
       isAdmin: isAdmin(user),
     },
+    // A provider switched off since would leave no way back; offer them all.
+    providers: linked.length > 0 ? linked : authProviders,
     sessions:
       sessions &&
       sessions
@@ -188,7 +118,9 @@ export const renameMe = action(async (form: FormData) => {
   'use server';
   const user = signedIn();
   const parsed = v.safeParse(
-    v.object({ name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)) }),
+    v.object({
+      name: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(FIELD_MAX.displayName)),
+    }),
     Object.fromEntries(form),
   );
   if (!parsed.success) {
@@ -251,7 +183,7 @@ export interface DeleteAccountError extends ActionError {
 }
 
 /**
- * Deletes the signed-in user with their sessions and linked GitHub account,
+ * Deletes the signed-in user with their sessions and linked accounts,
  * then signs out and goes home. The form's confirm checkbox must be ticked.
  * better-auth refuses a session older than a day (the page then offers to
  * sign in again), and the hook in src/server/auth.ts refuses the last admin.

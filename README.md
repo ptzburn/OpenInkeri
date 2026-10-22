@@ -51,9 +51,9 @@ pnpm db:migrate         # create the local D1 database
 pnpm dev                # http://localhost:3060
 ```
 
-`.env` is git-ignored. `BETTER_AUTH_SECRET` must be at least 32 characters, and the server refuses to start without it or the GitHub credentials.
+`.env` is git-ignored. `BETTER_AUTH_SECRET` must be at least 32 characters, and the server refuses to start without it or the GitHub credentials. Google and VK sign-in are optional: each appears on the sign-in page once both of its values are set (see `.env.example`).
 
-Sign-in is with GitHub only, so local dev needs a GitHub OAuth app: at [github.com/settings/developers](https://github.com/settings/developers), choose **New OAuth App**, set the homepage URL to `http://localhost:3060` and the callback URL to `http://localhost:3060/api/auth/callback/github`, then copy its client ID and a new client secret into `.env`. An OAuth app has one callback URL, so production gets its own app, with `https://<your-worker>.workers.dev/api/auth/callback/github`. See [Typed environment variables](#typed-environment-variables) and [Authentication](#authentication) for details.
+Sign-in always offers GitHub, so local dev needs a GitHub OAuth app: at [github.com/settings/developers](https://github.com/settings/developers), choose **New OAuth App**, set the homepage URL to `http://localhost:3060` and the callback URL to `http://localhost:3060/api/auth/callback/github`, then copy its client ID and a new client secret into `.env`. An OAuth app has one callback URL, so production gets its own app, with `https://<your-worker>.workers.dev/api/auth/callback/github`. See [Typed environment variables](#typed-environment-variables) and [Authentication](#authentication) for details.
 
 ### Git hooks
 
@@ -77,7 +77,7 @@ Migrations run before the new code goes live, so the code already running must k
 
 To undo a bad migration, restore the database to the bookmark in that run's log: `pnpm exec wrangler d1 time-travel restore DB --bookmark=<bookmark>`. This overwrites the database, including every write since the bookmark; usually a new migration that fixes forward is better. Roll back the Worker with `pnpm exec wrangler rollback`.
 
-The Worker's secrets (`BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`; production has its own GitHub OAuth app with the callback `https://openinkeri.hokkanen.io/api/auth/callback/github`) live on Cloudflare and survive deploys. Change one with `pnpm exec wrangler secret put <NAME>`. To deploy by hand, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env` (or run `npx wrangler login`), then `pnpm db:migrate:remote` and `pnpm run deploy`.
+The Worker's secrets (`BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and optionally `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and `VK_CLIENT_ID`/`VK_CLIENT_SECRET`; production has its own GitHub OAuth app with the callback `https://openinkeri.hokkanen.io/api/auth/callback/github`, and the Google and VK apps list `https://openinkeri.hokkanen.io/api/auth/callback/google` and `/vk`) live on Cloudflare and survive deploys. Change one with `pnpm exec wrangler secret put <NAME>`. To deploy by hand, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env` (or run `npx wrangler login`), then `pnpm db:migrate:remote` and `pnpm run deploy`.
 
 ### Working with AI agents
 
@@ -111,7 +111,7 @@ The sections below come from the Solid `fullstack` template this project started
 
 - **Data loading through server functions** — `'use server'` functions the UI calls like local async functions (`src/lib/users.ts`).
 - **A single-flight mutation** — a `<form>` posting to an `action()` server function; the response carries the refreshed page data, so the UI updates in one round trip. Works before hydration too.
-- **Sign-in with GitHub** — [better-auth](https://better-auth.com) on D1 (this project replaced the template's demo cookie session; see [Authentication](#authentication)).
+- **Sign-in with GitHub, Google or VK** — [better-auth](https://better-auth.com) on D1 (this project replaced the template's demo cookie session; see [Authentication](#authentication)).
 - **An API route** — uppercase method exports under `src/routes/api` answer HTTP requests (better-auth's endpoints live at `src/routes/api/auth/[...auth].ts`).
 
 **Deployment contract:** there is a server. `vite build` emits static client assets to `dist/client`, a request handler to `dist/server/server.js`, and — via `start: { node: true }` — a ready-to-run Node server at `dist/server/node.js` that `npm start` runs. Streaming SSR is the default posture — set `ssr: false` in `vite.config.ts` for a static shell + API server: pages render on the client while server functions, sessions, and API routes keep working. Same template, one boolean.
@@ -132,12 +132,13 @@ Two things make a route single-flight-complete, and both are already good practi
 
 ## Authentication
 
-Sign-in with GitHub and sign-out with [better-auth](https://better-auth.com), storing users and sessions in D1 through Drizzle. There are no passwords: a user's first GitHub sign-in creates their account.
+Sign-in with GitHub, Google or VK and sign-out with [better-auth](https://better-auth.com), storing users and sessions in D1 through Drizzle. There are no passwords: a user's first sign-in creates their account. Google and VK are offered only when their credentials are set. Signing in with Google or GitHub under a verified email that already has an account links to that account; VK doesn't verify emails, so a VK sign-in with a taken email is refused with an explanation.
 
-- **`src/server/auth.ts`** — the better-auth instance, with the GitHub provider. Options that shape the database schema live in `src/server/auth-options.ts`, so the `auth` CLI can load them (`pnpm auth:generate` writes `src/server/database/auth-schema.ts` via `auth.cli.ts`; then `pnpm db:generate` writes the migration).
+- **`src/server/auth.ts`** — the better-auth instance, with the GitHub, Google and VK providers. Options that shape the database schema live in `src/server/auth-options.ts`, so the `auth` CLI can load them (`pnpm auth:generate` writes `src/server/database/auth-schema.ts` via `auth.cli.ts`; then `pnpm db:generate` writes the migration).
 - **`src/middleware.ts`** — reads the session once per request and sets `event.locals.user`. A 5-minute signed cookie cache saves most requests a D1 lookup.
-- **`src/lib/account.ts`** — `signInWithGitHub` and `signOut` as server functions behind router actions, so the forms work before JavaScript loads. `signInWithGitHub` asks better-auth for GitHub's authorize URL and sends the browser there; GitHub returns to `/api/auth/callback/github`, which signs the user in and redirects home (or back to `/sign-in?error=…`). They call better-auth directly through `auth.api.*` (typed, no HTTP round trip); Solid's server-function CSRF check keeps other sites from calling them. `requireUser` guards pages and sends signed-out visitors to `/sign-in`.
-- **GitHub access tokens** are stored on the `account` row encrypted with `BETTER_AUTH_SECRET` (`account.encryptOAuthTokens`).
+- **`src/data/session.ts`** — `signIn` and `signOut` as server functions behind router actions, so the forms work before JavaScript loads. `signIn.with(provider)` asks better-auth for the provider's authorize URL and sends the browser there; the provider returns to `/api/auth/callback/<provider>`, which signs the user in and redirects home (or back to `/sign-in?error=…`). They call better-auth directly through `auth.api.*` (typed, no HTTP round trip); Solid's server-function CSRF check keeps other sites from calling them. `requireUser` guards pages and sends signed-out visitors to `/sign-in`.
+- **Admins** (the first user to sign up becomes one) manage other users from their page under `/users`: make or remove admins, sign them out on all devices, and ban or unban them (`src/data/users.ts`, through better-auth's admin plugin). None of these act on your own account, so the app always keeps an admin. Changes reach the user's signed-in devices within the 5-minute session cookie cache.
+- **Provider access tokens** are stored on the `account` row encrypted with `BETTER_AUTH_SECRET` (`account.encryptOAuthTokens`).
 - **Rate limiting** covers better-auth's own HTTP endpoints (`/api/auth/*`) in production: 10 sign-in starts per IP per minute, counted in D1 so every Worker isolate shares the count. The server functions call `auth.api.*`, which bypasses it.
 
 ## Typed environment variables

@@ -2,7 +2,7 @@ import { createMemo } from 'solid-js';
 import Moon from '~icons/ri/moon-line';
 import Sun from '~icons/ri/sun-line';
 
-import { getTheme, saveTheme } from '~/lib/theme';
+import { getTheme, saveTheme } from '~/data/theme';
 import { m } from '~/paraglide/messages.js';
 
 // daisyUI's theme-controller swap: while the checkbox is checked the page
@@ -10,7 +10,7 @@ import { m } from '~/paraglide/messages.js';
 // (light). The server renders the saved choice; after that the checkbox owns
 // its state.
 export default function ThemeSwitcher() {
-  const saved = createMemo(() => getTheme());
+  const saved = createMemo(() => getTheme(), { name: 'saved-theme' });
 
   return (
     <label class="btn swap btn-circle swap-rotate btn-ghost" title={m.theme_toggle()}>

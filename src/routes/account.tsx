@@ -6,19 +6,22 @@ import CalendarIcon from '~icons/ri/calendar-line';
 import DeviceIcon from '~icons/ri/computer-line';
 import MailIcon from '~icons/ri/mail-line';
 
+import type { QueryData } from '~/lib/query-data';
+import { FIELD_MAX } from '~/lib/field-limits';
+import AuthProviderIcon from '~/components/auth-provider-icon';
+import { authProviderLabels } from '~/components/labels';
 import UserAvatar from '~/components/user-avatar';
 import {
-  type AccountData,
-  type ActionError,
   type DeleteAccountError,
   deleteAccount,
   getAccount,
-  getCurrentUser,
   renameMe,
   revokeOtherSessions,
   revokeSession,
-  signInAgain,
-} from '~/lib/account';
+} from '~/data/account';
+import { getCurrentUser, signInAgain } from '~/data/session';
+import type { AuthProvider } from '~/lib/auth-providers';
+import type { ActionError } from '~/lib/form-error';
 import { describeUserAgent, formatDate } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
 
@@ -34,6 +37,30 @@ export const route = {
   },
 } satisfies RouteDefinition;
 
+/**
+ * Sign in again, with each provider linked to the account (usually one),
+ * for a fresh session: listing sessions and deleting the account need one.
+ */
+function SignInAgain(props: { providers: AuthProvider[] }) {
+  // One child for the alert it sits in: an alert puts each child in a column.
+  return (
+    <div class="flex flex-wrap gap-2">
+      <For each={props.providers}>
+        {(provider) => (
+          <form action={signInAgain.with(provider)} method="post">
+            <button type="submit" class="btn btn-sm">
+              <AuthProviderIcon provider={provider} class="size-4" />
+              {props.providers.length > 1
+                ? m.account_sign_in_again_with({ provider: authProviderLabels[provider]() })
+                : m.account_sign_in_again()}
+            </button>
+          </form>
+        )}
+      </For>
+    </div>
+  );
+}
+
 /** The latest submission's error message, if it failed. */
 function lastError<E extends ActionError>(submissions: { error?: unknown }[]) {
   return submissions.at(-1)?.error as E | undefined;
@@ -43,7 +70,7 @@ function lastError<E extends ActionError>(submissions: { error?: unknown }[]) {
 // signed-out visitor to /sign-in (and, like getUsers, resolves to undefined
 // in that server render).
 export default function Account() {
-  const account = createMemo((): Promise<AccountData | undefined> => getAccount(), {
+  const account = createMemo((): Promise<QueryData<typeof getAccount>> => getAccount(), {
     name: 'account',
   });
   const renames = useSubmissions(renameMe);
@@ -94,7 +121,7 @@ export default function Account() {
                   <span>{m.user_joined({ date: formatDate(shown().user.createdAt) })}</span>
                 </li>
               </ul>
-              <p class="text-sm text-base-content/60">{m.account_email_from_github()}</p>
+              <p class="text-sm text-base-content/60">{m.account_email_from_provider()}</p>
               <form action={renameMe} method="post">
                 <fieldset class="fieldset">
                   <legend class="fieldset-legend">{m.account_display_name()}</legend>
@@ -103,7 +130,7 @@ export default function Account() {
                       name="name"
                       value={shown().user.name}
                       required
-                      maxlength={100}
+                      maxlength={FIELD_MAX.displayName}
                       class="input join-item w-full"
                       aria-label={m.account_name()}
                     />
@@ -132,13 +159,12 @@ export default function Account() {
               <Show
                 when={shown().sessions}
                 fallback={
-                  <div role="status" class="alert flex-wrap alert-info alert-soft">
+                  <div
+                    role="status"
+                    class="alert alert-vertical alert-info alert-soft sm:alert-horizontal"
+                  >
                     <span>{m.account_sessions_reauthenticate()}</span>
-                    <form action={signInAgain} method="post">
-                      <button type="submit" class="btn btn-sm">
-                        {m.account_sign_in_again()}
-                      </button>
-                    </form>
+                    <SignInAgain providers={shown().providers} />
                   </div>
                 }
               >
@@ -219,14 +245,13 @@ export default function Account() {
               </form>
               <Show when={deleteError()}>
                 {(error) => (
-                  <div role="alert" class="alert flex-wrap alert-error alert-soft">
+                  <div
+                    role="alert"
+                    class="alert alert-vertical alert-error alert-soft sm:alert-horizontal"
+                  >
                     <span>{error().message}</span>
                     <Show when={(error() as DeleteAccountError).reauthenticate}>
-                      <form action={signInAgain} method="post">
-                        <button type="submit" class="btn btn-sm">
-                          {m.account_sign_in_again()}
-                        </button>
-                      </form>
+                      <SignInAgain providers={shown().providers} />
                     </Show>
                   </div>
                 )}

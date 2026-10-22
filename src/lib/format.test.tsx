@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vite-plus/test';
 
-import { describeUserAgent, formatDate } from './format';
+import {
+  describeUserAgent,
+  formatDate,
+  formatPartialDate,
+  lifespan,
+  parsePartialDate,
+} from './format';
 
 describe('formatDate', () => {
   test('writes day.month.year without leading zeros', () => {
@@ -11,6 +17,42 @@ describe('formatDate', () => {
   test('takes the calendar day in UTC', () => {
     expect(formatDate('2026-10-13T23:30:00Z')).toBe('13.10.2026');
     expect(formatDate('2026-10-13T00:30:00Z')).toBe('13.10.2026');
+  });
+});
+
+describe('formatPartialDate', () => {
+  test('writes only the parts the date has', () => {
+    expect(formatPartialDate('1895-03-02')).toBe('2.3.1895');
+    expect(formatPartialDate('1895-03')).toBe('3.1895');
+    expect(formatPartialDate('1895')).toBe('1895');
+    expect(formatPartialDate(null)).toBe('');
+  });
+});
+
+describe('lifespan', () => {
+  test('writes the years known, with a dash between', () => {
+    expect(lifespan('1895-03-02', '1960')).toBe('2.3.1895–1960');
+    expect(lifespan('1895', null)).toBe('1895–');
+    expect(lifespan(null, '1960')).toBe('–1960');
+    expect(lifespan(null, null)).toBe('');
+  });
+});
+
+describe('parsePartialDate', () => {
+  test('reads day.month.year, month.year or a year', () => {
+    expect(parsePartialDate('2.3.1895')).toBe('1895-03-02');
+    expect(parsePartialDate(' 02.03.1895 ')).toBe('1895-03-02');
+    expect(parsePartialDate('3.1895')).toBe('1895-03');
+    expect(parsePartialDate('1895')).toBe('1895');
+    expect(parsePartialDate(formatPartialDate('1895-12-31'))).toBe('1895-12-31');
+  });
+
+  test('is null when empty and undefined when unreadable', () => {
+    expect(parsePartialDate('')).toBeNull();
+    expect(parsePartialDate('31.2.1895')).toBeUndefined();
+    expect(parsePartialDate('13.1895')).toBeUndefined();
+    expect(parsePartialDate('3ю5')).toBeUndefined();
+    expect(parsePartialDate('1895-03-02')).toBeUndefined();
   });
 });
 

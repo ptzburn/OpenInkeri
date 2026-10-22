@@ -1,0 +1,1 @@
+ALTER TABLE `record` ADD `search_text` text;

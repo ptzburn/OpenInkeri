@@ -3,7 +3,7 @@ import SignInIcon from '~icons/ri/login-box-line';
 import SignOutIcon from '~icons/ri/logout-box-r-line';
 
 import UserAvatar from '~/components/user-avatar';
-import { getCurrentUser, signOut } from '~/lib/account';
+import { getCurrentUser, signOut } from '~/data/session';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
@@ -11,7 +11,7 @@ import { paths } from '~/router';
 // account page) and Sign out, or a Sign in link. The read is the same cached query the pages use, so it costs no
 // extra request.
 export default function AccountMenu() {
-  const user = createMemo(() => getCurrentUser());
+  const user = createMemo(() => getCurrentUser(), { name: 'account-menu-user' });
 
   return (
     <Loading fallback={<span class="loading loading-dots loading-sm" />}>

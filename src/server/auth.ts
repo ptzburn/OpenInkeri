@@ -5,24 +5,52 @@ import 'server-only';
 import { getRequestEvent } from '@solidjs/web';
 import type { RequestEvent, ResponseStub } from '@solidjs/web';
 import { drizzleAdapter } from '@better-auth/drizzle-adapter/relations-v2';
-import { betterAuth } from 'better-auth';
+import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { waitUntil } from 'cloudflare:workers';
 import { env } from 'virtual:env/server';
+
+import { AUTH_PROVIDERS, type AuthProvider } from '~/lib/auth-providers';
 
 import { db } from './database';
 import * as schema from './database/schema';
 import { authOptions } from './auth-options';
 
+// GitHub always; Google and VK when their credentials are set (env.ts). Each
+// provider's first sign-in creates the account. A provider's callback URL is
+// <origin>/api/auth/callback/<id>. Signing in with a provider whose verified
+// email matches an existing user links it to that user; VK doesn't vouch
+// for its emails, so a VK sign-in with an email that is already taken fails
+// (account_not_linked) instead of taking over that account.
+const socialProviders = {
+  github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
+  google: {
+    enabled: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET),
+    clientId: env.GOOGLE_CLIENT_ID ?? '',
+    clientSecret: env.GOOGLE_CLIENT_SECRET ?? '',
+    // Let people with several Google accounts pick one.
+    prompt: 'select_account',
+  },
+  vk: {
+    enabled: Boolean(env.VK_CLIENT_ID && env.VK_CLIENT_SECRET),
+    clientId: env.VK_CLIENT_ID ?? '',
+    clientSecret: env.VK_CLIENT_SECRET ?? '',
+    // Only the email: better-auth asks for the phone number too by default.
+    disableDefaultScope: true,
+    scope: ['email'],
+  },
+} satisfies BetterAuthOptions['socialProviders'];
+
+/** The providers the sign-in page offers, in AUTH_PROVIDERS order. */
+export const authProviders: AuthProvider[] = AUTH_PROVIDERS.filter(
+  (id) => !('enabled' in socialProviders[id]) || socialProviders[id].enabled,
+);
+
 export const auth = betterAuth({
   ...authOptions,
   secret: env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, { provider: 'sqlite', schema }),
-  // GitHub is the only way in: its first sign-in creates the account. The
-  // OAuth app's callback URL is <origin>/api/auth/callback/github.
-  socialProviders: {
-    github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
-  },
+  socialProviders,
   databaseHooks: {
     user: {
       create: {
@@ -56,7 +84,7 @@ export const auth = betterAuth({
       },
     },
   },
-  // GitHub's access token is stored on the account row; encrypt it with the
+  // The providers' access tokens are stored on the account rows; encrypt it with the
   // secret so a database leak doesn't hand out working tokens.
   account: { encryptOAuthTokens: true },
   session: {

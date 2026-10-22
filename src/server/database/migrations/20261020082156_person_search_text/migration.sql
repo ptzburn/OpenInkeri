@@ -1,0 +1,1 @@
+ALTER TABLE `person` ADD `search_text` text;

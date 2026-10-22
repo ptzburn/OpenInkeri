@@ -12,6 +12,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "noEmit": true,
+    // scripts/ run in Node, which needs the .ts in their relative imports.
+    "allowImportingTsExtensions": true,
     // `~/x` is src/x. Vite resolves it from here too (resolve.tsconfigPaths).
     "paths": { "~/*": ["./src/*"] },
 

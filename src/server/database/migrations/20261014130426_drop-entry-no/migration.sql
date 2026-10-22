@@ -1,0 +1,1 @@
+ALTER TABLE `record` DROP COLUMN `entry_no`;
