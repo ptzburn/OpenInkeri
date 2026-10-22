@@ -97,10 +97,18 @@ const languageName = (code: string | null) =>
   sourceLanguages.find((l) => l === code) ? sourceLanguageLabels[code as SourceLanguage]() : code;
 
 function SourceTableRow(props: { source: SourceRow; editHref?: string }) {
+  // The title and the count open the source's records, where they are added.
+  const recordsHref = () =>
+    paths.records({
+      kind: props.source.kind === 'baptisms' ? undefined : props.source.kind,
+      source: String(props.source.id),
+    });
   return (
     <tr>
       <td>
-        <span class="font-medium">{props.source.title}</span>
+        <a href={recordsHref()} class="link font-medium link-hover">
+          {props.source.title}
+        </a>
         <Show when={props.source.archiveReference}>
           {(reference) => <span class="block text-xs text-base-content/60">{reference()}</span>}
         </Show>
@@ -111,15 +119,9 @@ function SourceTableRow(props: { source: SourceRow; editHref?: string }) {
         {years(props.source.yearFrom, props.source.yearTo)}
       </td>
       <td>{languageName(props.source.language)}</td>
-      {/* The count opens the records of the source's type. */}
       <td class="text-right tabular-nums">
         <Show when={props.source.records} fallback={0}>
-          <a
-            href={paths.records({
-              kind: props.source.kind === 'baptisms' ? undefined : props.source.kind,
-            })}
-            class="link"
-          >
+          <a href={recordsHref()} class="link">
             {props.source.records}
           </a>
         </Show>

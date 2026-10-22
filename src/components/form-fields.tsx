@@ -73,11 +73,17 @@ export function postedName(form: FormData): string {
 
 /**
  * The bottom of an edit form: why the last save was refused, Cancel (a link
- * back) and Save. The form must have the `group` class: while a save is in
+ * back) and Save; with `saveAndNext`, also Save and add next, which posts
+ * `next=on`. The form must have the `group` class: while a save is in
  * flight the router marks it aria-busy, which shows the spinner and stops
  * further clicks.
  */
-export function FormActions(props: { error?: FormError; cancelHref: string; class?: string }) {
+export function FormActions(props: {
+  error?: FormError;
+  cancelHref: string;
+  saveAndNext?: boolean;
+  class?: string;
+}) {
   return (
     <div class={['flex flex-col gap-3', props.class]}>
       <Show when={props.error}>
@@ -87,10 +93,9 @@ export function FormActions(props: { error?: FormError; cancelHref: string; clas
           </div>
         )}
       </Show>
-      <div class="flex justify-end gap-2">
-        <a href={props.cancelHref} class="btn">
-          {m.form_cancel()}
-        </a>
+      {/* Save comes first, drawn last: Enter in a field submits with the
+          form's first button, which should be a plain Save. */}
+      <div class="flex flex-row-reverse flex-wrap justify-start gap-2">
         <button
           type="submit"
           class="btn btn-primary group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
@@ -101,6 +106,19 @@ export function FormActions(props: { error?: FormError; cancelHref: string; clas
           />
           {m.form_save()}
         </button>
+        <Show when={props.saveAndNext}>
+          <button
+            type="submit"
+            name="next"
+            value="on"
+            class="btn group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
+          >
+            {m.form_save_and_next()}
+          </button>
+        </Show>
+        <a href={props.cancelHref} class="btn">
+          {m.form_cancel()}
+        </a>
       </div>
     </div>
   );

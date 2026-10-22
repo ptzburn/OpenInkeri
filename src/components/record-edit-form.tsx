@@ -6,15 +6,20 @@ import { FIELD_MAX } from '~/lib/field-limits';
 import {
   DeleteSection,
   type Fault,
-  FieldError,
   FormActions,
   Select,
   TextArea,
   TextInput,
-  ariaInvalid,
   useFormDone,
   useFormErrors,
 } from '~/components/form-fields';
+import {
+  type Lookup,
+  type LookupOption,
+  LookupField,
+  SpellingList,
+} from '~/components/lookup-field';
+import NameFields from '~/components/name-fields';
 import { useToast } from '~/components/toaster';
 import {
   baptismLocationLabels,
@@ -23,6 +28,7 @@ import {
   sexLabels,
 } from '~/components/labels';
 import { PARTIAL_DATE_PATTERN, formatPartialDate, localName } from '~/lib/format';
+import { spellingIndex } from '~/lib/spellings';
 import {
   type RecordEditData,
   type RecordEditPerson,
@@ -40,16 +46,10 @@ import {
   isListKind,
   listFields,
   personFieldsOf,
+  sexOfRole,
 } from '~/lib/record-people';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
-
-const nameParts = [
-  ['given', m.record_edit_given],
-  ['patronymic', m.record_edit_patronymic],
-  ['surname', m.record_edit_surname],
-  ['maiden', m.record_edit_maiden],
-] as const;
 
 // The record's date, by kind.
 const dateLabels: Record<RecordKind, () => string> = {
@@ -60,20 +60,28 @@ const dateLabels: Record<RecordKind, () => string> = {
   taxpayers: m.records_col_list_date,
 };
 
-type Option = { value: number; label: string };
+// A lookup's options, indexed by their spellings.
+const lookupOf = (options: LookupOption[], listId: string, unlinked: string): Lookup => ({
+  options,
+  index: spellingIndex(options.map((o) => ({ id: o.value, spellings: o.spellings }))),
+  listId,
+  unlinked,
+});
 
 /** Where the records list was, to return there after saving. */
 export interface ListPlace {
   kind?: string;
   q?: string;
   page?: string;
+  source?: string;
 }
 
-// What a new record's form starts from: empty, of the list's type.
-const blank = (kind: RecordKind): RecordEditData => ({
+// What a new record's form starts from: empty, of the list's type, in the
+// source the list shows if any.
+const blank = (kind: RecordKind, sourceId: number | null = null): RecordEditData => ({
   id: 0,
   kind,
-  sourceId: null,
+  sourceId,
   page: null,
   language: null,
   version: 0,
@@ -89,15 +97,53 @@ const blank = (kind: RecordKind): RecordEditData => ({
   members: [],
 });
 
+// The record after `previous` (Save and add next): on the same page of the
+// same source. A list's next household or farm is usually in the same
+// village, estate and list date; a register's next baptism usually has the
+// same officiant. Dates and villages of register entries differ, so they
+// start empty rather than risk staying unchanged.
+const nextAfter = (previous: RecordEditData): RecordEditData => {
+  const next = blank(previous.kind, previous.sourceId);
+  next.page = previous.page;
+  next.language = previous.language;
+  if (isListKind(previous.kind)) {
+    next.date = previous.date;
+    next.placeId = previous.placeId;
+    next.placeText = previous.placeText;
+    next.holding = previous.holding && {
+      holdingNo: null,
+      estateText: previous.holding.estateText,
+      estatePlaceId: previous.holding.estatePlaceId,
+      tenantText: null,
+    };
+  }
+  if (previous.baptism) {
+    next.baptism = {
+      birthDate: null,
+      officiantText: previous.baptism.officiantText,
+      officiantId: previous.baptism.officiantId,
+      location: null,
+      locationPlaceId: null,
+      emergencyDate: null,
+      multipleBirth: null,
+      illegitimate: false,
+      stillborn: false,
+    };
+  }
+  return next;
+};
+
 /**
  * The admin's form for one record, or for a new one of type `kind` without
- * `id`: its source and page, the record, its kind's details and the people
+ * `id` (in the list's source, or following record `after` on its page): its
+ * source and page, the record, its kind's details and the people
  * it names (~/lib/record-people). A register's form has one person in each
  * role; a list's (a household, a farm) has all its people, and more can be
  * added: one blank person is always at the end (also before JavaScript
  * loads), and Add person brings another. It posts to the saveRecord action
  * (and works before JavaScript loads); a save redirects to the list at
- * `returnTo` (a new record to the list's last page) with a toast, and
+ * `returnTo` (a new record to the list's last page) with a toast, Save and
+ * add next to a new record's form that follows this one, and
  * Cancel goes to `cancelHref`. A save the server refuses keeps the form as
  * typed, says why and marks the fields at fault. An existing record's form
  * is followed by its Delete section.
@@ -105,33 +151,72 @@ const blank = (kind: RecordKind): RecordEditData => ({
 export default function RecordEditForm(props: {
   id?: number;
   kind?: RecordKind;
+  after?: number;
   returnTo: ListPlace;
   cancelHref: string;
 }) {
   const record = createMemo(
-    (): Promise<QueryData<typeof getRecordEdit>> | RecordEditData =>
-      props.id ? getRecordEdit(props.id) : blank(props.kind ?? 'baptisms'),
+    (): Promise<QueryData<typeof getRecordEdit>> | RecordEditData => {
+      if (props.id) return getRecordEdit(props.id);
+      const kind = props.kind ?? 'baptisms';
+      const after = props.after;
+      // A record of another type than the list's starts empty.
+      if (after) {
+        return getRecordEdit(after).then((previous) =>
+          previous?.kind === kind ? nextAfter(previous) : blank(kind),
+        );
+      }
+      return blank(kind, Number(props.returnTo.source) || null);
+    },
     { name: 'record-edit' },
   );
   const options = createMemo(
     (): Promise<QueryData<typeof getRecordEditOptions>> => getRecordEditOptions(),
     { name: 'edit-options' },
   );
-  // The places to pick from, with their parish when it isn't their namesake.
+  // The places to link to, with their parish when it isn't their namesake;
+  // the relations of a list's people; the clergy.
   const places = createMemo(
-    (): Option[] =>
-      (options()?.places ?? []).map((place) => ({
-        value: place.id,
-        label:
-          place.parish && place.parish !== place.name
-            ? `${place.name} (${place.parish})`
-            : place.name,
-      })),
+    (): Lookup =>
+      lookupOf(
+        (options()?.places ?? []).map((place) => ({
+          value: place.id,
+          label:
+            place.parish && place.parish !== place.name
+              ? `${place.name} (${place.parish})`
+              : place.name,
+          spellings: place.spellings,
+        })),
+        'record-place-spellings',
+        m.lookup_place_unlinked(),
+      ),
     { name: 'edit-places' },
   );
   const relations = createMemo(
-    (): Option[] => (options()?.relations ?? []).map((t) => ({ value: t.id, label: t.name })),
+    (): Lookup =>
+      lookupOf(
+        (options()?.relations ?? []).map((t) => ({
+          value: t.id,
+          label: t.name,
+          spellings: t.spellings,
+        })),
+        'record-relation-spellings',
+        m.lookup_relation_unlinked(),
+      ),
     { name: 'edit-relations' },
+  );
+  const clergy = createMemo(
+    (): Lookup =>
+      lookupOf(
+        (options()?.clergy ?? []).map((c) => ({
+          value: c.id,
+          label: c.name,
+          spellings: c.spellings,
+        })),
+        'record-clergy-spellings',
+        m.lookup_clergy_unlinked(),
+      ),
+    { name: 'edit-clergy' },
   );
   const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
   // This form's refused saves (the latest shown, its fields marked).
@@ -171,6 +256,7 @@ export default function RecordEditForm(props: {
             <input type="hidden" name="returnKind" value={props.returnTo.kind ?? ''} />
             <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
             <input type="hidden" name="returnPage" value={props.returnTo.page ?? ''} />
+            <input type="hidden" name="returnSource" value={props.returnTo.source ?? ''} />
             <input type="hidden" name="id" value={r.id || ''} />
             <input type="hidden" name="version" value={r.version} />
 
@@ -221,15 +307,15 @@ export default function RecordEditForm(props: {
                   {/* A marriage has no place of its own: the bride and groom
                     each have where they lived. */}
                   <Show when={r.kind !== 'marriages'}>
-                    <PlaceInputs
-                      idName="placeId"
+                    <LookupField
                       textName="placeText"
+                      idName="placeId"
                       label={
                         r.kind === 'deaths' ? m.records_col_death_place() : m.record_edit_village()
                       }
-                      id={r.placeId}
                       text={r.placeText}
-                      places={places()}
+                      id={r.placeId}
+                      lookup={places()}
                       invalid={invalid}
                     />
                   </Show>
@@ -246,22 +332,14 @@ export default function RecordEditForm(props: {
 
                 <Show when={r.kind === 'baptisms'}>
                   <Section title={m.record_edit_baptism()}>
-                    <Select
-                      name="officiantId"
+                    <LookupField
+                      textName="officiantText"
+                      idName="officiantId"
                       label={m.record_edit_officiant()}
-                      value={r.baptism?.officiantId}
-                      none={m.form_none()}
-                      options={(options()?.clergy ?? []).map((c) => ({
-                        value: c.id,
-                        label: c.name,
-                      }))}
-                      invalid={invalid('officiantId')}
-                    />
-                    <TextInput
-                      name="officiantText"
-                      label={`${m.record_edit_officiant()}: ${m.record_edit_as_written()}`}
-                      value={r.baptism?.officiantText}
-                      invalid={invalid('officiantText')}
+                      text={r.baptism?.officiantText}
+                      id={r.baptism?.officiantId}
+                      lookup={clergy()}
+                      invalid={invalid}
                     />
                     <Select
                       name="location"
@@ -326,13 +404,13 @@ export default function RecordEditForm(props: {
                         value={r.holding?.tenantText}
                         invalid={invalid('tenantText')}
                       />
-                      <PlaceInputs
-                        idName="estatePlaceId"
+                      <LookupField
                         textName="estateText"
+                        idName="estatePlaceId"
                         label={m.records_col_estate()}
-                        id={r.holding?.estatePlaceId}
                         text={r.holding?.estateText}
-                        places={places()}
+                        id={r.holding?.estatePlaceId}
+                        lookup={places()}
                         invalid={invalid}
                       />
                     </Show>
@@ -413,12 +491,18 @@ export default function RecordEditForm(props: {
             </div>
 
             {/* Kept in view at the bottom of the window while scrolling. */}
+            {/* A new record can be followed by the next one on its page. */}
             <FormActions
               error={error()}
               cancelHref={props.cancelHref}
+              saveAndNext={!r.id}
               class="sticky bottom-0 -mx-4 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8"
             />
           </form>
+          {/* What the lookups' inputs suggest. */}
+          <SpellingList lookup={places()} />
+          <SpellingList lookup={relations()} />
+          <SpellingList lookup={clergy()} />
           <Show when={r.id}>
             <DeleteSection
               action={deleteRecord}
@@ -433,6 +517,7 @@ export default function RecordEditForm(props: {
               <input type="hidden" name="returnKind" value={props.returnTo.kind ?? ''} />
               <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
               <input type="hidden" name="returnPage" value={props.returnTo.page ?? ''} />
+              <input type="hidden" name="returnSource" value={props.returnTo.source ?? ''} />
             </DeleteSection>
           </Show>
         </>
@@ -448,8 +533,8 @@ function ListPeople(props: {
   kind: ListKind;
   members: RecordEditPerson[];
   latin: string | null;
-  places: Option[];
-  relations: Option[];
+  places: Lookup;
+  relations: Lookup;
   invalid: (field: string) => Fault;
 }) {
   const [added, setAdded] = createSignal(1, { name: 'edit-added-people' });
@@ -469,7 +554,7 @@ function ListPeople(props: {
           <PersonFields
             prefix={`members.${i()}`}
             legend={`${i() + 1}. ${
-              props.relations.find((t) => t.value === person.relationTermId)?.label ??
+              props.relations.options.find((t) => t.value === person.relationTermId)?.label ??
               person.relationText ??
               ''
             }`}
@@ -503,36 +588,6 @@ function ListPeople(props: {
   );
 }
 
-// A place picked from the list, and the place as the source writes it.
-function PlaceInputs(props: {
-  idName: string;
-  textName: string;
-  label: string;
-  id: number | null | undefined;
-  text: string | null | undefined;
-  places: Option[];
-  invalid: (field: string) => Fault;
-}) {
-  return (
-    <>
-      <Select
-        name={props.idName}
-        label={props.label}
-        value={props.id}
-        none={m.form_none()}
-        options={props.places}
-        invalid={props.invalid(props.idName)}
-      />
-      <TextInput
-        name={props.textName}
-        label={`${props.label}: ${m.record_edit_as_written()}`}
-        value={props.text}
-        invalid={props.invalid(props.textName)}
-      />
-    </>
-  );
-}
-
 // The text fields a person may have, by field.
 const textFieldLabels: Partial<Record<PersonField, () => string>> = {
   origin: m.record_edit_origin,
@@ -556,8 +611,8 @@ function PersonFields(props: {
   fields: readonly PersonField[];
   person: RecordEditPerson | null;
   latin: string | null;
-  places: Option[];
-  relations: Option[];
+  places: Lookup;
+  relations: Lookup;
   invalid: (field: string) => Fault;
 }) {
   const field = (name: string) => `${props.prefix}.${name}`;
@@ -602,34 +657,27 @@ function PersonFields(props: {
         );
       case 'relationTermId':
         return (
-          <>
-            <Select
-              name={field('relationTermId')}
-              label={m.record_edit_relation()}
-              value={props.person?.relationTermId}
-              none={m.form_none()}
-              options={props.relations}
-              invalid={props.invalid(field('relationTermId'))}
-            />
-            <TextInput
-              name={field('relationText')}
-              label={`${m.record_edit_relation()}: ${m.record_edit_as_written()}`}
-              value={value('relationText')}
-              invalid={props.invalid(field('relationText'))}
-            />
-          </>
+          <LookupField
+            textName={field('relationText')}
+            idName={field('relationTermId')}
+            label={m.record_edit_relation()}
+            text={value('relationText')}
+            id={props.person?.relationTermId}
+            lookup={props.relations}
+            invalid={props.invalid}
+          />
         );
       case 'residenceId':
       case 'birthplaceId': {
         const place = f === 'residenceId' ? 'residence' : 'birthplace';
         return (
-          <PlaceInputs
-            idName={field(`${place}Id`)}
+          <LookupField
             textName={field(`${place}Text`)}
+            idName={field(`${place}Id`)}
             label={place === 'residence' ? m.record_edit_residence() : m.record_edit_birthplace()}
-            id={props.person?.[`${place}Id`]}
             text={props.person?.[`${place}Text`]}
-            places={props.places}
+            id={props.person?.[`${place}Id`]}
+            lookup={props.places}
             invalid={props.invalid}
           />
         );
@@ -682,75 +730,16 @@ function PersonFields(props: {
         )}
       </Show>
       <div class="grid gap-x-4 sm:grid-cols-2">
-        <TextInput
-          name={field('nameRu')}
-          label={m.record_edit_name_ru()}
-          value={value('nameRu')}
-          invalid={props.invalid(field('nameRu'))}
-        />
-        <TextInput
-          name={field('nameFi')}
-          label={swedish() ? m.record_edit_name_sv() : m.record_edit_name_fi()}
-          value={value('nameFi')}
-          invalid={props.invalid(field('nameFi'))}
+        <NameFields
+          prefix={props.prefix}
+          value={value}
+          swedish={swedish()}
+          sex={props.person?.sex ?? sexOfRole[props.prefix as EditedRole] ?? 'male'}
+          invalid={props.invalid}
         />
         <For each={props.fields}>{(f) => input(f)}</For>
       </div>
-      {/* The parts are what search and display use; the import split them
-          from the names as written, so they are where a misread split is
-          fixed. */}
-      <div class="mt-3">
-        <p class="mb-2 text-sm font-medium">{m.record_edit_name_parts()}</p>
-        <div class="grid grid-cols-[auto_1fr_1fr] items-center gap-x-3 gap-y-2">
-          <span />
-          <span class="text-xs text-base-content/60">{m.record_edit_part_ru()}</span>
-          <span class="text-xs text-base-content/60">
-            {swedish() ? m.record_edit_part_sv() : m.record_edit_part_fi()}
-          </span>
-          <For each={nameParts}>
-            {([part, label]) => (
-              <>
-                <span class="text-sm">{label()}</span>
-                <NamePartInput
-                  name={field(`${part}Ru`)}
-                  value={value(`${part}Ru`)}
-                  label={`${label()}, ${m.record_edit_part_ru()}`}
-                  invalid={props.invalid(field(`${part}Ru`))}
-                />
-                <NamePartInput
-                  name={field(`${part}Fi`)}
-                  value={value(`${part}Fi`)}
-                  label={`${label()}, ${swedish() ? m.record_edit_part_sv() : m.record_edit_part_fi()}`}
-                  invalid={props.invalid(field(`${part}Fi`))}
-                />
-              </>
-            )}
-          </For>
-        </div>
-      </div>
     </fieldset>
-  );
-}
-
-// One cell of the name parts grid: its label is the row's and the column's.
-function NamePartInput(props: {
-  name: string;
-  value: string | null;
-  label: string;
-  invalid: Fault;
-}) {
-  return (
-    <div class="flex flex-col">
-      <input
-        name={props.name}
-        value={props.value ?? ''}
-        maxlength={FIELD_MAX.text}
-        aria-label={props.label}
-        class="validator input input-sm w-full"
-        aria-invalid={ariaInvalid(props.invalid)}
-      />
-      <FieldError fault={props.invalid} />
-    </div>
   );
 }
 

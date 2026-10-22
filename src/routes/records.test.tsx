@@ -136,17 +136,22 @@ const { getRecords } = vi.hoisted(() => {
     ],
   } as Record<string, (typeof baptisms)[number][]>;
   const counts = { baptisms: 120, marriages: 1, deaths: 2, households: 1, taxpayers: 0 };
-  const getRecords = vi.fn(async (kind: string, search: string, page: number) => {
-    const found = (entries[kind] ?? []).filter(
-      (e) =>
-        kind !== 'baptisms' ||
-        (e.child?.ru ?? '').toLowerCase().includes(search.trim().toLowerCase()),
-    );
-    const pages = Math.max(1, Math.ceil(found.length / size));
-    const current = Math.min(Math.max(1, page), pages);
-    const records = found.slice((current - 1) * size, current * size).map((e) => ({ ...e }));
-    return { kind, counts, total: found.length, page: current, pages, records };
-  });
+  // Source 1 is the baptism register; the made-up entries are all in it.
+  const getRecords = vi.fn(
+    async (kind: string, search: string, page: number, sourceId: number | null) => {
+      const found = (entries[kind] ?? []).filter(
+        (e) =>
+          kind !== 'baptisms' ||
+          (e.child?.ru ?? '').toLowerCase().includes(search.trim().toLowerCase()),
+      );
+      const pages = Math.max(1, Math.ceil(found.length / size));
+      const current = Math.min(Math.max(1, page), pages);
+      const records = found.slice((current - 1) * size, current * size).map((e) => ({ ...e }));
+      const source =
+        sourceId === 1 && kind === 'baptisms' ? { id: 1, title: 'Губаницы: крещения' } : null;
+      return { kind, source, counts, total: found.length, page: current, pages, records };
+    },
+  );
   return { getRecords };
 });
 
@@ -303,14 +308,16 @@ vi.mock('~/data/records', async () => {
             : null,
     ),
     getRecordEditOptions: vi.fn(async () => ({
+      // Горки is also spelled Горка; Волгово and Вохново are both spelled Волково.
       places: [
-        { id: 1, name: 'Горки', parish: 'Губаницы' },
-        { id: 2, name: 'Волгово', parish: 'Губаницы' },
+        { id: 1, name: 'Горки', parish: 'Губаницы', spellings: ['Горки', 'Горка'] },
+        { id: 2, name: 'Волгово', parish: 'Губаницы', spellings: ['Волгово', 'Волково'] },
+        { id: 3, name: 'Вохново', parish: 'Губаницы', spellings: ['Вохново', 'Волково'] },
       ],
-      clergy: [{ id: 7, name: 'Берг' }],
+      clergy: [{ id: 7, name: 'Берг', spellings: ['Берг'] }],
       relations: [
-        { id: 1, name: 'Глава' },
-        { id: 2, name: 'Жена' },
+        { id: 1, name: 'Глава', spellings: ['Глава', 'isäntä'] },
+        { id: 2, name: 'Жена', spellings: ['Жена', 'vaimo'] },
       ],
       sources: [
         { id: 1, title: 'Губаницы: крещения', kind: 'baptisms', language: 'ru' },
@@ -324,15 +331,20 @@ vi.mock('~/data/records', async () => {
       throw redirect('/records?kind=deaths');
     }, 'delete-record'),
     // Like the server: a refusal throws its error; a save redirects to the
-    // list place the form carried.
+    // list place the form carried, and Save and add next to a new record
+    // after it (a new household is 401 here).
     saveRecord: action(async (form: FormData) => {
       editing.saved.push(form);
       if (editing.failWith) throw editing.failWith;
+      if (form.get('next') === 'on') {
+        throw redirect(`/records/new?kind=${form.get('returnKind') as string}&after=401`);
+      }
       const back = new URLSearchParams();
       for (const [field, key] of [
         ['returnKind', 'kind'],
         ['returnQ', 'q'],
         ['returnPage', 'page'],
+        ['returnSource', 'source'],
       ] as const) {
         const value = form.get(field);
         if (typeof value === 'string' && value) back.set(key, value);
@@ -373,7 +385,7 @@ describe('/records', () => {
   test('shows the first page, with the dates and names of each entry', async () => {
     const { container } = renderAt('/records');
     await waitFor(() => expect(childNames(container)).toHaveLength(50));
-    expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1);
+    expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1, null);
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
     const first = container.querySelector('tbody tr')!;
     expect(first).toHaveTextContent('3.1895'); // born, month only
@@ -410,7 +422,7 @@ describe('/records', () => {
       { scenario: 'records-search' },
     );
     expect(artifact).toHaveNoDiagnostics();
-    expect(getRecords).toHaveBeenLastCalledWith('baptisms', 'мария', 1);
+    expect(getRecords).toHaveBeenLastCalledWith('baptisms', 'мария', 1, null);
     expect(window.location.search).toBe(`?q=${encodeURIComponent('мария')}`);
     // One page of results: no pagination.
     expect(screen.queryByRole('navigation', { name: 'Pages' })).toBeNull();
@@ -427,7 +439,7 @@ describe('/records', () => {
 
     fireEvent.click(screen.getByRole('link', { name: /Taxpayers/ }));
     expect(await screen.findByText('There are no records of this type yet.')).toBeInTheDocument();
-    expect(getRecords).toHaveBeenLastCalledWith('taxpayers', 'ребёнок', 1);
+    expect(getRecords).toHaveBeenLastCalledWith('taxpayers', 'ребёнок', 1, null);
     expect(screen.getByRole('link', { name: /Taxpayers/ })).toHaveClass('tab-active');
     expect(tabs.querySelectorAll('.tab')).toHaveLength(5);
     // The search form sends the kind along, for searching before JavaScript.
@@ -487,7 +499,33 @@ describe('/records', () => {
   test('an unknown ?kind= shows baptisms', async () => {
     const { container } = renderAt('/records?kind=nonsense');
     await waitFor(() => expect(childNames(container)).toHaveLength(50));
-    expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1);
+    expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1, null);
+  });
+
+  test('?source= narrows the list to one source, and All sources widens it again', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records?source=1');
+    expect(await screen.findByText('Source: Губаницы: крещения')).toBeInTheDocument();
+    expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1, 1);
+    expect(screen.getByRole('link', { name: 'All sources' })).toHaveAttribute('href', '/records');
+    // Adding and editing keep the source, to come back to it.
+    expect(screen.getByRole('link', { name: 'Add record' })).toHaveAttribute(
+      'href',
+      '/records/new?source=1',
+    );
+    expect(screen.getAllByRole('link', { name: 'Edit record' })[0]).toHaveAttribute(
+      'href',
+      expect.stringMatching(/\/edit\?source=1$/),
+    );
+    // The next page keeps it; another kind's tab doesn't.
+    expect(screen.getByRole('link', { name: 'Next' })).toHaveAttribute(
+      'href',
+      '/records?page=2&source=1',
+    );
+    expect(screen.getByRole('link', { name: /^Deaths/ })).toHaveAttribute(
+      'href',
+      '/records?kind=deaths',
+    );
   });
 
   test('says when nothing matches', async () => {
@@ -519,6 +557,132 @@ describe('editing a baptism', () => {
       'href',
       '/people/link/10',
     );
+  });
+
+  test('a place is typed once, as written, and says what it is linked to', async () => {
+    await openMaria();
+    // Stored linked by hand to a place this spelling isn't one of: kept.
+    const village = field('placeText');
+    expect(village).toHaveValue('Горкка');
+    expect(village).toHaveAttribute('list', 'record-place-spellings');
+    expect(field('placeId')).toHaveValue('1');
+    expect(village.closest('.fieldset')).toHaveTextContent('→ Горки (Губаницы)');
+    // The datalist offers each spelling once, with the place it names.
+    const spellings = [...document.querySelectorAll('#record-place-spellings option')];
+    expect(spellings.map((o) => o.getAttribute('value'))).toEqual([
+      'Горки',
+      'Горка',
+      'Волгово',
+      'Волково',
+      'Вохново',
+    ]);
+    expect(spellings[1]).toHaveAttribute('label', 'Горки (Губаницы)');
+    expect(spellings[3]).toHaveAttribute('label', 'Волгово (Губаницы) · Вохново (Губаницы)');
+  });
+
+  test('typing a spelling links it; several to choose from, or none, say so', async () => {
+    await openMaria();
+    const village = field('placeText');
+    const status = () => village.closest('.fieldset')!.querySelector('summary')!;
+    const { artifact } = await captureArtifact(
+      async () => {
+        // Another place's spelling, in another case: linked to it.
+        fireEvent.input(village, { target: { value: 'ВОЛГОВО' } });
+        flush();
+        expect(field('placeId')).toHaveValue('2');
+        expect(status()).toHaveTextContent('→ Волгово (Губаницы)');
+
+        // Two places' spelling, one of them the linked one: kept.
+        fireEvent.input(village, { target: { value: 'Волково' } });
+        flush();
+        expect(field('placeId')).toHaveValue('2');
+
+        // A spelling no place has: unlinked, saying how to link it.
+        fireEvent.input(village, { target: { value: 'Неизвестная' } });
+        flush();
+        expect(field('placeId')).toHaveValue('');
+        expect(status()).toHaveTextContent('Not linked to a locality.');
+
+        // Two places' spelling with neither linked: the choice opens, with
+        // them first.
+        fireEvent.input(village, { target: { value: 'Волково' } });
+        flush();
+        expect(field('placeId')).toHaveValue('');
+        expect(status()).toHaveTextContent('Several match this spelling: choose one');
+        expect(status().parentElement).toHaveAttribute('open');
+        const choices = [...(field('placeId') as HTMLSelectElement).options].map((o) => o.text);
+        expect(choices.slice(0, 3)).toEqual([
+          '— none —',
+          'Волгово (Губаницы)',
+          'Вохново (Губаницы)',
+        ]);
+        fireEvent.change(field('placeId'), { target: { value: '3' } });
+        flush();
+        expect(status()).toHaveTextContent('→ Вохново (Губаницы)');
+      },
+      { scenario: 'record-lookup-typing' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+  });
+
+  test('a household member’s relation is typed once, in any of its languages', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?kind=households');
+    await waitFor(() => expect(field('members.0.relationText')).toBeTruthy());
+    fireEvent.input(field('members.0.relationText'), { target: { value: 'Vaimo' } });
+    await waitFor(() => expect(field('members.0.relationTermId')).toHaveValue('2'));
+  });
+
+  test('a name is split as it is typed, and the parts show on one line', async () => {
+    await openMaria();
+    const summary = () =>
+      field('child.givenRu').closest('details')!.querySelector('summary')!.textContent;
+    // As stored: the child's given name; the parts' fields folded away.
+    expect(summary()).toContain('Russian: Given name Мария');
+    expect(field('child.givenRu').closest('details')).not.toHaveAttribute('open');
+    expect(field('child.split')).toHaveValue('auto');
+
+    const { artifact } = await captureArtifact(
+      async () => {
+        // The mother's name, typed: a woman's patronymic in -овна.
+        fireEvent.input(field('mother.nameRu'), {
+          target: { value: 'Анна Ивановна Варис ур. Лайтинен' },
+        });
+        flush();
+        expect(field('mother.givenRu')).toHaveValue('Анна');
+        expect(field('mother.patronymicRu')).toHaveValue('Ивановна');
+        expect(field('mother.surnameRu')).toHaveValue('Варис');
+        expect(field('mother.maidenRu')).toHaveValue('Лайтинен');
+        const line = field('mother.givenRu').closest('details')!.querySelector('summary')!;
+        expect(line).toHaveTextContent(
+          'Russian: Given name Анна · Patronymic Ивановна · Surname Варис · Maiden name Лайтинен',
+        );
+        // Text that isn't a name stays whole.
+        fireEvent.input(field('mother.nameFi'), { target: { value: 'tuntematon' } });
+        flush();
+        expect(line).toHaveTextContent('Finnish: not split into parts');
+      },
+      { scenario: 'record-name-split' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+  });
+
+  test('a corrected part is kept, and the name is no longer split', async () => {
+    await openMaria();
+    fireEvent.input(field('father.surnameRu'), { target: { value: 'Адамов Варис' } });
+    fireEvent.input(field('father.patronymicRu'), { target: { value: '' } });
+    await waitFor(() => expect(field('father.split')).toHaveValue('manual'));
+    expect(screen.getAllByText('Corrected by hand')).toHaveLength(1);
+    fireEvent.input(field('father.nameRu'), { target: { value: 'Иоанн Адамов Варис-Котти' } });
+    flush();
+    expect(field('father.surnameRu')).toHaveValue('Адамов Варис');
+
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    await waitFor(() => expect(editing.saved).toHaveLength(1));
+    const [saved] = editing.saved;
+    expect(saved.get('father.split')).toBe('manual');
+    expect(saved.get('father.surnameRu')).toBe('Адамов Варис');
+    expect(saved.get('child.split')).toBe('auto');
   });
 
   test('opening the edit page from the list causes no diagnostics', async () => {
@@ -815,6 +979,46 @@ describe('adding and deleting records', () => {
     expect(saved.get('page')).toBe('15');
     expect(saved.get('deceased.nameRu')).toBe('Иван Петров');
     expect(await screen.findByRole('status')).toHaveTextContent('Record added.');
+  });
+
+  test('a new record starts in the source the list shows', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?kind=deaths&source=2');
+    await waitFor(() => expect(field('sourceId')).toHaveValue('2'));
+    expect(field('returnSource')).toHaveValue('2');
+  });
+
+  test('Save and add next opens the next record on the same page, village and date', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?kind=households');
+    await waitFor(() => expect(field('members.0.nameFi')).toBeTruthy());
+    // Enter in a field submits with the form's first button: a plain Save.
+    const form = document.querySelector('main form') as HTMLFormElement;
+    expect(form.querySelector('button[type="submit"]')).toHaveTextContent('Save');
+    expect(form.querySelector('button[type="submit"]')).not.toHaveAttribute('name');
+
+    fireEvent.input(field('members.0.nameFi'), { target: { value: 'Matti' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and add next' }));
+    await waitFor(() => expect(window.location.search).toBe('?kind=households&after=401'));
+    expect(editing.saved[0].get('next')).toBe('on');
+    expect(await screen.findByRole('status')).toHaveTextContent('Record added.');
+
+    // A new record (no id) in household 401's source, date and village,
+    // with its own number and nobody in it yet.
+    await waitFor(() => expect(field('placeText')).toHaveValue('Kirkonkylä'));
+    expect(field('id')).toHaveValue('');
+    expect(field('sourceId')).toHaveValue('3');
+    expect(field('date')).toHaveValue('1927');
+    expect(field('holdingNo')).toHaveValue('');
+    expect(field('members.0.nameFi')).toHaveValue('');
+    expect(field('members.0.id')).toBeNull();
+  });
+
+  test('an existing record has no Save and add next', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/2/edit');
+    await waitFor(() => expect(field('sourceId')).toHaveValue('1'));
+    expect(screen.queryByRole('button', { name: 'Save and add next' })).toBeNull();
   });
 
   test('a record says when its type has no source yet', async () => {

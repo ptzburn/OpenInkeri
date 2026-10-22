@@ -14,7 +14,7 @@ import { getCurrentUser } from '~/data/session';
 import { formatPartialDate, localName, localTerm } from '~/lib/format';
 import { type RecordKind, isRecordKind, recordKinds } from '~/lib/record-kinds';
 import { type RecordRow, getRecords } from '~/data/records';
-import { stringParams } from '~/lib/route-params';
+import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 
@@ -23,14 +23,21 @@ const pageNumber = (page: string | undefined) => Number(page) || 1;
 const kindOf = (kind: string | undefined): RecordKind => (isRecordKind(kind) ? kind : 'baptisms');
 
 // Signed-in users only: getRecords redirects a signed-out visitor to
-// sign-in (src/data/records.ts). ?kind= is the kind of record, ?q= the search
-// and ?page= the page, so all survive reloads and can be shared.
+// sign-in (src/data/records.ts). ?kind= is the kind of record, ?source= the
+// source of that kind the list is narrowed to (the sources list links
+// there), ?q= the search and ?page= the page, so all survive reloads and
+// can be shared.
 export const route = defineFileRoute('/records/', {
-  search: stringParams('kind', 'q', 'page'),
+  search: stringParams('kind', 'q', 'page', 'source'),
   preload: ({ location }) => {
-    const { kind, q, page } = location.query;
+    const { kind, q, page, source } = location.query;
     const text = (value: unknown) => (typeof value === 'string' ? value : undefined);
-    void getRecords(kindOf(text(kind)), text(q) ?? '', pageNumber(text(page)));
+    void getRecords(
+      kindOf(text(kind)),
+      text(q) ?? '',
+      pageNumber(text(page)),
+      idParam(text(source)),
+    );
   },
 });
 
@@ -39,7 +46,7 @@ export default function Records() {
   const kind = createMemo(() => kindOf(search.kind), { name: 'records-kind' });
   const list = createMemo(
     (): Promise<QueryData<typeof getRecords>> =>
-      getRecords(kind(), search.q ?? '', pageNumber(search.page)),
+      getRecords(kind(), search.q ?? '', pageNumber(search.page), idParam(search.source)),
     { name: 'records-list' },
   );
   // Admins edit records on their edit page; the server functions check the
@@ -52,14 +59,23 @@ export default function Records() {
     setSearch({ q: value || undefined, page: undefined }, { replace: true });
 
   // Links keep the search; baptisms, the default kind, and page 1 stay out
-  // of the URL.
+  // of the URL. Pages keep the source too; another kind's tab has none of
+  // its records.
   const link = (to: RecordKind, page = 1) =>
     paths.records({
       kind: to === 'baptisms' ? undefined : to,
       q: search.q,
       page: page > 1 ? String(page) : undefined,
+      source: to === kind() ? search.source : undefined,
     });
   const pageLink = (page: number) => link(kind(), page);
+  // Where the edit pages return to: this list as it is now.
+  const listPlace = () => ({
+    kind: search.kind,
+    q: search.q,
+    page: search.page,
+    source: search.source,
+  });
 
   return (
     <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
@@ -70,10 +86,7 @@ export default function Records() {
         {/* A new record of the open tab's type; the list's place rides
             along for Cancel. */}
         <Show when={canEdit()}>
-          <a
-            href={paths.records.new({ kind: search.kind, q: search.q, page: search.page })}
-            class="btn ml-auto btn-sm btn-primary"
-          >
+          <a href={paths.records.new(listPlace())} class="btn ml-auto btn-sm btn-primary">
             <AddIcon class="size-4" aria-hidden="true" />
             {m.records_add()}
           </a>
@@ -105,7 +118,23 @@ export default function Records() {
         <Show when={kind() !== 'baptisms'}>
           <input type="hidden" name="kind" value={kind()} />
         </Show>
+        <Show when={search.source}>
+          {(source) => <input type="hidden" name="source" value={source()} />}
+        </Show>
       </SearchBox>
+      {/* The source the list is narrowed to, and the way back to all. */}
+      <Show when={list()?.source}>
+        {(source) => (
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="badge gap-1 badge-soft badge-primary">
+              {m.records_source({ title: source().title })}
+            </span>
+            <a href={paths.records({ kind: search.kind, q: search.q })} class="link text-sm">
+              {m.records_source_clear()}
+            </a>
+          </div>
+        )}
+      </Show>
       <div class="transition-opacity" style={{ opacity: isPending(list) ? 0.5 : 1 }}>
         <Show
           when={list()?.records.length}
@@ -140,13 +169,7 @@ export default function Records() {
                       kind={kind()}
                       row={row()}
                       // The link carries the list's place, to return to it.
-                      editHref={
-                        canEdit()
-                          ? paths
-                              .records(row().id)
-                              .edit({ kind: search.kind, q: search.q, page: search.page })
-                          : undefined
-                      }
+                      editHref={canEdit() ? paths.records(row().id).edit(listPlace()) : undefined}
                     />
                   )}
                 </For>

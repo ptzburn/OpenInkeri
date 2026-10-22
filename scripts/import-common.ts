@@ -1,8 +1,15 @@
 // What the register imports share: reading the spreadsheets' CSV, reading
 // their dates and names, and writing SQL for Wrangler to apply. The scripts
-// run in Node outside the app's module resolution, so nothing here imports
-// from src/.
+// run in Node outside the app's module resolution, so they import from src/
+// only by relative path, and only modules that import nothing themselves
+// (src/lib/name-split.ts).
 import { readFileSync } from 'node:fs';
+
+import {
+  type NameLanguage,
+  type NameParts as SplitParts,
+  splitName as split,
+} from '../src/lib/name-split.ts';
 
 // --- CSV --------------------------------------------------------------------------
 
@@ -108,107 +115,23 @@ export const warn = (kind: string, text: string) => {
 // names rather than a given name and a surname.
 export const givenNames = new Set<string>();
 
-const MAIDEN_RU = new Set(['ур.', 'ур', 'у.', 'рожд.', 'урожд.']);
-const MAIDEN_FI = new Set(['o.s.', 'os.', 'geb.', 'ur.', 'sünd.']);
-const PATRONYMIC_RU_MALE = /(ов|ев|ёв|ин|ович|евич|ич|\u00a0сын)$/;
-const PATRONYMIC_RU_FEMALE = /(ова|ева|ёва|ина|овна|евна|ична|инична|\u00a0дочь)$/;
-const PATRONYMIC_FI = /.(p\.|t\.|s\.|S\.|T\.|poika|tytär|sohn)$/;
-// Swedish: Matson, Erson, Persdotter, abbreviated s:on, d:r.
-const PATRONYMIC_SV = /.(son|s:on|dotter|d:r)$/;
-const PARTICLES = new Set(['фон', 'де', 'ван', 'von', 'de', 'van']);
+// The imports also build parts by hand, for a cell that holds no name.
+export type NameParts = Omit<SplitParts, 'split' | 'name'> & { name: string | null };
 
-export type NameParts = {
-  name: string | null;
-  given: string | null;
-  patronymic: string | null;
-  surname: string | null;
-  maiden: string | null;
-  note: string | null;
-};
-
-const join = (tokens: string[]) =>
-  tokens.length ? tokens.join(' ').replaceAll('\u00a0', ' ') : null;
-
+// A name cell split as the record form splits names (src/lib/name-split.ts),
+// with the given names seen in the registers; a cell that doesn't read as a
+// name is kept whole, with a warning.
 export function splitName(
   cell: string,
-  language: 'ru' | 'fi' | 'sv',
+  language: NameLanguage,
   sex: 'male' | 'female',
 ): NameParts | null {
-  let text = value(cell);
-  if (!text) return null;
-  // Parenthesised remarks are kept as the persona's note: "Ян Блом (названый отец)".
-  const remarks = [...text.matchAll(/\(([^)]*)\)/g)].map((m) => m[1].trim()).filter(Boolean);
-  text = clean(text.replace(/\([^)]*\)/g, ' '));
-  const note = remarks.length ? remarks.join('; ') : null;
-  const whole = { name: text, given: null, patronymic: null, surname: null, maiden: null, note };
-  if (!text) return null;
-
-  // Two-word patronymics ("Andruksen p.", "Иона дочь") become one token,
-  // joined by a no-break space until the parts are returned.
-  if (language !== 'ru') {
-    text = text
-      .replace(/(^|\s)o\. s\./g, '$1o.s.')
-      .replace(/(\S) (p\.|t\.|poika|tytär)(?= |$)/g, '$1\u00a0$2');
-  } else text = text.replace(/(\S) (дочь|сын)(?= |$)/g, '$1\u00a0$2');
-  const tokens = text.split(' ');
-  const markers = language === 'ru' ? MAIDEN_RU : MAIDEN_FI;
-
-  // Not a name ("Родители найденной девочки неизвестны", "См список …"):
-  // keep the text, split nothing.
-  const lowercase = tokens.some(
-    (t) => /^\p{Ll}/u.test(t) && !markers.has(t) && !PARTICLES.has(t) && !/^[дd]'\p{Lu}/u.test(t),
-  );
-  if (lowercase || /^См(?!\p{L})/u.test(text)) {
-    warn('names not split', text);
-    return whole;
-  }
-
-  const markerAt = tokens.findIndex((t) => markers.has(t));
-  const maiden = markerAt >= 0 ? join(tokens.slice(markerAt + 1)) : null;
-  const rest = markerAt >= 0 ? tokens.slice(0, markerAt) : tokens;
-  if (rest.length === 0) return { ...whole, maiden };
-  if (rest.length === 1) return { ...whole, given: join(rest), maiden };
-
-  const isPatronymic = (t: string) =>
-    language === 'fi'
-      ? PATRONYMIC_FI.test(t)
-      : language === 'sv'
-        ? PATRONYMIC_SV.test(t)
-        : (sex === 'male' ? PATRONYMIC_RU_MALE : PATRONYMIC_RU_FEMALE).test(t);
-
-  // A man's name of two words is a given name and a surname ("Карл Илвес").
-  // Otherwise the patronymic sits after the given names and before the
-  // surname; a woman named with a maiden name may have no surname after it.
-  const lastCandidate = sex === 'female' || markerAt >= 0 ? rest.length - 1 : rest.length - 2;
-  let patronymicAt = -1;
-  if (!(sex === 'male' && rest.length === 2 && language === 'ru')) {
-    for (let i = lastCandidate; i >= 1; i--) {
-      if (isPatronymic(rest[i])) {
-        patronymicAt = i;
-        break;
-      }
-    }
-  }
-  if (patronymicAt >= 0) {
-    return {
-      ...whole,
-      given: join(rest.slice(0, patronymicAt)),
-      patronymic: join([rest[patronymicAt]]),
-      surname: join(rest.slice(patronymicAt + 1)),
-      maiden,
-    };
-  }
-  // No patronymic: trailing given names belong to the given name.
-  let end = rest.length - 1;
-  if (sex === 'female' && givenNames.has(rest[end]) && markerAt < 0) end = rest.length;
-  let surnameStart = end;
-  while (surnameStart > 1 && PARTICLES.has(rest[surnameStart - 1])) surnameStart--;
-  return {
-    ...whole,
-    given: join(rest.slice(0, surnameStart)),
-    surname: join(rest.slice(surnameStart)),
-    maiden,
-  };
+  const text = value(cell);
+  const parts = text ? split(text, language, sex, (word) => givenNames.has(word)) : null;
+  if (!parts) return null;
+  const { split: read, ...rest } = parts;
+  if (!read) warn('names not split', rest.name);
+  return rest;
 }
 
 // Russian given names ending in -а/-я that are men's.

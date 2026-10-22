@@ -123,8 +123,11 @@ describe('/sources', () => {
     expect(row).toHaveTextContent('Hevaa');
     expect(row).toHaveTextContent('1892–1919');
     expect(row).toHaveTextContent('Russian');
-    // The count opens the records of the type.
-    expect(screen.getByRole('link', { name: '6630' })).toHaveAttribute('href', '/records');
+    // The title and the count open the source's records.
+    expect(screen.getByRole('link', { name: '6630' })).toHaveAttribute('href', '/records?source=1');
+    expect(
+      screen.getByRole('link', { name: 'Губаницы: список рожденных и крещенных' }),
+    ).toHaveAttribute('href', '/records?source=1');
     const other = screen.getByText('Туутари и Хиетамяки: налогоплательщики 1696').closest('tr')!;
     expect(other).toHaveTextContent('Taxpayers');
     expect(other).toHaveTextContent('Swedish');

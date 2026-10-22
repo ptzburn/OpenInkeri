@@ -13,7 +13,7 @@
 // row as first transcribed, is never edited.
 import { action, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
-import { and, count, eq, sql } from 'drizzle-orm';
+import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
@@ -38,7 +38,9 @@ import {
   personFieldsOf,
   sexOfRole,
 } from '~/lib/record-people';
+import { type NameLanguage, lastWord, splitName } from '~/lib/name-split';
 import { foldForSearch, searchTextOf } from '~/lib/search-text';
+import { rowsSpelled, spellingIndex } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -69,137 +71,152 @@ export const RECORDS_PAGE_SIZE = 50;
 
 /**
  * One page of records of one kind, in register order, optionally narrowed to
- * those whose names or village contain `search` (case-insensitive, ё = е).
- * `page` counts from 1 and is clamped to the pages there are. Also returns
- * how many records each kind has, whatever the search, for the kind tabs.
+ * one source (`sourceId`, a source of that kind) and to those whose names or
+ * village contain `search` (case-insensitive, ё = е). `page` counts from 1
+ * and is clamped to the pages there are. Also returns how many records each
+ * kind has, whatever the search, for the kind tabs, and the source the list
+ * is narrowed to (null when there is none of that kind).
  *
  * Each row carries the fields of every kind; the page shows the current
  * kind's. A list's rows (households, taxpayers' farms) carry their people.
  */
-export const getRecords = query(async (kind: RecordKind, search: string, page: number) => {
-  'use server';
-  signedIn();
-  kind = v.parse(v.picklist(recordKinds), kind);
-  const folded = foldForSearch(search);
-  // %, _ and \ in the search are literal characters, not patterns.
-  const pattern = `%${folded.replace(/[\\%_]/g, '\\$&')}%`;
-  // The relational query aliases its tables, so the filter takes the table
-  // it is applied to.
-  const filter = (table: typeof record) =>
-    and(
-      sql`${table.sourceId} in (select ${source.id} from ${source} where ${source.kind} = ${kind})`,
-      folded ? sql`${table.searchText} like ${pattern} escape '\\'` : undefined,
-    )!;
-
-  const totals = await db
-    .select({ kind: source.kind, records: count() })
-    .from(record)
-    .innerJoin(source, eq(record.sourceId, source.id))
-    .groupBy(source.kind);
-  const counts = Object.fromEntries(
-    recordKinds.map((k) => [k, totals.find((t) => t.kind === k)?.records ?? 0]),
-  ) as Record<RecordKind, number>;
-
-  const total = await db.$count(record, filter(record));
-  const pages = Math.max(1, Math.ceil(total / RECORDS_PAGE_SIZE));
-  const current = Math.min(Math.max(1, Math.trunc(page) || 1), pages);
-
-  const rows = await db.query.record.findMany({
-    where: { RAW: filter },
-    orderBy: { id: 'asc' },
-    limit: RECORDS_PAGE_SIZE,
-    offset: (current - 1) * RECORDS_PAGE_SIZE,
-    columns: { id: true, status: true, date: true, placeText: true, note: true },
-    with: {
-      place: { columns: { nameRu: true, nameFi: true } },
-      baptism: {
-        columns: { birthDate: true, stillborn: true, multipleBirth: true, illegitimate: true },
-      },
-      death: { columns: { burialDate: true, causeText: true, stillborn: true } },
-      holding: { columns: { holdingNo: true, estateText: true, tenantText: true } },
-      personas: {
-        columns: {
-          id: true,
-          role: true,
-          nameRu: true,
-          nameFi: true,
-          ageText: true,
-          residenceText: true,
-          relationText: true,
-          hasWife: true,
-          birthDate: true,
-          deathDate: true,
-          note: true,
-          noteOriginal: true,
-        },
-        with: {
-          residence: { columns: { nameRu: true, nameFi: true } },
-          relation: { columns: { ru: true, fi: true, en: true } },
-        },
-        orderBy: { id: 'asc' },
-      },
-    },
-  });
-
-  // The first person in a role: names, age and where they lived.
-  const named = (personas: (typeof rows)[number]['personas'], role: PersonaRole) => {
-    const p = personas.find((p) => p.role === role);
-    return p
-      ? {
-          ru: p.nameRu,
-          fi: p.nameFi,
-          age: p.ageText,
-          residence: p.residence ? { ru: p.residence.nameRu, fi: p.residence.nameFi } : null,
-          residenceAsWritten: p.residenceText,
-        }
+export const getRecords = query(
+  async (kind: RecordKind, search: string, page: number, sourceId: number | null) => {
+    'use server';
+    signedIn();
+    kind = v.parse(v.picklist(recordKinds), kind);
+    sourceId = v.parse(v.nullable(rowId), sourceId);
+    const narrowed = sourceId
+      ? ((await db.query.source.findFirst({
+          where: { id: sourceId, kind },
+          columns: { id: true, title: true },
+        })) ?? null)
       : null;
-  };
+    const folded = foldForSearch(search);
+    // %, _ and \ in the search are literal characters, not patterns.
+    const pattern = `%${folded.replace(/[\\%_]/g, '\\$&')}%`;
+    // The relational query aliases its tables, so the filter takes the table
+    // it is applied to.
+    const filter = (table: typeof record) =>
+      and(
+        narrowed
+          ? eq(table.sourceId, narrowed.id)
+          : sql`${table.sourceId} in (select ${source.id} from ${source} where ${source.kind} = ${kind})`,
+        folded ? sql`${table.searchText} like ${pattern} escape '\\'` : undefined,
+      )!;
 
-  return {
-    kind,
-    counts,
-    total,
-    page: current,
-    pages,
-    records: rows.map((r) => ({
-      id: r.id,
-      lost: r.status === 'lost',
-      // Baptised, married or died.
-      date: r.date,
-      birthDate: r.baptism?.birthDate ?? null,
-      stillborn: r.baptism?.stillborn ?? r.death?.stillborn ?? false,
-      multipleBirth: r.baptism?.multipleBirth ?? null,
-      illegitimate: r.baptism?.illegitimate ?? false,
-      burialDate: r.death?.burialDate ?? null,
-      cause: r.death?.causeText ?? null,
-      // Where the people lived; for a death, where it happened.
-      village: r.place ? { ru: r.place.nameRu, fi: r.place.nameFi } : null,
-      villageAsWritten: r.placeText,
-      child: named(r.personas, 'child'),
-      father: named(r.personas, 'father'),
-      mother: named(r.personas, 'mother'),
-      groom: named(r.personas, 'groom'),
-      bride: named(r.personas, 'bride'),
-      deceased: named(r.personas, 'deceased'),
-      // A household or farm: its number, estate and tenant, and its people.
-      holding: r.holding,
-      members: isListKind(kind)
-        ? r.personas.map((p) => ({
-            id: p.id,
+    const totals = await db
+      .select({ kind: source.kind, records: count() })
+      .from(record)
+      .innerJoin(source, eq(record.sourceId, source.id))
+      .groupBy(source.kind);
+    const counts = Object.fromEntries(
+      recordKinds.map((k) => [k, totals.find((t) => t.kind === k)?.records ?? 0]),
+    ) as Record<RecordKind, number>;
+
+    const total = await db.$count(record, filter(record));
+    const pages = Math.max(1, Math.ceil(total / RECORDS_PAGE_SIZE));
+    const current = Math.min(Math.max(1, Math.trunc(page) || 1), pages);
+
+    const rows = await db.query.record.findMany({
+      where: { RAW: filter },
+      orderBy: { id: 'asc' },
+      limit: RECORDS_PAGE_SIZE,
+      offset: (current - 1) * RECORDS_PAGE_SIZE,
+      columns: { id: true, status: true, date: true, placeText: true, note: true },
+      with: {
+        place: { columns: { nameRu: true, nameFi: true } },
+        baptism: {
+          columns: { birthDate: true, stillborn: true, multipleBirth: true, illegitimate: true },
+        },
+        death: { columns: { burialDate: true, causeText: true, stillborn: true } },
+        holding: { columns: { holdingNo: true, estateText: true, tenantText: true } },
+        personas: {
+          columns: {
+            id: true,
+            role: true,
+            nameRu: true,
+            nameFi: true,
+            ageText: true,
+            residenceText: true,
+            relationText: true,
+            hasWife: true,
+            birthDate: true,
+            deathDate: true,
+            note: true,
+            noteOriginal: true,
+          },
+          with: {
+            residence: { columns: { nameRu: true, nameFi: true } },
+            relation: { columns: { ru: true, fi: true, en: true } },
+          },
+          orderBy: { id: 'asc' },
+        },
+      },
+    });
+
+    // The first person in a role: names, age and where they lived.
+    const named = (personas: (typeof rows)[number]['personas'], role: PersonaRole) => {
+      const p = personas.find((p) => p.role === role);
+      return p
+        ? {
             ru: p.nameRu,
             fi: p.nameFi,
-            relation: p.relation,
-            relationAsWritten: p.relationText,
-            hasWife: p.hasWife,
-            birthDate: p.birthDate,
-            deathDate: p.deathDate,
-            note: p.note ?? p.noteOriginal,
-          }))
-        : [],
-      note: r.note,
-    })),
-  };
-}, 'records');
+            age: p.ageText,
+            residence: p.residence ? { ru: p.residence.nameRu, fi: p.residence.nameFi } : null,
+            residenceAsWritten: p.residenceText,
+          }
+        : null;
+    };
+
+    return {
+      kind,
+      source: narrowed,
+      counts,
+      total,
+      page: current,
+      pages,
+      records: rows.map((r) => ({
+        id: r.id,
+        lost: r.status === 'lost',
+        // Baptised, married or died.
+        date: r.date,
+        birthDate: r.baptism?.birthDate ?? null,
+        stillborn: r.baptism?.stillborn ?? r.death?.stillborn ?? false,
+        multipleBirth: r.baptism?.multipleBirth ?? null,
+        illegitimate: r.baptism?.illegitimate ?? false,
+        burialDate: r.death?.burialDate ?? null,
+        cause: r.death?.causeText ?? null,
+        // Where the people lived; for a death, where it happened.
+        village: r.place ? { ru: r.place.nameRu, fi: r.place.nameFi } : null,
+        villageAsWritten: r.placeText,
+        child: named(r.personas, 'child'),
+        father: named(r.personas, 'father'),
+        mother: named(r.personas, 'mother'),
+        groom: named(r.personas, 'groom'),
+        bride: named(r.personas, 'bride'),
+        deceased: named(r.personas, 'deceased'),
+        // A household or farm: its number, estate and tenant, and its people.
+        holding: r.holding,
+        members: isListKind(kind)
+          ? r.personas.map((p) => ({
+              id: p.id,
+              ru: p.nameRu,
+              fi: p.nameFi,
+              relation: p.relation,
+              relationAsWritten: p.relationText,
+              hasWife: p.hasWife,
+              birthDate: p.birthDate,
+              deathDate: p.deathDate,
+              note: p.note ?? p.noteOriginal,
+            }))
+          : [],
+        note: r.note,
+      })),
+    };
+  },
+  'records',
+);
 
 /** One row of the records list. */
 export type RecordRow = Awaited<ReturnType<typeof getRecords>>['records'][number];
@@ -279,10 +296,11 @@ export interface RecordEditData {
 }
 
 export interface RecordEditOptionsData {
-  places: { id: number; name: string; parish: string | null }[];
-  clergy: { id: number; name: string }[];
-  /** How a person belongs to a household or farm ("Сын", "Боболь"). */
-  relations: { id: number; name: string }[];
+  /** With the spellings records use for them (place_alias), their names among them. */
+  places: { id: number; name: string; parish: string | null; spellings: string[] }[];
+  clergy: { id: number; name: string; spellings: string[] }[];
+  /** How a person belongs to a household or farm ("Сын", "Боболь"), with its names in each language. */
+  relations: { id: number; name: string; spellings: string[] }[];
   /** The sources a record can be in: one of its own type. */
   sources: { id: number; title: string; kind: RecordKind; language: string | null }[];
 }
@@ -375,20 +393,30 @@ export const getRecordEdit = query(async (id: number): Promise<RecordEditData | 
   return { ...rest, kind, language: source.language, people, members: [] };
 }, 'record-edit');
 
-/** The sources, places, clergy and relations an edited record can point to, by name. */
+/**
+ * The sources, places, clergy and relations an edited record can point to,
+ * by name, with the spellings that name them (the form links a value as
+ * written to the one it names).
+ */
 export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsData> => {
   'use server';
   adminOnly();
   const [places, clergy, relations, sources] = await Promise.all([
     db.query.place.findMany({
-      columns: { id: true, nameRu: true },
-      with: { parish: { columns: { nameRu: true } } },
+      columns: { id: true, nameRu: true, nameFi: true },
+      with: {
+        parish: { columns: { nameRu: true } },
+        aliases: { columns: { name: true } },
+      },
       orderBy: { nameRu: 'asc' },
     }),
-    db.query.clergy.findMany({ columns: { id: true, nameRu: true }, orderBy: { nameRu: 'asc' } }),
+    db.query.clergy.findMany({
+      columns: { id: true, nameRu: true, nameFi: true },
+      orderBy: { nameRu: 'asc' },
+    }),
     db.query.term.findMany({
       where: { vocabulary: 'relation' },
-      columns: { id: true, ru: true },
+      columns: { id: true, ru: true, fi: true, en: true },
       orderBy: { ru: 'asc' },
     }),
     db.query.source.findMany({
@@ -397,12 +425,30 @@ export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsDat
     }),
   ]);
   return {
-    places: places.map((p) => ({ id: p.id, name: p.nameRu, parish: p.parish?.nameRu ?? null })),
-    clergy: clergy.map((c) => ({ id: c.id, name: c.nameRu })),
-    relations: relations.map((t) => ({ id: t.id, name: t.ru })),
+    places: places.map((p) => ({
+      id: p.id,
+      name: p.nameRu,
+      parish: p.parish?.nameRu ?? null,
+      spellings: spellings(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
+    })),
+    clergy: clergy.map((c) => ({
+      id: c.id,
+      name: c.nameRu,
+      spellings: spellings(c.nameRu, c.nameFi),
+    })),
+    relations: relations.map((t) => ({
+      id: t.id,
+      name: t.ru,
+      spellings: spellings(t.ru, t.fi, t.en),
+    })),
     sources,
   };
 }, 'record-edit-options');
+
+// A row's names and spellings, each once.
+const spellings = (...names: (string | null)[]) => [
+  ...new Set(names.filter((name): name is string => !!name)),
+];
 
 // --- The form ----------------------------------------------------------------------
 
@@ -423,11 +469,16 @@ const recordId = v.pipe(v.string(), v.transform(Number), rowId);
 
 // What every kind's form posts.
 const common = {
-  // Where the list was (kind, search, page), to return there after saving.
-  // The redirect is built from these, never taken whole from the request.
+  // Where the list was (kind, search, page, source), to return there after
+  // saving. The redirect is built from these, never taken whole from the
+  // request.
   returnKind: v.optional(v.picklist(recordKinds)),
   returnQ: v.optional(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
   returnPage: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,5}$/))),
+  returnSource: optionalId,
+  // Save and add next: a new record's form follows, carrying this one's
+  // source and page.
+  next: v.optional(v.literal('on')),
   id: optionalId, // empty for a new record
   version,
   sourceId: v.pipe(v.string(), v.transform(Number), rowId),
@@ -533,15 +584,128 @@ type Values = Record<string, string | number | boolean | null>;
 const personValues = (input: Values, prefix: string, fields: readonly PersonField[]): Values =>
   Object.fromEntries([...nameFields, ...fields].map((f) => [f, input[`${prefix}.${f}`] ?? null]));
 
+type NameSplit = {
+  values: Values;
+  lang: 'Ru' | 'Fi';
+  language: NameLanguage;
+  sex: 'male' | 'female';
+};
+
+/**
+ * Sets the name parts of each of `splits` (given, patronymic, surname and
+ * maiden, in `lang`) from the whole name in `values`, by ~/lib/name-split.
+ * A woman's last word counts as a given name when some mention has it as
+ * theirs, as the imports counted the registers' given names.
+ */
+async function splitNames(splits: NameSplit[]) {
+  const nameOf = (s: NameSplit) => s.values[`name${s.lang}`];
+  const words = [
+    ...new Set(
+      splits.flatMap((s) => {
+        const name = nameOf(s);
+        const word = s.sex === 'female' && typeof name === 'string' ? lastWord(name) : null;
+        return word ? [foldForSearch(word)] : [];
+      }),
+    ),
+  ];
+  const known = new Set<string | null>();
+  if (words.length) {
+    const [ru, fi] = await Promise.all([
+      db
+        .selectDistinct({ given: persona.givenRuFolded })
+        .from(persona)
+        .where(inArray(persona.givenRuFolded, words)),
+      db
+        .selectDistinct({ given: persona.givenFiFolded })
+        .from(persona)
+        .where(inArray(persona.givenFiFolded, words)),
+    ]);
+    for (const row of [...ru, ...fi]) known.add(row.given);
+  }
+  for (const s of splits) {
+    const name = nameOf(s);
+    const parts =
+      typeof name === 'string'
+        ? splitName(name, s.language, s.sex, (word) => known.has(foldForSearch(word)))
+        : null;
+    for (const part of ['given', 'patronymic', 'surname', 'maiden'] as const) {
+      s.values[`${part}${s.lang}`] = parts?.[part] ?? null;
+    }
+  }
+}
+
+// A value as written and its link, by the as-written field: a place, or a
+// household or farm relation.
+const linkedFields = {
+  placeText: ['placeId', 'place'],
+  estateText: ['estatePlaceId', 'place'],
+  residenceText: ['residenceId', 'place'],
+  birthplaceText: ['birthplaceId', 'place'],
+  relationText: ['relationTermId', 'relation'],
+} as const;
+
+/**
+ * Links the values posted as written without a link to the place or
+ * relation they name, when exactly one has that spelling (~/lib/spellings).
+ * The form does this while the admin types; this covers a form posted
+ * before JavaScript loaded. A value several rows are spelled as stays
+ * unlinked for the admin to choose.
+ */
+async function linkSpellings(input: Values) {
+  const unlinked = Object.entries(input).flatMap(([key, value]) => {
+    const dot = key.lastIndexOf('.');
+    const field = key.slice(dot + 1);
+    if (!(field in linkedFields) || typeof value !== 'string') return [];
+    const [idField, table] = linkedFields[field as keyof typeof linkedFields];
+    const idKey = key.slice(0, dot + 1) + idField;
+    return idKey in input && input[idKey] === null ? [{ idKey, text: value, table }] : [];
+  });
+  if (!unlinked.length) return;
+  const wants = (table: 'place' | 'relation') => unlinked.some((u) => u.table === table);
+  const [places, relations] = await Promise.all([
+    wants('place')
+      ? db.query.place.findMany({
+          columns: { id: true, nameRu: true, nameFi: true },
+          with: { aliases: { columns: { name: true } } },
+        })
+      : [],
+    wants('relation')
+      ? db.query.term.findMany({
+          where: { vocabulary: 'relation' },
+          columns: { id: true, ru: true, fi: true, en: true },
+        })
+      : [],
+  ]);
+  const indexes = {
+    place: spellingIndex(
+      places.map((p) => ({
+        id: p.id,
+        spellings: spellings(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
+      })),
+    ),
+    relation: spellingIndex(
+      relations.map((t) => ({ id: t.id, spellings: spellings(t.ru, t.fi, t.en) })),
+    ),
+  };
+  for (const { idKey, text, table } of unlinked) {
+    const ids = rowsSpelled(indexes[table], text);
+    if (ids.length === 1) input[idKey] = ids[0];
+  }
+}
+
 /**
  * Saves the edit page's form over a record, then redirects to the records
  * list where the admin came from (the redirect revalidates, so the list
- * shows the change). The record's kind comes from the database, not the
+ * shows the change), or with Save and add next to a new record's form that
+ * starts from this one (see getRecordEdit's use in the form). The record's kind comes from the database, not the
  * form. Refused, with the fields at fault, when a value doesn't read; and
  * when the record changed since the page loaded it (its version moved on),
  * so one admin's save doesn't silently undo another's. The check reads the
  * version just before the batch, so two saves within the same moment could
  * still both pass.
+ *
+ * A place or relation as written is linked to the one it names (see
+ * linkSpellings) when the form didn't link it.
  *
  * A person whose fields are all emptied is removed from the record; one
  * given a name where there was none is added (in a list, as many as the
@@ -557,7 +721,7 @@ export const saveRecord = action(async (formData: FormData) => {
   const chosen = sourceId.success
     ? await db.query.source.findFirst({
         where: { id: sourceId.output },
-        columns: { id: true, kind: true },
+        columns: { id: true, kind: true, language: true },
       })
     : null;
   if (!chosen) throw refuse({ message: m.form_invalid(), fields: { sourceId: '' } }, 400);
@@ -583,6 +747,7 @@ export const saveRecord = action(async (formData: FormData) => {
   if (existing && existing.version !== input.version) {
     throw refuse({ message: m.record_edit_conflict() }, 409);
   }
+  await linkSpellings(input);
 
   // A new record gets its id first: its details and people point to it.
   // Then the save goes on as for any record, from the empty one.
@@ -602,6 +767,8 @@ export const saveRecord = action(async (formData: FormData) => {
   // Who the form edits: a register's roles, or a list's people by index.
   type Edited = {
     key: string;
+    /** Their fields' names start "<prefix>.". */
+    prefix: string;
     role: PersonaRole;
     values: Values;
     current: (typeof before.personas)[number] | null;
@@ -613,6 +780,7 @@ export const saveRecord = action(async (formData: FormData) => {
       const personaId = input[`members.${n}.id`] as number | null;
       return {
         key: String(n),
+        prefix: `members.${n}`,
         role,
         values: personValues(input, `members.${n}`, listFields[kind]),
         current: personaId
@@ -628,11 +796,34 @@ export const saveRecord = action(async (formData: FormData) => {
   } else {
     edited = editedRoles[kind].map((role: EditedRole) => ({
       key: role,
+      prefix: role,
       role,
       values: personValues(input, role, personFieldsOf(kind, role)),
       current: before.personas.find((p) => p.role === role) ?? null,
     }));
   }
+
+  // Names typed or changed are split into their parts, unless the admin
+  // corrected the parts in the form ("<prefix>.split" is "manual"); a name
+  // left as it was keeps the parts posted. The Latin-script name is Swedish
+  // in a Swedish register.
+  const latin: NameLanguage = chosen.language === 'sv' ? 'sv' : 'fi';
+  await splitNames(
+    edited.flatMap(({ prefix, role, values, current }) => {
+      // Compared, never stored: it needs no schema.
+      if (entries[`${prefix}.split`] === 'manual') return [];
+      const sex =
+        (values.sex as Sex | null | undefined) ??
+        current?.sex ??
+        sexOfRole[role as EditedRole] ??
+        'male';
+      return (['Ru', 'Fi'] as const).flatMap((lang) =>
+        current && values[`name${lang}`] === current[`name${lang}`]
+          ? []
+          : [{ values, lang, language: lang === 'Ru' ? ('ru' as const) : latin, sex }],
+      );
+    }),
+  );
 
   const statements = [];
   const kept = [];
@@ -809,17 +1000,27 @@ export const saveRecord = action(async (formData: FormData) => {
     if (created) await db.delete(record).where(eq(record.id, rid));
     throw refuse({ message: m.form_failed() }, 500);
   }
-  // A new record is the last of its type, so the list opens on its last
-  // page (unsearched); an edit returns to where the admin came from.
+  const listKind = kind === 'baptisms' ? undefined : kind; // the default
+  // The source the list was narrowed to, while the record is still in it.
+  const listSource = input.returnSource === chosen.id ? String(chosen.id) : undefined;
+  if (input.next) {
+    throw redirect(paths.records.new({ kind: listKind, source: listSource, after: String(rid) }));
+  }
+  // A new record is the last of its type (or of its source, when the list
+  // shows one), so the list opens on its last page, unsearched; an edit
+  // returns to where the admin came from.
   if (created) {
     const total = await db.$count(
       record,
-      sql`${record.sourceId} in (select ${source.id} from ${source} where ${source.kind} = ${kind})`,
+      listSource
+        ? eq(record.sourceId, chosen.id)
+        : sql`${record.sourceId} in (select ${source.id} from ${source} where ${source.kind} = ${kind})`,
     );
     const last = Math.ceil(total / RECORDS_PAGE_SIZE);
     throw redirect(
       paths.records({
-        kind: kind === 'baptisms' ? undefined : kind,
+        kind: listKind,
+        source: listSource,
         page: last > 1 ? String(last) : undefined,
       }),
     );
@@ -827,19 +1028,26 @@ export const saveRecord = action(async (formData: FormData) => {
   throw redirect(backToList(input));
 }, 'save-record');
 
-// The records list as a form came from it (kind, search, page). The
-// redirect is built from these, never taken whole from the request.
-const backToList = (input: { returnKind?: RecordKind; returnQ?: string; returnPage?: string }) =>
+// The records list as a form came from it (kind, search, page, source).
+// The redirect is built from these, never taken whole from the request.
+const backToList = (input: {
+  returnKind?: RecordKind;
+  returnQ?: string;
+  returnPage?: string;
+  returnSource: number | null;
+}) =>
   paths.records({
     kind: input.returnKind === 'baptisms' ? undefined : input.returnKind, // the default
     q: input.returnQ || undefined,
     page: input.returnPage,
+    source: input.returnSource ? String(input.returnSource) : undefined,
   });
 
 const deletion = v.object({
   returnKind: common.returnKind,
   returnQ: common.returnQ,
   returnPage: common.returnPage,
+  returnSource: common.returnSource,
   id: recordId,
   version,
   confirm: v.literal('on'),
