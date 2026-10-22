@@ -35,3 +35,7 @@ gitignore
 .DS_Store
 Thumbs.db
 .vitest/
+
+# Raw register exports the import scripts read (scripts/import-*.ts):
+# people's records, kept out of the public repo.
+/temp-data
