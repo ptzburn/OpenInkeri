@@ -1,4 +1,4 @@
-// Who is signed in, and signing in (with GitHub) and out, as server
+// Who is signed in, and signing in (with GitHub, Google or VK) and out, as server
 // functions behind router queries and actions: the sign-in and sign-out
 // forms post to them before JavaScript loads. They call better-auth directly
 // through auth.api.*; Solid's server-function CSRF check guards them. The
@@ -6,10 +6,11 @@
 import { action, query } from '@solidjs/router';
 import { getRequestEvent, redirect, respond } from '@solidjs/web';
 
+import type { AuthProvider } from '~/lib/auth-providers';
 import type { ActionError } from '~/lib/form-error';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
-import { auth, forwardCookies, isAdmin, requestHeaders } from '~/server/auth';
+import { auth, authProviders, forwardCookies, isAdmin, requestHeaders } from '~/server/auth';
 import { adminOnly, signedIn } from '~/server/guards';
 
 /** The signed-in user (set on the request by src/middleware.ts), or null. */
@@ -17,7 +18,7 @@ export const getCurrentUser = query(async () => {
   'use server';
   const user = getRequestEvent()?.locals.user;
   if (!user) return null;
-  // image is the GitHub avatar URL better-auth stored at sign-in.
+  // image is the avatar URL better-auth took from the provider at sign-up.
   return {
     id: user.id,
     name: user.name,
@@ -44,33 +45,47 @@ export const requireAdmin = query(async () => {
   return true;
 }, 'require-admin');
 
-/**
- * Starts GitHub sign-in: better-auth stores the OAuth state in a cookie and
- * returns GitHub's authorize URL, which the browser is sent to. GitHub sends
- * the user back to /api/auth/callback/github, which signs them in (creating
- * the account on the first visit) and redirects home. A failure there lands
- * on /sign-in?error=<code>.
- */
-export const signInWithGitHub = action(async () => {
+/** The providers the sign-in page offers (src/server/auth.ts). */
+export const getSignInProviders = query(async (): Promise<AuthProvider[]> => {
   'use server';
-  return startGitHubSignIn(paths());
-}, 'sign-in-github');
+  return authProviders;
+}, 'sign-in-providers');
+
+/**
+ * Starts signing in with a provider: better-auth stores the OAuth state in a
+ * cookie and returns the provider's authorize URL, which the browser is sent
+ * to. The provider sends the user back to /api/auth/callback/<provider>,
+ * which signs them in (creating the account on the first visit) and
+ * redirects home. A failure there lands on /sign-in?error=<code>. The page
+ * binds the provider (signIn.with(provider)); it travels in the action URL,
+ * so anyone can send any value, and it is checked against the offered ones.
+ */
+export const signIn = action(async (provider: AuthProvider, _form: FormData) => {
+  'use server';
+  return startSignIn(provider, paths());
+}, 'sign-in');
 
 /**
  * Signs in once more and comes back to the account page: deleting the
- * account needs a session from the last day.
+ * account needs a session from the last day. The page offers the providers
+ * linked to the account (getAccount's providers).
  */
-export const signInAgain = action(async () => {
+export const signInAgain = action(async (provider: AuthProvider, _form: FormData) => {
   'use server';
-  return startGitHubSignIn(paths.account());
+  return startSignIn(provider, paths.account());
 }, 'sign-in-again');
 
-async function startGitHubSignIn(callbackURL: string): Promise<never> {
+async function startSignIn(provider: AuthProvider, callbackURL: string): Promise<never> {
+  if (!authProviders.includes(provider)) {
+    throw respond({ message: m.sign_in_unknown_provider() } satisfies ActionError, {
+      status: 400,
+    });
+  }
   let url: string | undefined;
   try {
     const { headers, response } = await auth.api.signInSocial({
       body: {
-        provider: 'github',
+        provider,
         callbackURL,
         errorCallbackURL: paths['sign-in'](),
       },
@@ -80,7 +95,7 @@ async function startGitHubSignIn(callbackURL: string): Promise<never> {
     forwardCookies(headers);
     url = response.url;
   } catch (error) {
-    console.error('GitHub sign-in failed to start', error);
+    console.error(`Sign-in with ${provider} failed to start`, error);
   }
   if (!url) {
     throw respond({ message: m.sign_in_unreachable() } satisfies ActionError, {

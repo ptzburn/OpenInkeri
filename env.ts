@@ -16,10 +16,19 @@ export default {
     // src/server/auth.ts). Generate one: `openssl rand -base64 32`.
     // Changing it signs everyone out.
     BETTER_AUTH_SECRET: v.pipe(v.string(), v.minLength(32)),
-    // The GitHub OAuth app users sign in with (see src/server/auth.ts).
+    // The GitHub OAuth app users sign in with (see src/server/auth.ts),
+    // required so there is always a way in.
     // Create one at https://github.com/settings/developers.
     GITHUB_CLIENT_ID: v.pipe(v.string(), v.minLength(1)),
     GITHUB_CLIENT_SECRET: v.pipe(v.string(), v.minLength(1)),
+    // Optional providers: each is offered on the sign-in page only when both
+    // of its values are set. Google: an OAuth client (Web application) at
+    // https://console.cloud.google.com/apis/credentials. VK: a web app at
+    // https://id.vk.com/about/business/go (VK ID), its ID and protected key.
+    GOOGLE_CLIENT_ID: v.optional(v.pipe(v.string(), v.minLength(1))),
+    GOOGLE_CLIENT_SECRET: v.optional(v.pipe(v.string(), v.minLength(1))),
+    VK_CLIENT_ID: v.optional(v.pipe(v.string(), v.minLength(1))),
+    VK_CLIENT_SECRET: v.optional(v.pipe(v.string(), v.minLength(1))),
   },
   client: {
     VITE_APP_NAME: v.optional(v.pipe(v.string(), v.minLength(1)), 'OpenInkeri'),

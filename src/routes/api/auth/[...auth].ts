@@ -1,5 +1,5 @@
-// better-auth's HTTP endpoints (/api/auth/*), including GitHub's OAuth
-// callback (/api/auth/callback/github). The app's forms go through server
+// better-auth's HTTP endpoints (/api/auth/*), including the providers' OAuth
+// callbacks (/api/auth/callback/github, /google, /vk). The app's forms go through server
 // functions in src/data/session.ts and src/data/account.ts, which call this
 // same handler.
 import { toSolidStartHandler } from 'better-auth/solid-start';

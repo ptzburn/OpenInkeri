@@ -51,6 +51,7 @@ beforeEach(() => {
       createdAt: new Date('2026-10-01T12:00:00Z'),
       isAdmin: false,
     },
+    providers: ['github'],
     sessions: [
       session('s1', 'Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/130.0', true),
       session('s2', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1'),
@@ -103,5 +104,18 @@ describe('/account', () => {
     expect(await screen.findByText(/Sign in again to see your devices/)).toBeInTheDocument();
     expect(within(devices()).getByRole('button', { name: 'Sign in again' })).toBeInTheDocument();
     expect(within(devices()).queryByRole('list')).not.toBeInTheDocument();
+  });
+
+  test('names the provider to sign in again with when the account has several', async () => {
+    store.account.sessions = null;
+    store.account.providers = ['google', 'github'];
+    renderAccount();
+    expect(await screen.findByText(/Sign in again to see your devices/)).toBeInTheDocument();
+    expect(
+      within(devices()).getByRole('button', { name: 'Sign in again with Google' }),
+    ).toBeInTheDocument();
+    expect(
+      within(devices()).getByRole('button', { name: 'Sign in again with GitHub' }),
+    ).toBeInTheDocument();
   });
 });

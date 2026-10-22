@@ -13,11 +13,19 @@ import { getRequestEvent, redirect, respond } from '@solidjs/web';
 import { isAPIError } from 'better-auth/api';
 import * as v from 'valibot';
 
+import type { AuthProvider } from '~/lib/auth-providers';
 import { FIELD_MAX } from '~/lib/field-limits';
 import type { ActionError } from '~/lib/form-error';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
-import { LAST_ADMIN, auth, forwardCookies, isAdmin, requestHeaders } from '~/server/auth';
+import {
+  LAST_ADMIN,
+  auth,
+  authProviders,
+  forwardCookies,
+  isAdmin,
+  requestHeaders,
+} from '~/server/auth';
 import { signedIn } from '~/server/guards';
 
 /**
@@ -46,6 +54,8 @@ export interface AccountData {
     createdAt: Date;
     isAdmin: boolean;
   };
+  /** What Sign in again offers: the account's providers that sign-in offers. */
+  providers: AuthProvider[];
   sessions:
     | {
         id: string;
@@ -68,7 +78,13 @@ export const getAccount = query(async (): Promise<AccountData> => {
   'use server';
   const user = signedIn();
   const current = getRequestEvent()!.locals.sessionId;
-  const sessions = await listSessions();
+  const [sessions, accounts] = await Promise.all([
+    listSessions(),
+    auth.api.listUserAccounts({ headers: requestHeaders() }),
+  ]);
+  const linked = authProviders.filter((provider) =>
+    accounts.some((account) => account.providerId === provider),
+  );
   return {
     user: {
       name: user.name,
@@ -77,6 +93,8 @@ export const getAccount = query(async (): Promise<AccountData> => {
       createdAt: user.createdAt,
       isAdmin: isAdmin(user),
     },
+    // A provider switched off since would leave no way back; offer them all.
+    providers: linked.length > 0 ? linked : authProviders,
     sessions:
       sessions &&
       sessions
@@ -165,7 +183,7 @@ export interface DeleteAccountError extends ActionError {
 }
 
 /**
- * Deletes the signed-in user with their sessions and linked GitHub account,
+ * Deletes the signed-in user with their sessions and linked accounts,
  * then signs out and goes home. The form's confirm checkbox must be ticked.
  * better-auth refuses a session older than a day (the page then offers to
  * sign in again), and the hook in src/server/auth.ts refuses the last admin.

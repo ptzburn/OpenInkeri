@@ -2,6 +2,7 @@
 // option list (src/lib/record-kinds.ts, src/lib/place-kinds.ts, the roles the
 // edit form edits). Each map is a Record over the list's type, so an option
 // added without its label fails the type check here.
+import type { AuthProvider } from '~/lib/auth-providers';
 import type { CoordinateStatus, PlaceKind } from '~/lib/place-kinds';
 import type {
   BaptismLocation,
@@ -81,4 +82,18 @@ export const coordinateStatusLabels: Labels<CoordinateStatus> = {
   verified: m.place_status_verified,
   approximate: m.place_status_approximate,
   unknown: m.place_status_unknown,
+};
+
+// Brand names, the same in every language.
+export const authProviderLabels: Labels<AuthProvider> = {
+  google: () => 'Google',
+  vk: () => 'VK',
+  github: () => 'GitHub',
+};
+
+// The sign-in buttons: a message each, since Finnish inflects the name.
+export const signInContinueLabels: Labels<AuthProvider> = {
+  google: m.sign_in_continue_google,
+  vk: m.sign_in_continue_vk,
+  github: m.sign_in_continue_github,
 };

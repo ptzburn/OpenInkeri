@@ -9,7 +9,8 @@
   // The production hostname. Deploy creates the DNS record and certificate
   // (hokkanen.io is a zone on this account). The workers.dev URL stays on.
   // A new hostname also goes in baseURL.allowedHosts (src/server/auth-options.ts)
-  // and needs its own GitHub OAuth app (one callback URL per app).
+  // and needs its own GitHub OAuth app (one callback URL per app), plus its
+  // callback URLs added to the Google and VK apps.
   "routes": [{ "pattern": "openinkeri.hokkanen.io", "custom_domain": true }],
   // Workers Logs: console output and uncaught errors, searchable in the
   // dashboard (Workers & Pages → openinkeri → Logs).

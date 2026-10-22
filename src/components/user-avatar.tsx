@@ -1,6 +1,6 @@
 import { Show } from 'solid-js';
 
-// A user's round avatar: their GitHub picture, or their initial on a neutral
+// A user's round avatar: the picture from the provider they signed up with, or their initial on a neutral
 // disc when they have none. `class` sizes it (e.g. "w-8").
 export default function UserAvatar(props: { name: string; image?: string | null; class: string }) {
   return (
