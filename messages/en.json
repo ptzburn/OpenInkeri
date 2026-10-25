@@ -446,6 +446,7 @@
   "link_open_person": "Open the person",
   "record_edit_link_person": "Link to person",
   "record_edit_person": "Person",
+  "record_edit_person_none": "Nobody yet",
   "suggest_title": "Possible mentions",
   "suggest_intro": "Unlinked mentions that could be this person: the same given name, and a sex and birth year that fit. The more that matches, the higher they are. Check the record before linking.",
   "suggest_none": "No unlinked mentions fit.",

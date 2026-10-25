@@ -79,6 +79,12 @@ import {
   newRelation,
   parseNewRow,
 } from '~/server/linked-rows';
+import {
+  type LinkTarget,
+  createPersonFrom,
+  linkStatements,
+  optionalLinkTarget,
+} from '~/server/link-person';
 
 export const RECORDS_PAGE_SIZE = 50;
 
@@ -580,10 +586,12 @@ const memberIndexes = (entries: Record<string, unknown>) =>
     .map(Number)
     .sort((a, b) => a - b);
 
-// One person's fields, named "<prefix>.<field>".
+// One person's fields, named "<prefix>.<field>", and who they are linked to
+// as the record is saved ("<prefix>.personId": nobody, 'new' or a person).
 const personEntries = (prefix: string, fields: readonly PersonField[]) => [
   ...nameFields.map((f) => [`${prefix}.${f}`, text] as const),
   ...fields.map((f) => [`${prefix}.${f}`, personField[f]] as const),
+  [`${prefix}.personId`, optionalLinkTarget] as const,
 ];
 
 // Beside each value as written, the box that asks to add the row it names
@@ -599,7 +607,7 @@ const createFlags = (entries: Record<string, unknown>) =>
 // A kind's whole form: a register's people are named "role.field", a
 // list's "members.N.field".
 const formOf = (kind: RecordKind, members: number[]) => {
-  const people = Object.fromEntries(
+  const people: Record<string, v.GenericSchema> = Object.fromEntries(
     isListKind(kind)
       ? members.flatMap((n) => [
           [`members.${n}.id`, optionalId] as const,
@@ -928,11 +936,40 @@ export const saveRecord = action(async (formData: FormData) => {
     }),
   );
 
+  // Who each person is, when the form says: a person (who must exist, and
+  // not be named in this record already, by another mention or twice in the
+  // form), or a new one made from the mention. Checked before anything is
+  // written. A mention already linked keeps its person.
+  const by = { userId: user.id, now };
+  const isEmpty = (values: Values) =>
+    Object.values(values).every((value) => value === null || value === false);
+  const asked = edited.flatMap(({ prefix, values, current }) => {
+    const target = input[`${prefix}.personId`] as LinkTarget | null;
+    return target === null || current?.personId || isEmpty(values) ? [] : [{ prefix, target }];
+  });
+  for (const { prefix, target } of asked) {
+    if (target === 'new') continue;
+    const field = { [`${prefix}.personId`]: '' };
+    const twice = asked.some((a) => a.prefix !== prefix && a.target === target);
+    const found = await db.query.person.findFirst({ where: { id: target }, columns: { id: true } });
+    if (!found) throw refuse({ message: m.person_missing(), fields: field }, 404);
+    const inRecord =
+      existing &&
+      (await db.$count(persona, and(eq(persona.recordId, rid), eq(persona.personId, target))));
+    if (twice || inRecord) {
+      throw refuse({ message: m.person_link_same_record(), fields: field }, 409);
+    }
+  }
+
   const statements = added.flatMap((row) => row.statements);
   const kept = [];
-  for (const { role, values, current } of edited) {
+  // A mention to link that the form adds is written first, for its id; the
+  // links are made after the record's batch (see below).
+  const links: { personaId: number; role: PersonaRole; values: Values; target: LinkTarget }[] = [];
+  const insertedPersonas: number[] = [];
+  for (const { prefix, role, values, current } of edited) {
     // An unticked box says nothing either.
-    const empty = Object.values(values).every((value) => value === null || value === false);
+    const empty = isEmpty(values);
     // The given names folded, for finding mentions by them (the person
     // page's suggestions).
     values.givenRuFolded = values.givenRu ? foldForSearch(String(values.givenRu)) : null;
@@ -943,6 +980,8 @@ export const saveRecord = action(async (formData: FormData) => {
       statements.push(db.delete(persona).where(eq(persona.id, current.id)));
       continue;
     }
+    const target = asked.find((a) => a.prefix === prefix)?.target;
+    let personaId = current?.id;
     if (current) {
       statements.push(
         db
@@ -951,19 +990,22 @@ export const saveRecord = action(async (formData: FormData) => {
           .where(eq(persona.id, current.id)),
       );
     } else if (!empty) {
-      statements.push(
-        db.insert(persona).values({
-          recordId: rid,
-          role,
-          ...values,
-          sex:
-            'sex' in values ? (values.sex as Sex | null) : (sexOfRole[role as EditedRole] ?? null),
-          createdBy: user.id,
-          ...stamp,
-        }),
-      );
+      const row = db.insert(persona).values({
+        recordId: rid,
+        role,
+        ...values,
+        sex: 'sex' in values ? (values.sex as Sex | null) : (sexOfRole[role as EditedRole] ?? null),
+        createdBy: user.id,
+        ...stamp,
+      });
+      if (target) {
+        const [inserted] = await row.returning({ id: persona.id });
+        personaId = inserted.id;
+        insertedPersonas.push(inserted.id);
+      } else statements.push(row);
     } else continue;
     kept.push({ ...current, ...values });
+    if (target && personaId) links.push({ personaId, role, values, target });
   }
 
   // The kind's details: one row beside the record, written whole.
@@ -1102,7 +1144,40 @@ export const saveRecord = action(async (formData: FormData) => {
     // A new record whose details or people couldn't be written goes again,
     // with what it added.
     if (created) await db.delete(record).where(eq(record.id, rid));
+    else if (insertedPersonas.length) {
+      await db.delete(persona).where(inArray(persona.id, insertedPersonas));
+    }
     await deleteCreated(added);
+    throw refuse({ message: m.form_failed() }, 500);
+  }
+
+  // The links the form asked for, now that every mention has its id. A
+  // person made from a mention takes its names, sex and dates
+  // (src/server/link-person.ts). The record is saved by now: a link that
+  // fails leaves it saved, unlinked, and says so.
+  try {
+    for (const { personaId, role, values, target } of links) {
+      const personId =
+        target === 'new'
+          ? await createPersonFrom(
+              {
+                id: personaId,
+                role,
+                sex: (values.sex as Sex | null | undefined) ?? null,
+                nameRu: values.nameRu as string | null,
+                nameFi: values.nameFi as string | null,
+                birthDate: (values.birthDate as string | null | undefined) ?? null,
+                deathDate: (values.deathDate as string | null | undefined) ?? null,
+                recordDate: input.date,
+                recordBirthDate: (input.birthDate as string | null | undefined) ?? null,
+              },
+              by,
+            )
+          : target;
+      await db.batch(linkStatements(personaId, personId, by));
+    }
+  } catch (error) {
+    console.error('Linking a mention failed', error);
     throw refuse({ message: m.form_failed() }, 500);
   }
   const listKind = kind === 'baptisms' ? undefined : kind; // the default

@@ -446,6 +446,7 @@
   "link_open_person": "Avaa henkilö",
   "record_edit_link_person": "Yhdistä henkilöön",
   "record_edit_person": "Henkilö",
+  "record_edit_person_none": "Ei vielä kukaan",
   "suggest_title": "Mahdolliset maininnat",
   "suggest_intro": "Yhdistämättömät maininnat, jotka voivat olla tämä henkilö: sama etunimi sekä sopiva sukupuoli ja syntymävuosi. Mitä enemmän täsmää, sitä korkeammalla ne ovat. Tarkista merkintä ennen yhdistämistä.",
   "suggest_none": "Sopivia yhdistämättömiä mainintoja ei löytynyt.",

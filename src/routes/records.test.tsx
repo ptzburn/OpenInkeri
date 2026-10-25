@@ -1,7 +1,7 @@
 import { Loading, flush } from 'solid-js';
 import { captureArtifact } from '@solidjs/diagnostics';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
@@ -292,6 +292,30 @@ vi.mock('~/data/session', () => ({
   getCurrentUser: vi.fn(async () => me.current),
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
 }));
+// The people a mention can be linked to, searched by name in the form.
+vi.mock('~/data/people', () => ({
+  getPeople: vi.fn(async (search: string) => {
+    const rows = [
+      {
+        id: 7,
+        name: { ru: 'Иван Варис', fi: 'Juho Varis' },
+        sex: 'male',
+        birthDate: '1860',
+        deathDate: null,
+        mentions: 3,
+      },
+      {
+        id: 8,
+        name: { ru: 'Мария Варис', fi: 'Maria Varis' },
+        sex: 'female',
+        birthDate: null,
+        deathDate: null,
+        mentions: 1,
+      },
+    ].filter((r) => `${r.name.ru} ${r.name.fi}`.toLowerCase().includes(search.toLowerCase()));
+    return { total: rows.length, page: 1, pages: 1, people: rows };
+  }),
+}));
 vi.mock('~/data/records', async () => {
   const { action } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
@@ -559,14 +583,46 @@ describe('editing a baptism', () => {
   const field = (name: string) =>
     document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
 
-  test('each saved mention links to its person, or to linking one', async () => {
+  test('a mention links to its person, or says who it is as the record is saved', async () => {
     await openMaria();
-    // The father is linked to a person; the child isn't yet.
+    // The father is linked to a person: shown, not asked again.
     expect(screen.getByRole('link', { name: 'Juho Varis' })).toHaveAttribute('href', '/people/7');
-    expect(screen.getByRole('link', { name: 'Link to person' })).toHaveAttribute(
-      'href',
-      '/people/link/10',
-    );
+    expect(field('father.personId')).toBeNull();
+    // The child isn't yet: nobody, a new person, or someone found by name.
+    const choice = field('child.personId') as HTMLInputElement;
+    expect(choice).toHaveAttribute('type', 'radio');
+    expect(choice.value).toBe('');
+    expect(choice).toBeChecked();
+    const child = choice.closest('fieldset')!;
+    const search = child.querySelector('input[type=search]') as HTMLInputElement;
+    fireEvent.input(search, { target: { value: 'Варис' } });
+    const found = await within(child).findByRole('radio', { name: /Maria Varis/ });
+    expect((found as HTMLInputElement).value).toBe('8');
+    expect(
+      within(child)
+        .getByRole('radio', { name: /Juho Varis/ })
+        .closest('label'),
+    ).toHaveTextContent('1860–');
+    fireEvent.click(found);
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/records'));
+    const [saved] = editing.saved;
+    expect(saved.get('child.personId')).toBe('8');
+    expect(saved.get('father.personId')).toBeNull();
+    expect(saved.get('mother.personId')).toBe('');
+  });
+
+  test('a new person can be made from a mention as the record is saved', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?source=1');
+    await waitFor(() => expect(field('child.nameRu')).toBeTruthy());
+    fireEvent.input(field('child.nameRu'), { target: { value: 'Мария' } });
+    fireEvent.click(screen.getAllByRole('radio', { name: 'New person from this mention' })[0]);
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(editing.saved).toHaveLength(1));
+    expect(editing.saved[0].get('child.personId')).toBe('new');
   });
 
   test('a place is typed once, as written, and says what it is linked to', async () => {

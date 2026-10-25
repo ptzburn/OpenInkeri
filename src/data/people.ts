@@ -19,7 +19,6 @@ import {
   suggestionsFor,
 } from '~/lib/person-match';
 import { type RecordKind, type Sex, sexes } from '~/lib/record-kinds';
-import { type EditedRole, sexOfRole } from '~/lib/record-people';
 import { foldForSearch, recordSearchText } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -37,6 +36,7 @@ import {
 } from '~/server/forms';
 import { isAdmin } from '~/server/auth';
 import { adminOnly, signedIn } from '~/server/guards';
+import { createPersonFrom, linkStatements, linkTarget } from '~/server/link-person';
 
 export const PEOPLE_PAGE_SIZE = 50;
 
@@ -595,7 +595,7 @@ export const deletePerson = action(async (formData: FormData) => {
 const linking = v.object({
   persona: v.pipe(v.string(), v.transform(Number), rowId),
   // A person's id, or 'new' for a new person made from the mention.
-  person: v.union([v.literal('new'), v.pipe(v.string(), v.transform(Number), rowId)]),
+  person: linkTarget,
 });
 
 /**
@@ -637,29 +637,13 @@ export const linkPersona = action(async (formData: FormData) => {
   if (mention.personId !== null) throw refuse({ message: m.person_link_already() }, 409);
 
   let personId: number;
-  const stamp = { updatedAt: new Date(), updatedBy: user.id };
+  const by = { userId: user.id, now: new Date() };
   if (input.person === 'new') {
-    const values = {
-      sex: mention.sex ?? sexOfRole[mention.role as EditedRole] ?? null,
-      nameRu: mention.nameRu,
-      nameFi: mention.nameFi,
-      birthDate:
-        mention.birthDate ??
-        (mention.role === 'child' ? (mention.record.baptism?.birthDate ?? null) : null),
-      deathDate: mention.deathDate ?? (mention.role === 'deceased' ? mention.record.date : null),
-    };
-    const [created] = await db
-      .insert(person)
-      .values({ ...values, searchText: searchTextOfPerson(values), createdBy: user.id, ...stamp })
-      .returning({ id: person.id });
-    personId = created.id;
-    await db.insert(changeLog).values({
-      userId: user.id,
-      entity: 'person',
-      entityId: personId,
-      action: 'create',
-      after: { ...values, fromPersonaId: mention.id },
-    });
+    const { record, ...values } = mention;
+    personId = await createPersonFrom(
+      { ...values, recordDate: record.date, recordBirthDate: record.baptism?.birthDate ?? null },
+      by,
+    );
   } else {
     personId = input.person;
     const target = await db.query.person.findFirst({
@@ -675,20 +659,7 @@ export const linkPersona = action(async (formData: FormData) => {
   }
 
   try {
-    await db.batch([
-      db
-        .update(persona)
-        .set({ personId, ...stamp })
-        .where(and(eq(persona.id, mention.id), isNull(persona.personId))),
-      db.insert(changeLog).values({
-        userId: user.id,
-        entity: 'persona',
-        entityId: mention.id,
-        action: 'update',
-        before: { id: mention.id, personId: null },
-        after: { id: mention.id, personId },
-      }),
-    ]);
+    await db.batch(linkStatements(mention.id, personId, by));
   } catch (error) {
     console.error('Linking a mention failed', error);
     throw refuse({ message: m.form_failed() }, 500);

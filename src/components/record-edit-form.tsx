@@ -15,6 +15,7 @@ import {
 } from '~/components/form-fields';
 import { type Lookup, LookupField, SpellingList, lookupOf } from '~/components/lookup-field';
 import NameFields from '~/components/name-fields';
+import PersonLinkField from '~/components/person-link-field';
 import { NewClergyFields, NewPlaceFields, NewRelationFields } from '~/components/new-row-fields';
 import { useToast } from '~/components/toaster';
 import {
@@ -756,31 +757,17 @@ function PersonFields(props: {
     <fieldset class="fieldset rounded-box border border-base-300 p-4">
       <legend class="fieldset-legend">{props.legend}</legend>
       <Show when={props.person}>
-        {(person) => (
-          <>
-            <input type="hidden" name={field('id')} value={person().id} />
-            {/* The person this mention is, or a link to say who (a page of
-                its own: what is typed here and not saved yet is left). */}
-            <p class="mb-2 text-sm">
-              <Show
-                when={person().person}
-                fallback={
-                  <a href={paths.people.link(person().id)} class="link">
-                    {m.record_edit_link_person()}
-                  </a>
-                }
-              >
-                {(linked) => (
-                  <>
-                    {m.record_edit_person()}:{' '}
-                    <a href={paths.people(linked().id)()} class="link font-medium">
-                      {localName(linked().name)}
-                    </a>
-                  </>
-                )}
-              </Show>
-            </p>
-          </>
+        {(person) => <input type="hidden" name={field('id')} value={person().id} />}
+      </Show>
+      {/* The person this mention is linked to. */}
+      <Show when={props.person?.person}>
+        {(linked) => (
+          <p class="mb-2 text-sm">
+            {m.record_edit_person()}:{' '}
+            <a href={paths.people(linked().id)()} class="link font-medium">
+              {localName(linked().name)}
+            </a>
+          </p>
         )}
       </Show>
       <div class="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -792,6 +779,10 @@ function PersonFields(props: {
           invalid={props.invalid}
         />
         <For each={props.fields}>{(f) => input(f)}</For>
+        {/* Or who they are, decided with the save. */}
+        <Show when={!props.person?.person}>
+          <PersonLinkField prefix={props.prefix} />
+        </Show>
       </div>
     </fieldset>
   );
