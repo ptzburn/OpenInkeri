@@ -87,7 +87,9 @@ vi.mock('~/data/parishes', async () => {
       { id: 5, nameRu: 'Губаницы', nameFi: 'Hevaa', note: null, villages: 1, sources: 1 },
       { id: 6, nameRu: 'Курляндия', nameFi: null, note: 'Не приход', villages: 0, sources: 0 },
     ]),
-    getParishOptions: vi.fn(async () => [{ id: 5, name: 'Губаницы' }]),
+    getParishOptions: vi.fn(async () => [
+      { id: 5, name: 'Губаницы', spellings: ['Губаницы', 'Hevaa'] },
+    ]),
     getParishEdit: vi.fn(async (id: number) =>
       id === 5
         ? {
@@ -120,8 +122,8 @@ vi.mock('~/data/places', async () => {
     getPlaces: vi.fn(async () => places.list()),
     // The church's choices: Горки in parish 5, Кикерино in another parish.
     getPlaceOptions: vi.fn(async () => [
-      { id: 2, name: 'Кикерино', parishId: 7, parish: 'Волосово' },
-      { id: 1, name: 'Горки', parishId: 5, parish: 'Губаницы' },
+      { id: 2, name: 'Кикерино', parishId: 7, parish: 'Волосово', spellings: ['Кикерино'] },
+      { id: 1, name: 'Горки', parishId: 5, parish: 'Губаницы', spellings: ['Горки', 'Горка'] },
     ]),
     getPlaceEdit: vi.fn(async (id: number) =>
       id === 1
@@ -434,12 +436,16 @@ describe('/places/parishes', () => {
     fireEvent.click((await screen.findAllByRole('link', { name: 'Edit parish' }))[0]);
     await screen.findByRole('heading', { level: 1, name: 'Edit parish' });
     await waitFor(() => expect(field('nameFi')).toHaveValue('Hevaa'));
-    // The church: the parish's own localities first, the rest with their parish.
+    // The church: its locality by name, linked to the one it names; the
+    // localities to choose from show their parish.
     await waitFor(() => expect(field('churchPlaceId')).toHaveValue('1'));
+    expect(field('churchText')).toHaveValue('Горки');
+    expect(field('churchText').closest('.fieldset')).toHaveTextContent('→ Горки (Губаницы)');
     const choices = [...(field('churchPlaceId') as HTMLSelectElement).options].map((o) => o.text);
-    expect(choices).toEqual(['— none —', 'Горки', 'Кикерино (Волосово)']);
+    expect(choices).toEqual(['— none —', 'Кикерино (Волосово)', 'Горки (Губаницы)']);
     fireEvent.input(field('note'), { target: { value: 'Губаницкий приход' } });
-    fireEvent.change(field('churchPlaceId'), { target: { value: '2' } });
+    fireEvent.input(field('churchText'), { target: { value: 'Кикерино' } });
+    await waitFor(() => expect(field('churchPlaceId')).toHaveValue('2'));
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
 
     await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
@@ -465,6 +471,34 @@ describe('/places/parishes', () => {
     expect(parishes.saved[0].get('id')).toBe('');
     // English shows the Finnish name.
     expect(await screen.findByRole('status')).toHaveTextContent('Parish Testi added.');
+  });
+
+  test('a church locality not known yet is added with the parish', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/new');
+    await waitFor(() => expect(field('churchText')).toBeInTheDocument());
+    fireEvent.input(field('nameRu'), { target: { value: 'Тест' } });
+    // A locality no spelling names: offered to be added, by its names.
+    fireEvent.input(field('churchText'), { target: { value: 'Тест' } });
+    const status = field('churchText').closest('.fieldset')!.querySelector('summary')!;
+    await waitFor(() => expect(status).toHaveTextContent('“Тест” is not known yet'));
+    expect(field('churchPlaceId')).toHaveValue('');
+    const box = screen.getByRole('checkbox', { name: 'Add as a new locality' });
+    expect(box).toHaveAttribute('name', 'churchCreate');
+    fireEvent.click(box);
+    expect(field('churchNew.nameRu')).toHaveValue('Тест');
+    expect(field('churchNew.nameFi')).toHaveValue('');
+    expect(field('churchNew.kind')).toHaveValue('village');
+    // No parish to choose: the locality goes in this parish.
+    expect(field('churchNew.parishId')).toBeNull();
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+    const [saved] = parishes.saved;
+    expect(saved.get('churchText')).toBe('Тест');
+    expect(saved.get('churchPlaceId')).toBe('');
+    expect(saved.get('churchCreate')).toBe('on');
+    expect(saved.get('churchNew.nameRu')).toBe('Тест');
   });
 
   test('deleting a parish posts its id and version once confirmed', async () => {

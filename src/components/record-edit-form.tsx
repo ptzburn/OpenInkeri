@@ -13,13 +13,9 @@ import {
   useFormDone,
   useFormErrors,
 } from '~/components/form-fields';
-import {
-  type Lookup,
-  type LookupOption,
-  LookupField,
-  SpellingList,
-} from '~/components/lookup-field';
+import { type Lookup, LookupField, SpellingList, lookupOf } from '~/components/lookup-field';
 import NameFields from '~/components/name-fields';
+import { NewClergyFields, NewPlaceFields, NewRelationFields } from '~/components/new-row-fields';
 import { useToast } from '~/components/toaster';
 import {
   baptismLocationLabels,
@@ -28,7 +24,6 @@ import {
   sexLabels,
 } from '~/components/labels';
 import { PARTIAL_DATE_PATTERN, formatPartialDate, localName } from '~/lib/format';
-import { spellingIndex } from '~/lib/spellings';
 import {
   type RecordEditData,
   type RecordEditPerson,
@@ -59,14 +54,6 @@ const dateLabels: Record<RecordKind, () => string> = {
   households: m.records_col_list_date,
   taxpayers: m.records_col_list_date,
 };
-
-// A lookup's options, indexed by their spellings.
-const lookupOf = (options: LookupOption[], listId: string, unlinked: string): Lookup => ({
-  options,
-  index: spellingIndex(options.map((o) => ({ id: o.value, spellings: o.spellings }))),
-  listId,
-  unlinked,
-});
 
 /** Where the records list was, to return there after saving. */
 export interface ListPlace {
@@ -134,19 +121,22 @@ const nextAfter = (previous: RecordEditData): RecordEditData => {
 };
 
 /**
- * The admin's form for one record, or for a new one of type `kind` without
- * `id` (in the list's source, or following record `after` on its page): its
- * source and page, the record, its kind's details and the people
- * it names (~/lib/record-people). A register's form has one person in each
- * role; a list's (a household, a farm) has all its people, and more can be
- * added: one blank person is always at the end (also before JavaScript
- * loads), and Add person brings another. It posts to the saveRecord action
- * (and works before JavaScript loads); a save redirects to the list at
- * `returnTo` (a new record to the list's last page) with a toast, Save and
- * add next to a new record's form that follows this one, and
- * Cancel goes to `cancelHref`. A save the server refuses keeps the form as
- * typed, says why and marks the fields at fault. An existing record's form
- * is followed by its Delete section.
+ * The admin's form for one record, or for a new one without `id`: of the
+ * type of the source the list shows (`returnTo.source`, which the new record
+ * then stays in: the source isn't asked again, and Save and add next leads),
+ * else of type `kind`; or following record `after` on its page. Its source
+ * and page, the record, its kind's details and the people it names
+ * (~/lib/record-people). A register's form has one person in each role; a
+ * list's (a household, a farm) has all its people, and more can be added:
+ * one blank person is always at the end (also before JavaScript loads), and
+ * Add person brings another. A locality, clergyman or relation the record
+ * names that isn't known yet can be added in its field (LookupField). It
+ * posts to the saveRecord action (and works before JavaScript loads); a save
+ * redirects to the list at `returnTo` (a new record to the list's last page)
+ * with a toast, Save and add next to a new record's form that follows this
+ * one, and Cancel goes to `cancelHref`. A save the server refuses keeps the
+ * form as typed, says why and marks the fields at fault. An existing
+ * record's form is followed by its Delete section.
  */
 export default function RecordEditForm(props: {
   id?: number;
@@ -155,27 +145,44 @@ export default function RecordEditForm(props: {
   returnTo: ListPlace;
   cancelHref: string;
 }) {
-  const record = createMemo(
-    (): Promise<QueryData<typeof getRecordEdit>> | RecordEditData => {
-      if (props.id) return getRecordEdit(props.id);
-      const kind = props.kind ?? 'baptisms';
-      const after = props.after;
-      // A record of another type than the list's starts empty.
-      if (after) {
-        return getRecordEdit(after).then((previous) =>
-          previous?.kind === kind ? nextAfter(previous) : blank(kind),
-        );
-      }
-      return blank(kind, Number(props.returnTo.source) || null);
-    },
-    { name: 'record-edit' },
-  );
   const options = createMemo(
     (): Promise<QueryData<typeof getRecordEditOptions>> => getRecordEditOptions(),
     { name: 'edit-options' },
   );
+  // The source the list shows, which a new record is added to.
+  const startSource = createMemo(
+    () => options()?.sources.find((s) => String(s.id) === props.returnTo.source),
+    { name: 'edit-start-source' },
+  );
+  const inSource = () => !props.id && !!startSource();
+  const record = createMemo(
+    (): Promise<QueryData<typeof getRecordEdit>> | RecordEditData => {
+      if (props.id) return getRecordEdit(props.id);
+      const source = startSource();
+      const kind = source?.kind ?? props.kind ?? 'baptisms';
+      const after = props.after;
+      // A record of another type than the list's starts empty.
+      if (after) {
+        return getRecordEdit(after).then((previous) =>
+          previous?.kind === kind ? nextAfter(previous) : blank(kind, source?.id ?? null),
+        );
+      }
+      return blank(kind, source?.id ?? null);
+    },
+    { name: 'record-edit' },
+  );
+  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
+  // This form's refused saves (the latest shown, its fields marked).
+  const { error, invalid } = useFormErrors(saveRecord, isThisForm);
+  // The parish of the source the record is (or starts) in: where a locality
+  // added in the form starts.
+  const sourceParishId = () => {
+    const sourceId = startSource()?.id ?? record()?.sourceId ?? null;
+    return options()?.sources.find((s) => s.id === sourceId)?.parishId ?? null;
+  };
   // The places to link to, with their parish when it isn't their namesake;
-  // the relations of a list's people; the clergy.
+  // the relations of a list's people; the clergy. Each can be added in its
+  // field: a new locality starts in the source's parish, an estate as a manor.
   const places = createMemo(
     (): Lookup =>
       lookupOf(
@@ -189,6 +196,19 @@ export default function RecordEditForm(props: {
         })),
         'record-place-spellings',
         m.lookup_place_unlinked(),
+        {
+          label: m.lookup_create_place(),
+          fields: (prefix, text) => (
+            <NewPlaceFields
+              prefix={prefix}
+              text={text}
+              kind={prefix.startsWith('estate') ? 'manor' : 'village'}
+              parishes={options()?.parishes ?? []}
+              parishId={sourceParishId()}
+              invalid={invalid}
+            />
+          ),
+        },
       ),
     { name: 'edit-places' },
   );
@@ -202,6 +222,12 @@ export default function RecordEditForm(props: {
         })),
         'record-relation-spellings',
         m.lookup_relation_unlinked(),
+        {
+          label: m.lookup_create_relation(),
+          fields: (prefix, text) => (
+            <NewRelationFields prefix={prefix} text={text} invalid={invalid} />
+          ),
+        },
       ),
     { name: 'edit-relations' },
   );
@@ -215,12 +241,15 @@ export default function RecordEditForm(props: {
         })),
         'record-clergy-spellings',
         m.lookup_clergy_unlinked(),
+        {
+          label: m.lookup_create_clergy(),
+          fields: (prefix, text) => (
+            <NewClergyFields prefix={prefix} text={text} invalid={invalid} />
+          ),
+        },
       ),
     { name: 'edit-clergy' },
   );
-  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
-  // This form's refused saves (the latest shown, its fields marked).
-  const { error, invalid } = useFormErrors(saveRecord, isThisForm);
   // A save lands on the records list with a toast.
   const toast = useToast();
   useFormDone(saveRecord, isThisForm, () =>
@@ -265,13 +294,27 @@ export default function RecordEditForm(props: {
             <div class="grid items-start gap-8 xl:grid-cols-2">
               <div class="flex flex-col gap-6">
                 <Section title={m.record_edit_record()}>
-                  <Select
-                    name="sourceId"
-                    label={m.record_edit_source()}
-                    value={r.sourceId}
-                    options={sourcesOf(r.kind).map((s) => ({ value: s.id, label: s.title }))}
-                    invalid={invalid('sourceId')}
-                  />
+                  {/* A record added to the list's source stays in it. */}
+                  <Show
+                    when={inSource() ? startSource() : undefined}
+                    fallback={
+                      <Select
+                        name="sourceId"
+                        label={m.record_edit_source()}
+                        value={r.sourceId}
+                        options={sourcesOf(r.kind).map((s) => ({ value: s.id, label: s.title }))}
+                        invalid={invalid('sourceId')}
+                      />
+                    }
+                  >
+                    {(source) => (
+                      <div class="fieldset">
+                        <span class="fieldset-legend">{m.record_edit_source()}</span>
+                        <input type="hidden" name="sourceId" value={source().id} />
+                        <p class="py-2 font-medium">{source().title}</p>
+                      </div>
+                    )}
+                  </Show>
                   <TextInput
                     name="page"
                     label={m.record_edit_page()}
@@ -491,11 +534,13 @@ export default function RecordEditForm(props: {
             </div>
 
             {/* Kept in view at the bottom of the window while scrolling. */}
-            {/* A new record can be followed by the next one on its page. */}
+            {/* A new record can be followed by the next one on its page: in
+                a source, that is the usual way on. */}
             <FormActions
               error={error()}
               cancelHref={props.cancelHref}
               saveAndNext={!r.id}
+              primary={inSource() ? 'next' : 'save'}
               class="sticky bottom-0 -mx-4 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8"
             />
           </form>

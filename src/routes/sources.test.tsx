@@ -52,7 +52,9 @@ vi.mock('~/data/session', () => ({
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
 }));
 vi.mock('~/data/parishes', () => ({
-  getParishOptions: vi.fn(async () => [{ id: 5, name: 'Губаницы' }]),
+  getParishOptions: vi.fn(async () => [
+    { id: 5, name: 'Губаницы', spellings: ['Губаницы', 'Hevaa'] },
+  ]),
 }));
 vi.mock('~/data/sources', async () => {
   const { action } = await import('@solidjs/router');
@@ -134,6 +136,17 @@ describe('/sources', () => {
     // Only admins add or edit.
     expect(screen.queryByRole('link', { name: 'Add source' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Edit source' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Add records' })).toBeNull();
+  });
+
+  test("an admin adds records from a source's row, into that source", async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources');
+    const links = await screen.findAllByRole('link', { name: 'Add records' });
+    expect(links.map((a) => a.getAttribute('href'))).toEqual([
+      '/records/new?source=1',
+      '/records/new?kind=taxpayers&source=5',
+    ]);
   });
 
   test('opening a source to edit from the list causes no diagnostics', async () => {
@@ -175,9 +188,56 @@ describe('/sources', () => {
     const [saved] = sources.saved;
     expect(saved.get('kind')).toBe('marriages');
     expect(saved.get('yearFrom')).toBe('1920');
+    expect(saved.get('next')).toBeNull();
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Source “Губаницы: венчания 1920-х” added.',
     );
+  });
+
+  test('the parish is typed by name; one not known yet is added with the source', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/new');
+    await waitFor(() => expect(field('parishText')).toBeTruthy());
+    expect(field('parishId')).toHaveValue('');
+    fireEvent.input(field('title')!, { target: { value: 'Туутари: крещения' } });
+    // Either name links the parish.
+    fireEvent.input(field('parishText')!, { target: { value: 'Hevaa' } });
+    await waitFor(() => expect(field('parishId')).toHaveValue('5'));
+    expect(field('parishText')!.closest('.fieldset')).toHaveTextContent('→ Губаницы');
+    // A parish no name matches is offered to be added, with its church.
+    fireEvent.input(field('parishText')!, { target: { value: 'Туутари' } });
+    await waitFor(() => expect(field('parishId')).toHaveValue(''));
+    expect(field('parishText')!.closest('.fieldset')).toHaveTextContent(
+      '“Туутари” is not known yet. Open to add it.',
+    );
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Add as a new parish' }));
+    expect(field('parishNew.nameRu')).toHaveValue('Туутари');
+    fireEvent.input(field('parishNew.nameFi')!, { target: { value: 'Tuutari' } });
+    expect(
+      screen.getByRole('checkbox', { name: 'Also add a locality of this name, as its church' }),
+    ).toBeChecked();
+    // Saved and straight on to its first record.
+    fireEvent.click(screen.getByRole('button', { name: 'Save and add records' }));
+
+    await waitFor(() => expect(sources.saved).toHaveLength(1));
+    const [saved] = sources.saved;
+    expect(saved.get('next')).toBe('on');
+    expect(saved.get('parishText')).toBe('Туутари');
+    expect(saved.get('parishId')).toBe('');
+    expect(saved.get('parishCreate')).toBe('on');
+    expect(saved.get('parishNew.nameRu')).toBe('Туутари');
+    expect(saved.get('parishNew.nameFi')).toBe('Tuutari');
+    expect(saved.get('parishNew.church')).toBe('on');
+  });
+
+  test('an existing source has no Save and add records', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/edit');
+    await waitFor(() => expect(field('title')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: 'Save and add records' })).toBeNull();
+    // Its parish shows by name, linked.
+    expect(field('parishText')).toHaveValue('Губаницы');
+    expect(field('parishId')).toHaveValue('5');
   });
 
   test('a refused save says why under the fields at fault', async () => {

@@ -186,6 +186,8 @@
   "record_edit_part_sv": "ruotsiksi",
   "sources_title": "Lähteet",
   "sources_add": "Lisää lähde",
+  "sources_add_records": "Lisää tietueita",
+  "source_save_and_records": "Tallenna ja lisää tietueita",
   "sources_empty": "Lähteitä ei ole vielä.",
   "sources_col_title": "Nimi",
   "sources_col_kind": "Tyyppi",
@@ -344,6 +346,7 @@
   "parish_delete_unconfirmed": "Vahvista poisto valitsemalla ruutu.",
   "parish_church": "Kirkko",
   "parish_church_hint": "Paikkakunta, jossa seurakunnan kirkko on",
+  "parish_new_church": "Lisää myös samanniminen paikkakunta kirkon sijaintina",
   "parish_delete_villages": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -382,6 +385,7 @@
   "form_name_ru_hint": "Kyrillisin kirjaimin, esim. Губаницы",
   "form_name_fi": "Nimi suomeksi",
   "form_name_fi_hint": "Latinalaisin kirjaimin, esim. Hevaa",
+  "form_name_en": "Nimi englanniksi",
   "form_note": "Huomautukset",
   "people_title": "Henkilöt",
   "people_intro": "Henkilö on ne merkintöjen maininnat, jotka ylläpitäjä on yhdistänyt samaksi ihmiseksi. Perhe (vanhemmat, puolisot, lapset) saadaan merkinnöistä, joissa heidät mainitaan yhdessä.",
@@ -455,6 +459,12 @@
   "lookup_place_unlinked": "Ei linkitetty paikkaan. Lisää tämä kirjoitusasu paikalle Paikat-sivulla linkittääksesi.",
   "lookup_relation_unlinked": "Ei linkitetty suhteeseen",
   "lookup_clergy_unlinked": "Ei linkitetty pappiin",
+  "lookup_parish_unlinked": "Ei linkitetty seurakuntaan",
+  "lookup_unknown": "”{name}” ei ole vielä tunnettu. Avaa lisätäksesi sen.",
+  "lookup_create_place": "Lisää uutena paikkakuntana",
+  "lookup_create_clergy": "Lisää uutena pappina",
+  "lookup_create_relation": "Lisää uutena suhteena",
+  "lookup_create_parish": "Lisää uutena seurakuntana",
   "record_edit_split_correct": "Korjaa jako",
   "record_edit_split_corrected": "Korjattu käsin",
   "record_edit_split_none": "ei jaettu osiin"

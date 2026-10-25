@@ -66,6 +66,19 @@ import {
   version,
 } from '~/server/forms';
 import { adminOnly, signedIn } from '~/server/guards';
+import {
+  type By,
+  type Created,
+  createClergy,
+  createFlag,
+  createPlace,
+  createRelation,
+  deleteCreated,
+  newClergy,
+  newPlace,
+  newRelation,
+  parseNewRow,
+} from '~/server/linked-rows';
 
 export const RECORDS_PAGE_SIZE = 50;
 
@@ -301,8 +314,16 @@ export interface RecordEditOptionsData {
   clergy: { id: number; name: string; spellings: string[] }[];
   /** How a person belongs to a household or farm ("Сын", "Боболь"), with its names in each language. */
   relations: { id: number; name: string; spellings: string[] }[];
-  /** The sources a record can be in: one of its own type. */
-  sources: { id: number; title: string; kind: RecordKind; language: string | null }[];
+  /** The sources a record can be in: one of its own type. Its parish is where a new locality starts. */
+  sources: {
+    id: number;
+    title: string;
+    kind: RecordKind;
+    language: string | null;
+    parishId: number | null;
+  }[];
+  /** The parishes a locality added in the form can belong to. */
+  parishes: { id: number; name: string }[];
 }
 
 const personaColumns = {
@@ -401,7 +422,7 @@ export const getRecordEdit = query(async (id: number): Promise<RecordEditData | 
 export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsData> => {
   'use server';
   adminOnly();
-  const [places, clergy, relations, sources] = await Promise.all([
+  const [places, clergy, relations, sources, parishes] = await Promise.all([
     db.query.place.findMany({
       columns: { id: true, nameRu: true, nameFi: true },
       with: {
@@ -420,8 +441,12 @@ export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsDat
       orderBy: { ru: 'asc' },
     }),
     db.query.source.findMany({
-      columns: { id: true, title: true, kind: true, language: true },
+      columns: { id: true, title: true, kind: true, language: true, parishId: true },
       orderBy: { title: 'asc' },
+    }),
+    db.query.parish.findMany({
+      columns: { id: true, nameRu: true },
+      orderBy: { nameRu: 'asc' },
     }),
   ]);
   return {
@@ -442,6 +467,7 @@ export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsDat
       spellings: spellings(t.ru, t.fi, t.en),
     })),
     sources,
+    parishes: parishes.map((p) => ({ id: p.id, name: p.nameRu })),
   };
 }, 'record-edit-options');
 
@@ -560,23 +586,32 @@ const personEntries = (prefix: string, fields: readonly PersonField[]) => [
   ...fields.map((f) => [`${prefix}.${f}`, personField[f]] as const),
 ];
 
+// Beside each value as written, the box that asks to add the row it names
+// (see createLinked): "placeText" → "placeCreate", "members.0.relationText"
+// → "members.0.relationCreate".
+const createFlags = (entries: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.keys(entries)
+      .filter((key) => key.slice(key.lastIndexOf('.') + 1) in linkedFields)
+      .map((key) => [key.replace(/Text$/, 'Create'), createFlag]),
+  );
+
 // A kind's whole form: a register's people are named "role.field", a
 // list's "members.N.field".
-const formOf = (kind: RecordKind, members: number[]) =>
-  v.object({
-    ...common,
-    ...kindFields[kind],
-    ...Object.fromEntries(
-      isListKind(kind)
-        ? members.flatMap((n) => [
-            [`members.${n}.id`, optionalId] as const,
-            ...personEntries(`members.${n}`, listFields[kind]),
-          ])
-        : editedRoles[kind].flatMap((role: EditedRole) =>
-            personEntries(role, personFieldsOf(kind, role)),
-          ),
-    ),
-  });
+const formOf = (kind: RecordKind, members: number[]) => {
+  const people = Object.fromEntries(
+    isListKind(kind)
+      ? members.flatMap((n) => [
+          [`members.${n}.id`, optionalId] as const,
+          ...personEntries(`members.${n}`, listFields[kind]),
+        ])
+      : editedRoles[kind].flatMap((role: EditedRole) =>
+          personEntries(role, personFieldsOf(kind, role)),
+        ),
+  );
+  const fields = { ...common, ...kindFields[kind], ...people };
+  return v.object({ ...fields, ...createFlags(fields) });
+};
 
 type Values = Record<string, string | number | boolean | null>;
 
@@ -634,35 +669,46 @@ async function splitNames(splits: NameSplit[]) {
   }
 }
 
-// A value as written and its link, by the as-written field: a place, or a
-// household or farm relation.
+// A value as written and its link, by the as-written field: a place, a
+// household or farm relation, or the clergyman who baptised.
 const linkedFields = {
   placeText: ['placeId', 'place'],
   estateText: ['estatePlaceId', 'place'],
   residenceText: ['residenceId', 'place'],
   birthplaceText: ['birthplaceId', 'place'],
   relationText: ['relationTermId', 'relation'],
+  officiantText: ['officiantId', 'clergy'],
 } as const;
+type LinkedTable = (typeof linkedFields)[keyof typeof linkedFields][1];
 
-/**
- * Links the values posted as written without a link to the place or
- * relation they name, when exactly one has that spelling (~/lib/spellings).
- * The form does this while the admin types; this covers a form posted
- * before JavaScript loaded. A value several rows are spelled as stays
- * unlinked for the admin to choose.
- */
-async function linkSpellings(input: Values) {
-  const unlinked = Object.entries(input).flatMap(([key, value]) => {
+// The values posted as written without a link: each with the key of its
+// link, the key its "add this" box and fields are named after, and the
+// table it names.
+const unlinkedValues = (input: Values) =>
+  Object.entries(input).flatMap(([key, value]) => {
     const dot = key.lastIndexOf('.');
     const field = key.slice(dot + 1);
     if (!(field in linkedFields) || typeof value !== 'string') return [];
     const [idField, table] = linkedFields[field as keyof typeof linkedFields];
-    const idKey = key.slice(0, dot + 1) + idField;
-    return idKey in input && input[idKey] === null ? [{ idKey, text: value, table }] : [];
+    const prefix = key.slice(0, dot + 1);
+    const idKey = prefix + idField;
+    return idKey in input && input[idKey] === null
+      ? [{ idKey, base: prefix + field.slice(0, -'Text'.length), text: value, table }]
+      : [];
   });
+
+/**
+ * Links the values posted as written without a link to the place, relation
+ * or clergyman they name, when exactly one has that spelling
+ * (~/lib/spellings). The form does this while the admin types; this covers
+ * a form posted before JavaScript loaded. A value several rows are spelled
+ * as stays unlinked for the admin to choose.
+ */
+async function linkSpellings(input: Values) {
+  const unlinked = unlinkedValues(input);
   if (!unlinked.length) return;
-  const wants = (table: 'place' | 'relation') => unlinked.some((u) => u.table === table);
-  const [places, relations] = await Promise.all([
+  const wants = (table: LinkedTable) => unlinked.some((u) => u.table === table);
+  const [places, relations, clergymen] = await Promise.all([
     wants('place')
       ? db.query.place.findMany({
           columns: { id: true, nameRu: true, nameFi: true },
@@ -675,6 +721,9 @@ async function linkSpellings(input: Values) {
           columns: { id: true, ru: true, fi: true, en: true },
         })
       : [],
+    wants('clergy')
+      ? db.query.clergy.findMany({ columns: { id: true, nameRu: true, nameFi: true } })
+      : [],
   ]);
   const indexes = {
     place: spellingIndex(
@@ -686,11 +735,62 @@ async function linkSpellings(input: Values) {
     relation: spellingIndex(
       relations.map((t) => ({ id: t.id, spellings: spellings(t.ru, t.fi, t.en) })),
     ),
+    clergy: spellingIndex(
+      clergymen.map((c) => ({ id: c.id, spellings: spellings(c.nameRu, c.nameFi) })),
+    ),
   };
   for (const { idKey, text, table } of unlinked) {
     const ids = rowsSpelled(indexes[table], text);
     if (ids.length === 1) input[idKey] = ids[0];
   }
+}
+
+// How each kind of row is read from the form and created (src/server/linked-rows.ts).
+const creators: Record<
+  LinkedTable,
+  (prefix: string, entries: Record<string, unknown>, text: string, by: By) => Promise<Created>
+> = {
+  place: async (prefix, entries, text, by) => {
+    const parsed = parseNewRow(newPlace, prefix, entries);
+    if (!parsed.success) throw refusedFields(parsed.issues);
+    return createPlace(parsed.output, by, text);
+  },
+  clergy: async (prefix, entries, _text, by) => {
+    const parsed = parseNewRow(newClergy, prefix, entries);
+    if (!parsed.success) throw refusedFields(parsed.issues);
+    return createClergy(parsed.output, by);
+  },
+  relation: async (prefix, entries, _text, by) => {
+    const parsed = parseNewRow(newRelation, prefix, entries);
+    if (!parsed.success) throw refusedFields(parsed.issues);
+    return createRelation(parsed.output, by);
+  },
+};
+const refusedFields = (issues: readonly v.BaseIssue<unknown>[]) =>
+  refuse({ message: m.form_invalid(), fields: fieldsAtFault(issues) }, 400);
+
+/**
+ * Creates the rows the form asks to add for values still unlinked after
+ * linkSpellings (their "<field>Create" box ticked), from the fields posted
+ * as "<field>New.<column>", and links the values to them; a second value in
+ * the form spelled like a row just created links to it instead. Refused,
+ * with the fields at fault, when a new row's fields don't read. Returns the
+ * rows, with the statements for the save's batch (their change_log entries,
+ * a locality's spelling as written).
+ */
+async function createLinked(entries: Record<string, unknown>, input: Values, by: By) {
+  const created: { table: LinkedTable; row: Created }[] = [];
+  for (const { idKey, base, text, table } of unlinkedValues(input)) {
+    if (entries[`${base}Create`] !== 'on') continue;
+    const same = created.find(
+      (c) =>
+        c.table === table && c.row.spellings.some((s) => foldForSearch(s) === foldForSearch(text)),
+    );
+    const row = same?.row ?? (await creators[table](`${base}New`, entries, text, by));
+    if (!same) created.push({ table, row });
+    input[idKey] = row.id;
+  }
+  return created.map((c) => c.row);
 }
 
 /**
@@ -748,10 +848,13 @@ export const saveRecord = action(async (formData: FormData) => {
     throw refuse({ message: m.record_edit_conflict() }, 409);
   }
   await linkSpellings(input);
+  const now = new Date();
+  // The localities, clergy and relations the form adds exist before the
+  // record points to them; their log entries go in the record's batch.
+  const added = await createLinked(entries, input, { userId: user.id, now });
 
   // A new record gets its id first: its details and people point to it.
   // Then the save goes on as for any record, from the empty one.
-  const now = new Date();
   const stamp = { updatedAt: now, updatedBy: user.id };
   let before = existing;
   if (!before) {
@@ -825,7 +928,7 @@ export const saveRecord = action(async (formData: FormData) => {
     }),
   );
 
-  const statements = [];
+  const statements = added.flatMap((row) => row.statements);
   const kept = [];
   for (const { role, values, current } of edited) {
     // An unticked box says nothing either.
@@ -996,8 +1099,10 @@ export const saveRecord = action(async (formData: FormData) => {
     await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
   } catch (error) {
     console.error('Saving a record failed', error);
-    // A new record whose details or people couldn't be written goes again.
+    // A new record whose details or people couldn't be written goes again,
+    // with what it added.
     if (created) await db.delete(record).where(eq(record.id, rid));
+    await deleteCreated(added);
     throw refuse({ message: m.form_failed() }, 500);
   }
   const listKind = kind === 'baptisms' ? undefined : kind; // the default

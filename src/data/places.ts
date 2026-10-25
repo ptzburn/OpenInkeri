@@ -52,6 +52,7 @@ import {
   version,
 } from '~/server/forms';
 import { adminOnly, signedIn } from '~/server/guards';
+import { insertPlace } from '~/server/linked-rows';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -100,6 +101,8 @@ export interface PlaceOption {
   name: string;
   parishId: number | null;
   parish: string | null;
+  /** Its names and the spellings records use for it, for a lookup field to link a locality as typed. */
+  spellings: string[];
 }
 
 /** Every place, by Russian name, with its spellings and how many records link to it. */
@@ -223,8 +226,11 @@ export const getPlaceOptions = query(async (): Promise<PlaceOption[]> => {
   'use server';
   adminOnly();
   const places = await db.query.place.findMany({
-    columns: { id: true, nameRu: true, parishId: true },
-    with: { parish: { columns: { nameRu: true } } },
+    columns: { id: true, nameRu: true, nameFi: true, parishId: true },
+    with: {
+      parish: { columns: { nameRu: true } },
+      aliases: { columns: { name: true } },
+    },
     orderBy: { nameRu: 'asc' },
   });
   return places.map((p) => ({
@@ -232,6 +238,9 @@ export const getPlaceOptions = query(async (): Promise<PlaceOption[]> => {
     name: p.nameRu,
     parishId: p.parishId,
     parish: p.parish?.nameRu ?? null,
+    spellings: [
+      ...new Set([p.nameRu, ...(p.nameFi ? [p.nameFi] : []), ...p.aliases.map((a) => a.name)]),
+    ],
   }));
 }, 'place-options');
 
@@ -320,14 +329,7 @@ export const savePlace = action(async (formData: FormData) => {
   const stamp = { updatedAt: now, updatedBy: user.id };
 
   // A new place gets its id first: its spellings and records point to it.
-  let id = input.id;
-  if (!id) {
-    const [created] = await db
-      .insert(place)
-      .values({ ...fields, createdBy: user.id, ...stamp })
-      .returning({ id: place.id });
-    id = created.id;
-  }
+  const id = input.id ?? (await insertPlace(fields, { userId: user.id, now }));
 
   const statements = [];
   if (before) {

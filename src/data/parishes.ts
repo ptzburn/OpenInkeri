@@ -8,6 +8,7 @@ import { and, count, eq, isNotNull } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { parishInUse } from '~/lib/format';
+import { rowsSpelled, spellingIndex } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -15,6 +16,7 @@ import { changeLog, parish, place, source } from '~/server/database/schema';
 import {
   fieldsAtFault,
   finnishName,
+  line,
   optionalId,
   parseForm,
   refuse,
@@ -24,6 +26,14 @@ import {
   version,
 } from '~/server/forms';
 import { adminOnly, signedIn } from '~/server/guards';
+import {
+  type Created,
+  createFlag,
+  createPlace,
+  deleteCreated,
+  newPlace,
+  parseNewRow,
+} from '~/server/linked-rows';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -40,6 +50,8 @@ export interface ParishRow {
 export interface ParishOption {
   id: number;
   name: string;
+  /** Its names in both languages, for a lookup field to link a parish as typed. */
+  spellings: string[];
 }
 
 export interface ParishEditData {
@@ -83,15 +95,19 @@ export const getParishes = query(async (): Promise<ParishRow[]> => {
     .sort((a, b) => a.nameRu.localeCompare(b.nameRu, 'ru'));
 }, 'parishes');
 
-/** The parishes a place can belong to, for the place form's select. */
+/** The parishes a place or source can belong to, for the forms' choices. */
 export const getParishOptions = query(async (): Promise<ParishOption[]> => {
   'use server';
   adminOnly();
   const parishes = await db.query.parish.findMany({
-    columns: { id: true, nameRu: true },
+    columns: { id: true, nameRu: true, nameFi: true },
     orderBy: { nameRu: 'asc' },
   });
-  return parishes.map((p) => ({ id: p.id, name: p.nameRu }));
+  return parishes.map((p) => ({
+    id: p.id,
+    name: p.nameRu,
+    spellings: p.nameFi ? [p.nameRu, p.nameFi] : [p.nameRu],
+  }));
 }, 'parish-options');
 
 async function loadParish(id: number) {
@@ -133,7 +149,11 @@ const form = v.object({
   version,
   nameRu: russianName(),
   nameFi: finnishName(),
+  // The church's locality as typed, the one it is linked to, and the box
+  // asking to add it (its fields are read apart, see saveParish).
+  churchText: line(),
   churchPlaceId: optionalId,
+  churchCreate: createFlag,
   note: text,
 });
 
@@ -142,15 +162,21 @@ const form = v.object({
  * one, then redirects to the parishes list. Refused, with the fields at
  * fault, when a value doesn't read; and when the parish changed since the
  * page loaded it (its version moved on).
+ *
+ * The church's locality is typed by name and linked to the locality it
+ * names (the form does this as the admin types; here for a form posted
+ * before JavaScript loaded); one not known yet is added in this parish when
+ * the form asks (src/server/linked-rows.ts).
  */
 export const saveParish = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = parseForm(form, Object.fromEntries(formData));
+  const entries = Object.fromEntries(formData);
+  const parsed = parseForm(form, entries);
   if (!parsed.success) {
     throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }
-  const { id, version, ...fields } = parsed.output;
+  const { id, version, churchText, churchCreate, ...fields } = parsed.output;
 
   const before = id ? await loadParish(id) : null;
   if (id && !before) throw refuse({ message: m.parish_edit_missing() }, 404);
@@ -168,41 +194,72 @@ export const saveParish = action(async (formData: FormData) => {
   ) {
     throw refuse({ message: m.form_invalid(), fields: { churchPlaceId: '' } }, 400);
   }
+  if (!fields.churchPlaceId && churchText) {
+    const places = await db.query.place.findMany({
+      columns: { id: true, nameRu: true, nameFi: true },
+      with: { aliases: { columns: { name: true } } },
+    });
+    const named = rowsSpelled(
+      spellingIndex(
+        places.map((p) => ({
+          id: p.id,
+          spellings: [p.nameRu, ...(p.nameFi ? [p.nameFi] : []), ...p.aliases.map((a) => a.name)],
+        })),
+      ),
+      churchText,
+    );
+    if (named.length === 1) fields.churchPlaceId = named[0];
+  }
+  const church =
+    !fields.churchPlaceId && churchText && churchCreate
+      ? parseNewRow(newPlace, 'churchNew', entries)
+      : null;
+  if (church && !church.success) {
+    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(church.issues) }, 400);
+  }
 
-  const stamp = { updatedAt: new Date(), updatedBy: user.id };
+  const now = new Date();
+  const by = { userId: user.id, now };
+  const stamp = { updatedAt: now, updatedBy: user.id };
+  const added: Created[] = [];
+  let parishId = before?.id;
   try {
-    if (before) {
-      await db.batch([
-        db
-          .update(parish)
-          .set({ ...fields, version: before.version + 1, ...stamp })
-          .where(and(eq(parish.id, before.id), eq(parish.version, before.version))),
-        db.insert(changeLog).values({
-          userId: user.id,
-          entity: 'parish',
-          entityId: before.id,
-          action: 'update',
-          before,
-          after: { ...before, ...fields, version: before.version + 1 },
-        }),
-      ]);
-    } else {
-      // The change_log entry needs the new id, so it is written after the
-      // insert rather than in one batch with it.
+    // A new parish gets its id first: its church's locality belongs to it.
+    if (!parishId) {
       const [created] = await db
         .insert(parish)
         .values({ ...fields, createdBy: user.id, ...stamp })
         .returning({ id: parish.id });
-      await db.insert(changeLog).values({
+      parishId = created.id;
+    }
+    if (church?.success) {
+      const village = await createPlace({ ...church.output, parishId }, by, churchText);
+      added.push(village);
+      fields.churchPlaceId = village.id;
+    }
+    const after = before ? { ...before, ...fields, version: before.version + 1 } : fields;
+    await db.batch([
+      before
+        ? db
+            .update(parish)
+            .set({ ...fields, version: before.version + 1, ...stamp })
+            .where(and(eq(parish.id, before.id), eq(parish.version, before.version)))
+        : db.update(parish).set(fields).where(eq(parish.id, parishId)),
+      db.insert(changeLog).values({
         userId: user.id,
         entity: 'parish',
-        entityId: created.id,
-        action: 'create',
-        after: fields,
-      });
-    }
+        entityId: parishId,
+        action: before ? 'update' : 'create',
+        before,
+        after,
+      }),
+      ...added.flatMap((row) => row.statements),
+    ]);
   } catch (error) {
     console.error('Saving a parish failed', error);
+    // A new parish whose church or log couldn't be written goes again.
+    if (!before && parishId) await db.delete(parish).where(eq(parish.id, parishId));
+    await deleteCreated(added);
     throw refuse({ message: m.form_failed() }, 500);
   }
   throw redirect(paths.places.parishes());

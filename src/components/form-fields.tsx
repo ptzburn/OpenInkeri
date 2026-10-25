@@ -82,6 +82,10 @@ export function FormActions(props: {
   error?: FormError;
   cancelHref: string;
   saveAndNext?: boolean;
+  /** What Save and next does here, when not "Save and add next". */
+  nextLabel?: string;
+  /** Which button is the primary one; Save unless said otherwise. */
+  primary?: 'save' | 'next';
   class?: string;
 }) {
   return (
@@ -94,11 +98,15 @@ export function FormActions(props: {
         )}
       </Show>
       {/* Save comes first, drawn last: Enter in a field submits with the
-          form's first button, which should be a plain Save. */}
+          form's first button, which should be a plain Save (even where Save
+          and next is the primary one). */}
       <div class="flex flex-row-reverse flex-wrap justify-start gap-2">
         <button
           type="submit"
-          class="btn btn-primary group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
+          class={[
+            'btn group-aria-busy:pointer-events-none group-aria-busy:opacity-60',
+            props.primary !== 'next' && 'btn-primary',
+          ]}
         >
           <span
             class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
@@ -111,9 +119,13 @@ export function FormActions(props: {
             type="submit"
             name="next"
             value="on"
-            class="btn group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
+            class={[
+              'btn group-aria-busy:pointer-events-none group-aria-busy:opacity-60',
+              // The primary button is drawn at the end (the row is reversed).
+              props.primary === 'next' && 'order-first btn-primary',
+            ]}
           >
-            {m.form_save_and_next()}
+            {props.nextLabel ?? m.form_save_and_next()}
           </button>
         </Show>
         <a href={props.cancelHref} class="btn">

@@ -186,6 +186,8 @@
   "record_edit_part_sv": "по-шведски",
   "sources_title": "Источники",
   "sources_add": "Добавить источник",
+  "sources_add_records": "Добавить записи",
+  "source_save_and_records": "Сохранить и добавить записи",
   "sources_empty": "Источников пока нет.",
   "sources_col_title": "Название",
   "sources_col_kind": "Тип",
@@ -352,6 +354,7 @@
   "parish_delete_unconfirmed": "Отметьте флажок для подтверждения.",
   "parish_church": "Церковь",
   "parish_church_hint": "Населённый пункт, где стоит церковь прихода",
+  "parish_new_church": "Добавить также населённый пункт с этим названием как место церкви",
   "parish_delete_villages": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -394,6 +397,7 @@
   "form_name_ru_hint": "Кириллицей, например Губаницы",
   "form_name_fi": "Название по-фински",
   "form_name_fi_hint": "Латиницей, например Hevaa",
+  "form_name_en": "Название по-английски",
   "form_note": "Примечания",
   "people_title": "Люди",
   "people_intro": "Человек — это упоминания в записях, которые администратор связал как одного и того же человека. Семья (родители, супруги, дети) берётся из записей, где они названы вместе.",
@@ -469,6 +473,12 @@
   "lookup_place_unlinked": "Не связано с населённым пунктом. Добавьте это написание к нему на странице «Места», чтобы связать.",
   "lookup_relation_unlinked": "Не связано с отношением",
   "lookup_clergy_unlinked": "Не связано со священнослужителем",
+  "lookup_parish_unlinked": "Не связано с приходом",
+  "lookup_unknown": "«{name}» пока неизвестно. Откройте, чтобы добавить.",
+  "lookup_create_place": "Добавить как новый населённый пункт",
+  "lookup_create_clergy": "Добавить как нового священнослужителя",
+  "lookup_create_relation": "Добавить как новое отношение",
+  "lookup_create_parish": "Добавить как новый приход",
   "record_edit_split_correct": "Исправить разбивку",
   "record_edit_split_corrected": "Исправлено вручную",
   "record_edit_split_none": "не разбито на части"

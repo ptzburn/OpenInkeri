@@ -10,6 +10,7 @@ import { and, count, eq } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { type RecordKind, recordKinds, sourceLanguages } from '~/lib/record-kinds';
+import { rowsSpelled, spellingIndex } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -26,6 +27,14 @@ import {
   version,
 } from '~/server/forms';
 import { adminOnly, signedIn } from '~/server/guards';
+import {
+  type Created,
+  createFlag,
+  createParish,
+  deleteCreated,
+  newParish,
+  parseNewRow,
+} from '~/server/linked-rows';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -133,11 +142,17 @@ const year = v.pipe(
 
 const form = v.pipe(
   v.object({
+    // Save and add records: the new source's first record's form follows.
+    next: v.optional(v.literal('on')),
     id: optionalId, // empty for a new source
     version,
     title: requiredLine(),
     kind: v.picklist(recordKinds),
+    // The parish as typed, the one it is linked to, and the box asking to
+    // add it (its fields are read apart, see saveSource).
+    parishText: line(),
     parishId: optionalId,
+    parishCreate: createFlag,
     archiveReference: line(),
     yearFrom: year,
     yearTo: year,
@@ -159,19 +174,26 @@ const form = v.pipe(
 
 /**
  * Creates a source (no id in the form) or saves the edit page's form over
- * one, then redirects to the sources list. Refused, with the fields at
- * fault, when a value doesn't read (or the years run backwards); when the
- * type would change while records belong to the source (their details are
- * the type's); and when the source changed since the page loaded it.
+ * one, then redirects to the sources list, or with Save and add records to
+ * the form of its first record. Refused, with the fields at fault, when a
+ * value doesn't read (or the years run backwards); when the type would
+ * change while records belong to the source (their details are the type's);
+ * and when the source changed since the page loaded it.
+ *
+ * The parish is typed by name and linked to the parish it names (the form
+ * does this as the admin types; here for a form posted before JavaScript
+ * loaded); a parish not known yet is added when the form asks
+ * (src/server/linked-rows.ts), with a locality of its name as its church.
  */
 export const saveSource = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = parseForm(form, Object.fromEntries(formData));
+  const entries = Object.fromEntries(formData);
+  const parsed = parseForm(form, entries);
   if (!parsed.success) {
     throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }
-  const { id, version, ...fields } = parsed.output;
+  const { id, version, next, parishText, parishCreate, ...fields } = parsed.output;
 
   const before = id ? await loadSource(id) : null;
   if (id && !before) throw refuse({ message: m.source_edit_missing() }, 404);
@@ -188,8 +210,36 @@ export const saveSource = action(async (formData: FormData) => {
   ) {
     throw refuse({ message: m.form_invalid(), fields: { parishId: '' } }, 400);
   }
+  if (!fields.parishId && parishText) {
+    const parishes = await db.query.parish.findMany({
+      columns: { id: true, nameRu: true, nameFi: true },
+    });
+    const named = rowsSpelled(
+      spellingIndex(
+        parishes.map((p) => ({
+          id: p.id,
+          spellings: p.nameFi ? [p.nameRu, p.nameFi] : [p.nameRu],
+        })),
+      ),
+      parishText,
+    );
+    if (named.length === 1) fields.parishId = named[0];
+  }
 
-  const stamp = { updatedAt: new Date(), updatedBy: user.id };
+  const now = new Date();
+  const stamp = { updatedAt: now, updatedBy: user.id };
+  const added: Created[] = [];
+  if (!fields.parishId && parishText && parishCreate) {
+    const parish = parseNewRow(newParish, 'parishNew', entries);
+    if (!parish.success) {
+      throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parish.issues) }, 400);
+    }
+    const created = await createParish(parish.output, { userId: user.id, now });
+    added.push(created);
+    fields.parishId = created.id;
+  }
+
+  let sourceId = before?.id;
   try {
     if (before) {
       await db.batch([
@@ -205,6 +255,7 @@ export const saveSource = action(async (formData: FormData) => {
           before,
           after: { ...before, ...fields, version: before.version + 1 },
         }),
+        ...added.flatMap((row) => row.statements),
       ]);
     } else {
       // The change_log entry needs the new id, so it is written after the
@@ -213,17 +264,30 @@ export const saveSource = action(async (formData: FormData) => {
         .insert(source)
         .values({ ...fields, createdBy: user.id, ...stamp })
         .returning({ id: source.id });
-      await db.insert(changeLog).values({
-        userId: user.id,
-        entity: 'source',
-        entityId: created.id,
-        action: 'create',
-        after: fields,
-      });
+      sourceId = created.id;
+      await db.batch([
+        db.insert(changeLog).values({
+          userId: user.id,
+          entity: 'source',
+          entityId: created.id,
+          action: 'create',
+          after: fields,
+        }),
+        ...added.flatMap((row) => row.statements),
+      ]);
     }
   } catch (error) {
     console.error('Saving a source failed', error);
+    await deleteCreated(added);
     throw refuse({ message: m.form_failed() }, 500);
+  }
+  if (next) {
+    throw redirect(
+      paths.records.new({
+        kind: fields.kind === 'baptisms' ? undefined : fields.kind,
+        source: String(sourceId),
+      }),
+    );
   }
   throw redirect(paths.sources());
 }, 'save-source');

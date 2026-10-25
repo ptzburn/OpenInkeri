@@ -320,9 +320,19 @@ vi.mock('~/data/records', async () => {
         { id: 2, name: 'Жена', spellings: ['Жена', 'vaimo'] },
       ],
       sources: [
-        { id: 1, title: 'Губаницы: крещения', kind: 'baptisms', language: 'ru' },
-        { id: 2, title: 'Губаницы: умершие', kind: 'deaths', language: 'ru' },
-        { id: 3, title: 'Губаницы: общий список', kind: 'households', language: 'fi' },
+        { id: 1, title: 'Губаницы: крещения', kind: 'baptisms', language: 'ru', parishId: 5 },
+        { id: 2, title: 'Губаницы: умершие', kind: 'deaths', language: 'ru', parishId: 5 },
+        {
+          id: 3,
+          title: 'Губаницы: общий список',
+          kind: 'households',
+          language: 'fi',
+          parishId: null,
+        },
+      ],
+      parishes: [
+        { id: 5, name: 'Губаницы' },
+        { id: 7, name: 'Волосово' },
       ],
     })),
     // Like the server: a delete redirects to the list place the form carried.
@@ -597,17 +607,30 @@ describe('editing a baptism', () => {
         flush();
         expect(field('placeId')).toHaveValue('2');
 
-        // A spelling no place has: unlinked, saying how to link it.
+        // A spelling no place has: unlinked, offering to add the place. The
+        // box opens its fields, the value as written as its Russian name.
         fireEvent.input(village, { target: { value: 'Неизвестная' } });
         flush();
         expect(field('placeId')).toHaveValue('');
-        expect(status()).toHaveTextContent('Not linked to a locality.');
+        expect(status()).toHaveTextContent('“Неизвестная” is not known yet. Open to add it.');
+        const box = village.closest('.fieldset')!.querySelector('[name="placeCreate"]')!;
+        expect(box).not.toBeChecked();
+        fireEvent.click(box);
+        flush();
+        expect(box).toBeChecked();
+        expect(status().parentElement).toHaveAttribute('open');
+        expect(field('placeNew.nameRu')).toHaveValue('Неизвестная');
+        expect(field('placeNew.nameFi')).toHaveValue('');
+        expect(field('placeNew.kind')).toHaveValue('village');
+        // In the parish of the record's source (Maria's record is in source 1).
+        expect(field('placeNew.parishId')).toHaveValue('5');
 
         // Two places' spelling with neither linked: the choice opens, with
-        // them first.
+        // them first; nothing is to be added any more.
         fireEvent.input(village, { target: { value: 'Волково' } });
         flush();
         expect(field('placeId')).toHaveValue('');
+        expect(box).not.toBeChecked();
         expect(status()).toHaveTextContent('Several match this spelling: choose one');
         expect(status().parentElement).toHaveAttribute('open');
         const choices = [...(field('placeId') as HTMLSelectElement).options].map((o) => o.text);
@@ -981,11 +1004,54 @@ describe('adding and deleting records', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Record added.');
   });
 
-  test('a new record starts in the source the list shows', async () => {
+  test('a new record starts in the source the list shows, and stays in it', async () => {
     me.current = { isAdmin: true };
     renderAt('/records/new?kind=deaths&source=2');
     await waitFor(() => expect(field('sourceId')).toHaveValue('2'));
     expect(field('returnSource')).toHaveValue('2');
+    // The source isn't asked again: it is shown, and posts hidden.
+    expect(field('sourceId').tagName).toBe('INPUT');
+    expect(field('sourceId')).toHaveAttribute('type', 'hidden');
+    expect(screen.getByText('Губаницы: умершие')).toBeInTheDocument();
+    // Transcribing goes on with the next record: Save and add next leads,
+    // though Enter still saves.
+    const form = document.querySelector('main form') as HTMLFormElement;
+    const buttons = [...form.querySelectorAll('button[type="submit"]')];
+    expect(buttons[0]).toHaveTextContent('Save');
+    expect(buttons[0]).not.toHaveClass('btn-primary');
+    expect(buttons[1]).toHaveTextContent('Save and add next');
+    expect(buttons[1]).toHaveClass('btn-primary');
+  });
+
+  test("a new record in a source is of the source's type, whatever the tab", async () => {
+    me.current = { isAdmin: true };
+    // From the sources page: the list's kind isn't given.
+    renderAt('/records/new?source=3');
+    await waitFor(() => expect(field('sourceId')).toHaveValue('3'));
+    expect(field('members.0.nameFi')).toBeInTheDocument();
+    expect(field('child.nameRu')).toBeNull();
+  });
+
+  test('a locality named in a new record is added with it', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?source=2');
+    await waitFor(() => expect(field('deceased.nameRu')).toBeTruthy());
+    fireEvent.input(field('deceased.nameRu'), { target: { value: 'Иван Петров' } });
+    fireEvent.input(field('placeText'), { target: { value: 'Новая' } });
+    // Each locality field (the place, the deceased's birthplace) has its own box.
+    fireEvent.click(field('placeCreate'));
+    await waitFor(() => expect(field('placeNew.nameRu')).toHaveValue('Новая'));
+    fireEvent.change(field('placeNew.parishId'), { target: { value: '7' } });
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/records'));
+    const [saved] = editing.saved;
+    expect(saved.get('placeText')).toBe('Новая');
+    expect(saved.get('placeId')).toBe('');
+    expect(saved.get('placeCreate')).toBe('on');
+    expect(saved.get('placeNew.nameRu')).toBe('Новая');
+    expect(saved.get('placeNew.kind')).toBe('village');
+    expect(saved.get('placeNew.parishId')).toBe('7');
   });
 
   test('Save and add next opens the next record on the same page, village and date', async () => {

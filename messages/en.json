@@ -186,6 +186,8 @@
   "record_edit_part_sv": "Swedish",
   "sources_title": "Sources",
   "sources_add": "Add source",
+  "sources_add_records": "Add records",
+  "source_save_and_records": "Save and add records",
   "sources_empty": "There are no sources yet.",
   "sources_col_title": "Title",
   "sources_col_kind": "Type",
@@ -344,6 +346,7 @@
   "parish_delete_unconfirmed": "Tick the box to confirm.",
   "parish_church": "Church",
   "parish_church_hint": "The locality the parish church stands in",
+  "parish_new_church": "Also add a locality of this name, as its church",
   "parish_delete_villages": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -382,6 +385,7 @@
   "form_name_ru_hint": "In Cyrillic, e.g. Губаницы",
   "form_name_fi": "Name in Finnish",
   "form_name_fi_hint": "In Latin letters, e.g. Hevaa",
+  "form_name_en": "Name in English",
   "form_note": "Notes",
   "people_title": "People",
   "people_intro": "A person is the mentions in records that an admin linked as the same individual. Their family (parents, spouses, children) comes from the records that name them together.",
@@ -455,6 +459,12 @@
   "lookup_place_unlinked": "Not linked to a locality. Add this spelling to one on the Places page to link it.",
   "lookup_relation_unlinked": "Not linked to a relation",
   "lookup_clergy_unlinked": "Not linked to a clergyman",
+  "lookup_parish_unlinked": "Not linked to a parish",
+  "lookup_unknown": "“{name}” is not known yet. Open to add it.",
+  "lookup_create_place": "Add as a new locality",
+  "lookup_create_clergy": "Add as a new clergyman",
+  "lookup_create_relation": "Add as a new relation",
+  "lookup_create_parish": "Add as a new parish",
   "record_edit_split_correct": "Correct the split",
   "record_edit_split_corrected": "Corrected by hand",
   "record_edit_split_none": "not split into parts"
