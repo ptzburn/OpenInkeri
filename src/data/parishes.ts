@@ -272,7 +272,7 @@ const deletion = v.object({
 });
 
 /**
- * Deletes the edit page's parish once its confirm box is ticked, then
+ * Deletes the edit page's parish once confirmed in its dialog, then
  * redirects to the parishes list. Refused while villages or sources still
  * belong to the parish: their links would quietly go blank (the foreign
  * keys set null), so they move elsewhere first. Also refused, like a save,

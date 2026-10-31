@@ -191,7 +191,6 @@ export default function PlaceEditForm(props: {
               version={p.version}
               title={m.place_delete()}
               text={m.place_delete_text()}
-              confirmLabel={m.place_delete_confirm()}
               inUse={placeInUse(p)}
               deleted={m.place_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
             >

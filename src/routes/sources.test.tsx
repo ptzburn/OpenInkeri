@@ -1,7 +1,7 @@
 import { Loading, flush } from 'solid-js';
 import { captureArtifact } from '@solidjs/diagnostics';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
@@ -287,8 +287,10 @@ describe('/sources', () => {
     renderAt('/sources/5/edit');
     await waitFor(() => expect(field('title')).toBeTruthy());
     expect(field('kind')).toHaveValue('taxpayers');
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this source' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete source' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete source' }),
+    );
     await waitFor(() => expect(window.location.pathname).toBe('/sources'));
     expect(sources.deleted[0].get('id')).toBe('5');
     expect(await screen.findByRole('status')).toHaveTextContent(

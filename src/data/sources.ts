@@ -299,8 +299,8 @@ const deletion = v.object({
 });
 
 /**
- * Deletes the edit page's source, with its sections, once its confirm box
- * is ticked, then redirects to the sources list. Refused while records
+ * Deletes the edit page's source, with its sections, once confirmed in its
+ * dialog, then redirects to the sources list. Refused while records
  * belong to it, and, like a save, when it changed since the page loaded it.
  */
 export const deleteSource = action(async (formData: FormData) => {

@@ -555,7 +555,7 @@ const deletion = v.object({
 });
 
 /**
- * Deletes the edit page's person once its confirm box is ticked, then
+ * Deletes the edit page's person once confirmed in its dialog, then
  * redirects to the people list. Their mentions stay in their records,
  * unlinked (on delete set null); change_log keeps which they were. Refused,
  * like a save, when the person changed since the page loaded them.

@@ -212,7 +212,6 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
               version={s.version}
               title={m.source_delete()}
               text={m.source_delete_text()}
-              confirmLabel={m.source_delete_confirm()}
               inUse={s.records ? m.source_delete_in_use({ count: s.records }) : undefined}
               deleted={m.source_deleted({ title: s.title })}
             />

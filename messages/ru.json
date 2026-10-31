@@ -212,8 +212,7 @@
   "source_years_order": "Первый год позже последнего.",
   "source_delete": "Удалить источник",
   "source_delete_text": "Удаляет источник.",
-  "source_delete_confirm": "Я хочу удалить этот источник",
-  "source_delete_unconfirmed": "Отметьте флажок для подтверждения.",
+  "source_delete_unconfirmed": "Удаление не подтверждено.",
   "source_delete_in_use": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -249,8 +248,7 @@
   "record_saved": "Запись сохранена.",
   "record_delete": "Удалить запись",
   "record_delete_text": "Удаляет запись вместе с людьми, которых она называет.",
-  "record_delete_confirm": "Я хочу удалить эту запись",
-  "record_delete_unconfirmed": "Отметьте флажок для подтверждения.",
+  "record_delete_unconfirmed": "Удаление не подтверждено.",
   "record_delete_failed": "Не удалось удалить запись. Попробуйте ещё раз.",
   "record_deleted": "Запись удалена.",
   "villages_title": "Населённые пункты",
@@ -294,8 +292,7 @@
   "place_saved": "Населённый пункт {name} сохранён.",
   "place_delete": "Удалить населённый пункт",
   "place_delete_text": "Удаляет населённый пункт и варианты его написания.",
-  "place_delete_confirm": "Я хочу удалить этот населённый пункт",
-  "place_delete_unconfirmed": "Отметьте флажок для подтверждения.",
+  "place_delete_unconfirmed": "Удаление не подтверждено.",
   "place_delete_records": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -351,8 +348,7 @@
   "parish_edit_conflict": "Кто-то другой тем временем изменил этот приход. Перезагрузите страницу, чтобы увидеть изменения.",
   "parish_delete": "Удалить приход",
   "parish_delete_text": "Удаляет приход.",
-  "parish_delete_confirm": "Я хочу удалить этот приход",
-  "parish_delete_unconfirmed": "Отметьте флажок для подтверждения.",
+  "parish_delete_unconfirmed": "Удаление не подтверждено.",
   "parish_church": "Церковь",
   "parish_church_hint": "Населённый пункт, где стоит церковь прихода",
   "parish_new_church": "Добавить также населённый пункт с этим названием как место церкви",
@@ -440,8 +436,7 @@
       }
     }
   ],
-  "person_delete_confirm": "Я хочу удалить этого человека",
-  "person_delete_unconfirmed": "Отметьте флажок для подтверждения.",
+  "person_delete_unconfirmed": "Удаление не подтверждено.",
   "person_delete_failed": "Не удалось удалить. Попробуйте ещё раз.",
   "person_deleted": "Человек «{name}» удалён.",
   "person_link_missing": "Такого упоминания нет.",

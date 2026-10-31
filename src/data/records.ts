@@ -1235,7 +1235,7 @@ const deletion = v.object({
 
 /**
  * Deletes the edit page's record, with its details and the people it names
- * (on delete cascade), once its confirm box is ticked, then redirects to the
+ * (on delete cascade), once confirmed in its dialog, then redirects to the
  * records list it came from. change_log keeps the record as it was. Refused,
  * like a save, when it changed since the page loaded it.
  */

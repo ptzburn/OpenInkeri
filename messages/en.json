@@ -212,8 +212,7 @@
   "source_years_order": "The first year is after the last.",
   "source_delete": "Delete source",
   "source_delete_text": "Deletes the source.",
-  "source_delete_confirm": "I want to delete this source",
-  "source_delete_unconfirmed": "Tick the box to confirm.",
+  "source_delete_unconfirmed": "The deletion was not confirmed.",
   "source_delete_in_use": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -247,8 +246,7 @@
   "record_saved": "Record saved.",
   "record_delete": "Delete record",
   "record_delete_text": "Deletes the record with the people it names.",
-  "record_delete_confirm": "I want to delete this record",
-  "record_delete_unconfirmed": "Tick the box to confirm.",
+  "record_delete_unconfirmed": "The deletion was not confirmed.",
   "record_delete_failed": "Could not delete the record. Try again.",
   "record_deleted": "Record deleted.",
   "villages_title": "Localities",
@@ -292,8 +290,7 @@
   "place_saved": "Locality {name} saved.",
   "place_delete": "Delete locality",
   "place_delete_text": "Deletes the locality and its alternative spellings.",
-  "place_delete_confirm": "I want to delete this locality",
-  "place_delete_unconfirmed": "Tick the box to confirm.",
+  "place_delete_unconfirmed": "The deletion was not confirmed.",
   "place_delete_records": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -343,8 +340,7 @@
   "parish_edit_conflict": "Someone else changed this parish meanwhile. Reload the page to see their changes.",
   "parish_delete": "Delete parish",
   "parish_delete_text": "Deletes the parish.",
-  "parish_delete_confirm": "I want to delete this parish",
-  "parish_delete_unconfirmed": "Tick the box to confirm.",
+  "parish_delete_unconfirmed": "The deletion was not confirmed.",
   "parish_church": "Church",
   "parish_church_hint": "The locality the parish church stands in",
   "parish_new_church": "Also add a locality of this name, as its church",
@@ -426,8 +422,7 @@
       }
     }
   ],
-  "person_delete_confirm": "I want to delete this person",
-  "person_delete_unconfirmed": "Tick the box to confirm.",
+  "person_delete_unconfirmed": "The deletion was not confirmed.",
   "person_delete_failed": "Could not delete. Try again.",
   "person_deleted": "Person “{name}” deleted.",
   "person_link_missing": "This mention doesn't exist.",

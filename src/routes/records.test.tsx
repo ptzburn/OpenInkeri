@@ -1159,9 +1159,10 @@ describe('adding and deleting records', () => {
     await waitFor(() => expect(field('sourceId')).toHaveValue('1'));
     expect(field('page')).toHaveValue('12об');
 
-    const box = screen.getByRole('checkbox', { name: 'I want to delete this record' });
-    fireEvent.click(box);
     fireEvent.click(screen.getByRole('button', { name: 'Delete record' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete record' }),
+    );
     await waitFor(() => expect(window.location.pathname).toBe('/records'));
     const [deleted] = editing.deleted;
     expect(deleted.get('id')).toBe('2');

@@ -1,7 +1,7 @@
 import { Loading, flush } from 'solid-js';
 import { captureArtifact, expectNoSilentHolds } from '@solidjs/diagnostics';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
@@ -340,14 +340,14 @@ describe('editing a village', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete locality' })).toBeDisabled();
-    expect(screen.getByRole('checkbox', { name: 'I want to delete this locality' })).toBeDisabled();
   });
 
   test('deleting a locality returns to the list as it was, with a toast', async () => {
     await openGorki();
-    const button = screen.getByRole('button', { name: 'Delete locality' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this locality' }));
-    fireEvent.submit(button.closest('form') as HTMLFormElement);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete locality' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete locality' }),
+    );
 
     await waitFor(() => expect(window.location.pathname).toBe('/places/villages'));
     expect(window.location.search).toBe(`?q=${encodeURIComponent('горк')}`);
@@ -504,9 +504,10 @@ describe('/places/parishes', () => {
   test('deleting a parish posts its id and version once confirmed', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/5/edit');
-    const button = await screen.findByRole('button', { name: 'Delete parish' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
-    fireEvent.submit(button.closest('form') as HTMLFormElement);
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete parish' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete parish' }),
+    );
 
     await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
     const [deleted] = parishes.deleted;
@@ -521,9 +522,10 @@ describe('/places/parishes', () => {
     me.current = { isAdmin: true };
     parishes.deleteFailsWith = { message: 'The parish still has villages (1) or sources (1).' };
     renderAt('/places/parishes/5/edit');
-    const button = await screen.findByRole('button', { name: 'Delete parish' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
-    fireEvent.submit(button.closest('form') as HTMLFormElement);
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete parish' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete parish' }),
+    );
 
     expect(await screen.findByRole('alert')).toHaveTextContent('villages (1) or sources (1)');
     expect(window.location.pathname).toBe('/places/parishes/5/edit');
@@ -542,7 +544,6 @@ describe('/places/parishes', () => {
       ),
     ).toBeInTheDocument();
     expect(button).toBeDisabled();
-    expect(screen.getByRole('checkbox', { name: 'I want to delete this parish' })).toBeDisabled();
   });
 
   test('the warning names only what belongs to the parish', async () => {
@@ -648,10 +649,12 @@ describe('reactivity', () => {
     me.current = { isAdmin: true };
     parishes.deleteFailsWith = { message: 'The parish still has villages (1) or sources (1).' };
     renderAt('/places/parishes/5/edit');
-    const button = await screen.findByRole('button', { name: 'Delete parish' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete parish' }));
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Delete parish',
+    });
     await capture('parish-delete-refused', async () => {
-      fireEvent.submit(button.closest('form') as HTMLFormElement);
+      fireEvent.click(confirm);
       await screen.findByRole('alert');
     });
   });
@@ -659,10 +662,12 @@ describe('reactivity', () => {
   test('a delete', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/5/edit');
-    const button = await screen.findByRole('button', { name: 'Delete parish' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete parish' }));
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Delete parish',
+    });
     await capture('parish-delete', async () => {
-      fireEvent.submit(button.closest('form') as HTMLFormElement);
+      fireEvent.click(confirm);
       await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
       await screen.findAllByRole('link', { name: 'Edit parish' });
     });

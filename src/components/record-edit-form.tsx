@@ -565,7 +565,6 @@ export default function RecordEditForm(props: {
               version={r.version}
               title={m.record_delete()}
               text={m.record_delete_text()}
-              confirmLabel={m.record_delete_confirm()}
               inUse={undefined}
               deleted={m.record_deleted()}
             >

@@ -58,6 +58,18 @@ export function useFormDone<U>(
   });
 }
 
+/** Like useFormDone, for a submission of this form that the server refused. */
+function useFormRefused<U>(
+  action: Action<[FormData], U>,
+  isThisForm: (form: FormData) => boolean,
+  refused: (form: FormData) => void,
+) {
+  action.onSettled((submission) => {
+    const [form] = submission.input;
+    if (submission.error && isThisForm(form)) refused(form);
+  });
+}
+
 /**
  * The name a parish or locality form posted (its nameRu and nameFi fields),
  * in the reader's language, for a toast after the save: what the admin
@@ -267,13 +279,15 @@ export function Select(props: {
  * linked since the page loaded). A delete that went through shows `deleted`
  * as a toast on the page its action redirects to.
  */
+/** Whether this browser runs invoker commands (commandfor/command) itself. */
+const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype;
+
 export function DeleteSection<U>(props: {
   action: Action<[FormData], U>;
   id: number;
   version: number;
   title: string;
   text: string;
-  confirmLabel: string;
   inUse: string | undefined;
   deleted: string;
   /** Further hidden fields the action reads. */
@@ -285,8 +299,17 @@ export function DeleteSection<U>(props: {
   const { error } = useFormErrors(action, isThisForm);
   const toast = useToast();
   useFormDone(action, isThisForm, () => toast(props.deleted));
-  // Read by the warning, the box and the button.
+  // Read by the warning and the button.
   const inUse = createMemo(() => props.inUse, { name: 'delete-in-use' });
+
+  // The confirmation is a native modal dialog, opened and closed by invoker
+  // commands (commandfor/command), so it needs no script. A browser without
+  // them (before Chrome 135, Firefox 144, Safari 26.2) gets the same through
+  // the click handlers, which do nothing where the commands work.
+  let dialog: HTMLDialogElement | undefined;
+  const dialogId = () => `delete-${props.id}`;
+  // A refusal closes the dialog: its reason shows in the section underneath.
+  useFormRefused(action, isThisForm, () => dialog?.close());
 
   return (
     <section
@@ -300,39 +323,76 @@ export function DeleteSection<U>(props: {
       <Show when={inUse()}>
         {(message) => <div class="alert alert-warning alert-soft">{message()}</div>}
       </Show>
-      <form method="post" action={action} class="group flex flex-col gap-3">
-        <input type="hidden" name="id" value={props.id} />
-        <input type="hidden" name="version" value={props.version} />
-        {props.children}
-        <label class="label text-base-content">
-          <input
-            type="checkbox"
-            name="confirm"
-            required
-            disabled={!!inUse()}
-            class="checkbox checkbox-error"
-          />
-          {props.confirmLabel}
-        </label>
-        <Show when={error()}>
-          {(error) => (
-            <div role="alert" class="alert alert-error alert-soft">
-              {error().message}
+      <Show when={error()}>
+        {(error) => (
+          <div role="alert" class="alert alert-error alert-soft">
+            {error().message}
+          </div>
+        )}
+      </Show>
+      <button
+        type="button"
+        commandfor={dialogId()}
+        command="show-modal"
+        disabled={!!inUse()}
+        class="btn self-start btn-error"
+        onClick={() => {
+          if (!invokerCommands()) dialog?.showModal();
+        }}
+      >
+        {props.title}
+      </button>
+      <dialog
+        ref={(el) => (dialog = el)}
+        id={dialogId()}
+        class="modal"
+        aria-labelledby={`${dialogId()}-title`}
+        aria-describedby={`${dialogId()}-text`}
+      >
+        <div class="modal-box">
+          <h3 id={`${dialogId()}-title`} class="text-lg font-bold">
+            {props.title}
+          </h3>
+          <p id={`${dialogId()}-text`} class="py-4">
+            {props.text}
+          </p>
+          {/* While the delete is in flight the router marks the form aria-busy. */}
+          <form method="post" action={action} class="group">
+            <input type="hidden" name="id" value={props.id} />
+            <input type="hidden" name="version" value={props.version} />
+            <input type="hidden" name="confirm" value="on" />
+            {props.children}
+            <div class="modal-action">
+              <button
+                type="button"
+                commandfor={dialogId()}
+                command="close"
+                class="btn"
+                onClick={() => {
+                  if (!invokerCommands()) dialog?.close();
+                }}
+              >
+                {m.form_cancel()}
+              </button>
+              <button
+                type="submit"
+                class="btn btn-error group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
+              >
+                <span
+                  class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
+                  aria-hidden="true"
+                />
+                {props.title}
+              </button>
             </div>
-          )}
-        </Show>
-        <button
-          type="submit"
-          disabled={!!inUse()}
-          class="btn self-start btn-error group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-        >
-          <span
-            class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
-            aria-hidden="true"
-          />
-          {props.title}
-        </button>
-      </form>
+          </form>
+        </div>
+        {/* A click on the backdrop closes the dialog, natively. Pointer only:
+            keyboards and screen readers have Cancel and Escape. */}
+        <form method="dialog" class="modal-backdrop" aria-hidden="true">
+          <button tabindex="-1">{m.form_cancel()}</button>
+        </form>
+      </dialog>
     </section>
   );
 }

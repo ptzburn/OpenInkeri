@@ -505,8 +505,8 @@ const deletion = v.object({
 });
 
 /**
- * Deletes the edit page's place, with its spellings, once its confirm box
- * is ticked, then redirects to the villages list it came from. Refused while
+ * Deletes the edit page's place, with its spellings, once confirmed in its
+ * dialog, then redirects to the villages list it came from. Refused while
  * records, birthplaces or parish churches still link to it (the links would quietly go
  * blank), and, like a save, when the place changed since the page loaded it.
  */

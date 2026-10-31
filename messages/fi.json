@@ -212,8 +212,7 @@
   "source_years_order": "Ensimmäinen vuosi on viimeisen jälkeen.",
   "source_delete": "Poista lähde",
   "source_delete_text": "Poistaa lähteen.",
-  "source_delete_confirm": "Haluan poistaa tämän lähteen",
-  "source_delete_unconfirmed": "Vahvista poisto valitsemalla ruutu.",
+  "source_delete_unconfirmed": "Poistoa ei vahvistettu.",
   "source_delete_in_use": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -247,8 +246,7 @@
   "record_saved": "Merkintä tallennettu.",
   "record_delete": "Poista merkintä",
   "record_delete_text": "Poistaa merkinnän ja sen henkilöt.",
-  "record_delete_confirm": "Haluan poistaa tämän merkinnän",
-  "record_delete_unconfirmed": "Vahvista poisto valitsemalla ruutu.",
+  "record_delete_unconfirmed": "Poistoa ei vahvistettu.",
   "record_delete_failed": "Merkinnän poistaminen epäonnistui. Yritä uudelleen.",
   "record_deleted": "Merkintä poistettu.",
   "villages_title": "Paikkakunnat",
@@ -292,8 +290,7 @@
   "place_saved": "Paikkakunta {name} tallennettu.",
   "place_delete": "Poista paikkakunta",
   "place_delete_text": "Poistaa paikkakunnan ja sen vaihtoehtoiset kirjoitusasut.",
-  "place_delete_confirm": "Haluan poistaa tämän paikkakunnan",
-  "place_delete_unconfirmed": "Vahvista poisto valitsemalla ruutu.",
+  "place_delete_unconfirmed": "Poistoa ei vahvistettu.",
   "place_delete_records": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
@@ -343,8 +340,7 @@
   "parish_edit_conflict": "Joku muu muutti seurakuntaa sillä välin. Lataa sivu uudelleen nähdäksesi muutokset.",
   "parish_delete": "Poista seurakunta",
   "parish_delete_text": "Poistaa seurakunnan.",
-  "parish_delete_confirm": "Haluan poistaa tämän seurakunnan",
-  "parish_delete_unconfirmed": "Vahvista poisto valitsemalla ruutu.",
+  "parish_delete_unconfirmed": "Poistoa ei vahvistettu.",
   "parish_church": "Kirkko",
   "parish_church_hint": "Paikkakunta, jossa seurakunnan kirkko on",
   "parish_new_church": "Lisää myös samanniminen paikkakunta kirkon sijaintina",
@@ -426,8 +422,7 @@
       }
     }
   ],
-  "person_delete_confirm": "Haluan poistaa tämän henkilön",
-  "person_delete_unconfirmed": "Vahvista rastittamalla ruutu.",
+  "person_delete_unconfirmed": "Poistoa ei vahvistettu.",
   "person_delete_failed": "Poisto epäonnistui. Yritä uudelleen.",
   "person_deleted": "Henkilö ”{name}” poistettu.",
   "person_link_missing": "Mainintaa ei ole.",

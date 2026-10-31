@@ -151,7 +151,6 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
               version={p.version}
               title={m.parish_delete()}
               text={m.parish_delete_text()}
-              confirmLabel={m.parish_delete_confirm()}
               inUse={parishInUse(p)}
               deleted={m.parish_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
             />
