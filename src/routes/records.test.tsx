@@ -421,14 +421,14 @@ describe('/records', () => {
     await waitFor(() => expect(childNames(container)).toHaveLength(50));
     expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1, null);
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
-    const first = container.querySelector('tbody tr')!;
+    const first = container.querySelector<HTMLElement>('tbody tr')!;
     expect(first).toHaveTextContent('3.1895'); // born, month only
     expect(first).toHaveTextContent('12.3.1895'); // baptised
-    expect(first).toHaveTextContent('Twins');
+    expect(within(first).getByRole('img', { name: 'Twins' })).toBeInTheDocument();
     // English shows the Finnish form when the register gives one.
     expect(first).toHaveTextContent('Juhana Aataminp. Waris');
     expect(container.querySelector('tbody tr:nth-child(2)')).toHaveTextContent('Maria');
-    expect(first.querySelector('[title]')).toHaveAttribute('title', 'In the source: Горкка');
+    expect(within(first).getByTitle('In the source: Горкка')).toBeInTheDocument();
   });
 
   test('pages through ?page, and the ends have no link onward', async () => {

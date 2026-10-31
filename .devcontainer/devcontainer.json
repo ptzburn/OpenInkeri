@@ -13,12 +13,13 @@
   },
   "mounts": [
     "source=claude-code-config,target=/home/node/.claude,type=volume",
-    "source=gh-config,target=/home/node/.config/gh,type=volume"
+    "source=gh-config,target=/home/node/.config/gh,type=volume",
+    "source=playwright-browsers,target=/home/node/.cache/ms-playwright,type=volume"
   ],
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/home/node/.claude"
   },
-  "postCreateCommand": "sudo chown -R node:node /home/node/.claude /home/node/.config/gh && (gh auth setup-git || true)",
+  "postCreateCommand": "sudo chown -R node:node /home/node/.claude /home/node/.config/gh /home/node/.cache/ms-playwright && (gh auth setup-git || true) && pnpm install && pnpm exec playwright install --with-deps chromium",
   "appPort": [3060, 4983],
   "customizations": {
     "vscode": {
