@@ -98,10 +98,10 @@ describe('LookupField', () => {
     expect(id()).toBe('1');
     expect(screen.queryByRole('listbox')).toBeNull();
 
-    // Arrow down reopens it, narrowed to the value now typed.
+    // Arrow down on the closed field opens every row, to browse.
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     flush();
-    expect(options()).toEqual(['Горки (Губаницы)']);
+    expect(options()).toEqual(['Горки (Губаницы)', 'Волгово (Губаницы)', 'Вохново (Губаницы)']);
     fireEvent.keyDown(input, { key: 'Escape' });
     flush();
     expect(screen.queryByRole('listbox')).toBeNull();
@@ -114,17 +114,27 @@ describe('LookupField', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 
-  test('a text matching nothing still lists every row, and a stored value is kept', () => {
+  test('a text matching nothing lists nothing; the chevron browses every row', () => {
     const { input, id, options } = renderField('Горкка', 1);
     expect(input).toHaveValue('Горкка');
     expect(id()).toBe('1');
     fireEvent.focus(input);
     flush();
-    expect(options()).toEqual(['Горки (Губаницы)', 'Волгово (Губаницы)', 'Вохново (Губаницы)']);
+    expect(screen.queryByRole('listbox')).toBeNull();
     // Enter with no row chosen leaves the value alone (the form would submit).
     fireEvent.keyDown(input, { key: 'Enter' });
     flush();
     expect(input).toHaveValue('Горкка');
     expect(id()).toBe('1');
+    // The chevron opens every row whatever is typed; typing narrows again.
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Locality: show choices' }));
+    flush();
+    expect(options()).toEqual(['Горки (Губаницы)', 'Волгово (Губаницы)', 'Вохново (Губаницы)']);
+    fireEvent.input(input, { target: { value: 'гор' } });
+    flush();
+    expect(options()).toEqual(['Горки (Губаницы)']);
+    fireEvent.input(input, { target: { value: 'горкк' } });
+    flush();
+    expect(screen.queryByRole('listbox')).toBeNull();
   });
 });

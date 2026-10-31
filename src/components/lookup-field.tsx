@@ -62,9 +62,10 @@ const newPrefix = (textName: string) => textName.replace(/Text$/, 'New');
 
 /**
  * A value as the source writes it, typed once, and the row it is linked to.
- * A combobox: its dropdown lists the rows, each once, with the spelling the
- * text matched when that isn't in the row's name; it opens on focus, on the
- * chevron and on typing, and the arrow keys, Enter, a click and Escape work
+ * A combobox: its dropdown lists the rows a spelling of which contains the
+ * text, each once, with that spelling when it isn't in the row's name; it
+ * opens on focus and on typing, the chevron (or the arrow key) opens it on
+ * every row to browse, and the arrow keys, Enter, a click and Escape work
  * as expected. Typing a spelling that names exactly one row links to it,
  * and the line under the input says which, or that it names several (then
  * the choice opens) or none. The line opens a <select> to link to another
@@ -89,6 +90,9 @@ export function LookupField(props: {
   // The dropdown, and the row in it the arrow keys are on (by its value).
   const [open, setOpen] = createSignal(false, { name: 'lookup-open' });
   const [active, setActive] = createSignal<number | null>(null, { name: 'lookup-active' });
+  // Opened to browse (the chevron, or the arrow key on a closed field): every
+  // row, whatever is typed. Typing goes back to the rows matching the text.
+  const [browsing, setBrowsing] = createSignal(false, { name: 'lookup-browsing' });
   const named = createMemo(() => rowsSpelled(props.lookup.index, text()), {
     name: 'lookup-named',
   });
@@ -98,26 +102,31 @@ export function LookupField(props: {
   // A value that names no row, where one can be added.
   const unknown = () => !!props.lookup.create && !!text().trim() && !named().length && !linked();
   // What the dropdown offers: the rows a spelling of which contains the
-  // text, each with that spelling; every row, by its first name, when
-  // nothing is typed or nothing matches (so the list can always be browsed).
+  // text, each with that spelling (none when nothing does: the line under
+  // the field says so); every row, by its first name, when nothing is typed
+  // or the field was opened to browse.
   const matches = createMemo(
     (): Match[] => {
       const key = foldForSearch(text());
-      const all = (): Match[] =>
-        props.lookup.options.map((option) => ({
+      if (!key || browsing()) {
+        return props.lookup.options.map((option) => ({
           option,
           spelling: option.spellings[0] ?? option.label,
         }));
-      if (!key) return all();
+      }
       const found: Match[] = [];
       for (const option of props.lookup.options) {
         const spelling = option.spellings.find((s) => foldForSearch(s).includes(key));
         if (spelling !== undefined) found.push({ option, spelling });
       }
-      return found.length ? found : all();
+      return found;
     },
     { name: 'lookup-matches' },
   );
+  // Open with rows to show: the field can be open with none (a text that
+  // matches nothing), and then the chevron or the arrow key browse instead
+  // of closing.
+  const shown = () => open() && matches().length > 0;
   // The spelling is worth showing when the row's name doesn't contain it.
   const spelledApart = (match: Match) =>
     !foldForSearch(match.option.label).includes(foldForSearch(match.spelling));
@@ -125,6 +134,7 @@ export function LookupField(props: {
   const typed = (value: string) => {
     setText(value);
     setOpen(true);
+    setBrowsing(false);
     setActive(null);
     const rows = rowsSpelled(props.lookup.index, value);
     // A spelling of one row links to it; one of several keeps the choice
@@ -144,6 +154,7 @@ export function LookupField(props: {
     setId(match.option.value);
     setCreating(false);
     setOpen(false);
+    setBrowsing(false);
     setActive(null);
   };
   const move = (step: 1 | -1) => {
@@ -157,8 +168,11 @@ export function LookupField(props: {
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault();
-        if (open()) move(1);
-        else setOpen(true);
+        if (shown()) move(1);
+        else {
+          setBrowsing(true);
+          setOpen(true);
+        }
         break;
       case 'ArrowUp':
         event.preventDefault();
@@ -176,6 +190,7 @@ export function LookupField(props: {
         if (open()) {
           event.preventDefault();
           setOpen(false);
+          setBrowsing(false);
           setActive(null);
         }
         break;
@@ -226,6 +241,7 @@ export function LookupField(props: {
             onClick={() => setOpen(true)}
             onBlur={() => {
               setOpen(false);
+              setBrowsing(false);
               setActive(null);
             }}
             onKeyDown={onKeyDown}
@@ -242,13 +258,15 @@ export function LookupField(props: {
             onMouseDown={(e) => {
               e.preventDefault();
               input?.focus();
-              setOpen(!open());
+              const close = shown();
+              setBrowsing(!close);
+              setOpen(!close);
             }}
           >
             <ChevronIcon class="size-5" aria-hidden="true" />
           </button>
         </div>
-        <Show when={open() && matches().length > 0}>
+        <Show when={shown()}>
           <ul
             id={listId()}
             role="listbox"

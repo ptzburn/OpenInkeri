@@ -633,8 +633,12 @@ describe('editing a baptism', () => {
     expect(village).toHaveAttribute('role', 'combobox');
     expect(field('placeId')).toHaveValue('1');
     expect(village.closest('.fieldset')).toHaveTextContent('→ Горки (Губаницы)');
-    // Focused, the dropdown lists every place once: the text matches none.
+    // Focused, no dropdown: the text matches no place. The chevron opens
+    // every place once.
     fireEvent.focus(village);
+    flush();
+    expect(screen.queryByRole('listbox')).toBeNull();
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Locality: show choices' }));
     flush();
     const options = () =>
       within(screen.getByRole('listbox'))
