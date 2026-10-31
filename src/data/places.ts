@@ -18,7 +18,7 @@ import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
 import { parseCoordinates } from '~/lib/coordinates';
-import { placeInUse } from '~/lib/format';
+import { type Names, placeInUse } from '~/lib/format';
 import {
   type CoordinateStatus,
   type PlaceKind,
@@ -43,6 +43,7 @@ import {
   collapse,
   fieldsAtFault,
   finnishName,
+  line,
   optionalId,
   parseForm,
   refuse,
@@ -52,6 +53,16 @@ import {
   version,
 } from '~/server/forms';
 import { adminOnly, signedIn } from '~/server/guards';
+import {
+  type Created,
+  createFlag,
+  createParish,
+  deleteCreated,
+  insertPlace,
+  newParish,
+  parseNewRow,
+} from '~/server/linked-rows';
+import { rowsSpelled, spellingIndex } from '~/lib/spellings';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -97,9 +108,11 @@ export interface PlaceEditData {
 
 export interface PlaceOption {
   id: number;
-  name: string;
+  name: Names;
   parishId: number | null;
-  parish: string | null;
+  parish: Names | null;
+  /** Its names and the spellings records use for it, for a lookup field to link a locality as typed. */
+  spellings: string[];
 }
 
 /** Every place, by Russian name, with its spellings and how many records link to it. */
@@ -218,20 +231,26 @@ export const getPlaceEdit = query(async (id: number): Promise<PlaceEditData | nu
   return { ...rest, spellings: aliases.map((a) => a.name), ...uses };
 }, 'place-edit');
 
-/** Every place, by Russian name, with its parish: a form's choices of locality. */
+/** Every place, by both names, with its parish: a form's choices of locality. */
 export const getPlaceOptions = query(async (): Promise<PlaceOption[]> => {
   'use server';
   adminOnly();
   const places = await db.query.place.findMany({
-    columns: { id: true, nameRu: true, parishId: true },
-    with: { parish: { columns: { nameRu: true } } },
+    columns: { id: true, nameRu: true, nameFi: true, parishId: true },
+    with: {
+      parish: { columns: { nameRu: true, nameFi: true } },
+      aliases: { columns: { name: true } },
+    },
     orderBy: { nameRu: 'asc' },
   });
   return places.map((p) => ({
     id: p.id,
-    name: p.nameRu,
+    name: { ru: p.nameRu, fi: p.nameFi },
     parishId: p.parishId,
-    parish: p.parish?.nameRu ?? null,
+    parish: p.parish ? { ru: p.parish.nameRu, fi: p.parish.nameFi } : null,
+    spellings: [
+      ...new Set([p.nameRu, ...(p.nameFi ? [p.nameFi] : []), ...p.aliases.map((a) => a.name)]),
+    ],
   }));
 }, 'place-options');
 
@@ -259,7 +278,11 @@ const form = v.object({
   nameRu: russianName(),
   nameFi: finnishName(),
   kind: v.picklist(placeKinds),
+  // The parish as typed, the one it is linked to, and the box asking to
+  // add it (its fields are read apart, see savePlace).
+  parishText: line(),
   parishId: optionalId,
+  parishCreate: createFlag,
   coordinates: v.pipe(
     v.optional(v.string(), ''),
     v.transform(parseCoordinates),
@@ -279,7 +302,9 @@ const form = v.object({
 /**
  * Creates a place (no id in the form) or saves the edit page's form over
  * one, then redirects to the villages list (with the search and parish
- * filter it came from).
+ * filter it came from). The parish typed by name links to the one it
+ * names; one not known yet is created first when the form asks (without a
+ * church: the place being saved may well be it, and the parish page sets it).
  * Refused, with the fields at fault, when a value doesn't read; and when the
  * place changed since the page loaded it (its version moved on).
  *
@@ -289,7 +314,8 @@ const form = v.object({
 export const savePlace = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = parseForm(form, Object.fromEntries(formData));
+  const entries = Object.fromEntries(formData);
+  const parsed = parseForm(form, entries);
   if (!parsed.success) {
     throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
   }
@@ -299,6 +325,40 @@ export const savePlace = action(async (formData: FormData) => {
   if (input.id && !before) throw refuse({ message: m.place_edit_missing() }, 404);
   if (before && before.version !== input.version) {
     throw refuse({ message: m.place_edit_conflict() }, 409);
+  }
+  // A parish deleted since the page loaded.
+  let parishId = input.parishId;
+  if (
+    parishId &&
+    !(await db.query.parish.findFirst({ where: { id: parishId }, columns: { id: true } }))
+  ) {
+    throw refuse({ message: m.form_invalid(), fields: { parishId: '' } }, 400);
+  }
+  if (!parishId && input.parishText) {
+    const parishes = await db.query.parish.findMany({
+      columns: { id: true, nameRu: true, nameFi: true },
+    });
+    const named = rowsSpelled(
+      spellingIndex(
+        parishes.map((p) => ({
+          id: p.id,
+          spellings: p.nameFi ? [p.nameRu, p.nameFi] : [p.nameRu],
+        })),
+      ),
+      input.parishText,
+    );
+    if (named.length === 1) parishId = named[0];
+  }
+  const now = new Date();
+  const createdRows: Created[] = [];
+  if (!parishId && input.parishText && input.parishCreate) {
+    const newRow = parseNewRow(newParish, 'parishNew', entries);
+    if (!newRow.success) {
+      throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(newRow.issues) }, 400);
+    }
+    const created = await createParish(newRow.output, { userId: user.id, now });
+    createdRows.push(created);
+    parishId = created.id;
   }
 
   const coordinateStatus: CoordinateStatus = !input.coordinates
@@ -310,26 +370,26 @@ export const savePlace = action(async (formData: FormData) => {
     kind: input.kind,
     nameRu: input.nameRu,
     nameFi: input.nameFi,
-    parishId: input.parishId,
+    parishId,
     latitude: input.coordinates?.lat ?? null,
     longitude: input.coordinates?.lng ?? null,
     coordinateStatus,
     note: input.note,
   };
-  const now = new Date();
   const stamp = { updatedAt: now, updatedBy: user.id };
 
   // A new place gets its id first: its spellings and records point to it.
-  let id = input.id;
-  if (!id) {
-    const [created] = await db
-      .insert(place)
-      .values({ ...fields, createdBy: user.id, ...stamp })
-      .returning({ id: place.id });
-    id = created.id;
+  // Were the insert to fail, a parish just created for it goes too.
+  let id: number;
+  try {
+    id = input.id ?? (await insertPlace(fields, { userId: user.id, now }));
+  } catch (error) {
+    console.error('Saving a place failed', error);
+    await deleteCreated(createdRows);
+    throw refuse({ message: m.form_failed() }, 500);
   }
 
-  const statements = [];
+  const statements = createdRows.flatMap((row) => row.statements);
   if (before) {
     statements.push(
       db
@@ -488,8 +548,10 @@ export const savePlace = action(async (formData: FormData) => {
     await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
   } catch (error) {
     console.error('Saving a place failed', error);
-    // A new place whose spellings couldn't be written goes again.
+    // A new place whose spellings couldn't be written goes again, and so
+    // does a parish created for it (after the place, which points to it).
     if (!before) await db.delete(place).where(eq(place.id, id));
+    await deleteCreated(createdRows);
     throw refuse({ message: m.form_failed() }, 500);
   }
   throw redirect(backToList(input));
@@ -503,8 +565,8 @@ const deletion = v.object({
 });
 
 /**
- * Deletes the edit page's place, with its spellings, once its confirm box
- * is ticked, then redirects to the villages list it came from. Refused while
+ * Deletes the edit page's place, with its spellings, once confirmed in its
+ * dialog, then redirects to the villages list it came from. Refused while
  * records, birthplaces or parish churches still link to it (the links would quietly go
  * blank), and, like a save, when the place changed since the page loaded it.
  */

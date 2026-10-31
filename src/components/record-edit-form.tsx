@@ -13,13 +13,10 @@ import {
   useFormDone,
   useFormErrors,
 } from '~/components/form-fields';
-import {
-  type Lookup,
-  type LookupOption,
-  LookupField,
-  SpellingList,
-} from '~/components/lookup-field';
+import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
 import NameFields from '~/components/name-fields';
+import PersonLinkField from '~/components/person-link-field';
+import { NewClergyFields, NewPlaceFields, NewRelationFields } from '~/components/new-row-fields';
 import { useToast } from '~/components/toaster';
 import {
   baptismLocationLabels,
@@ -27,8 +24,13 @@ import {
   recordStatusLabels,
   sexLabels,
 } from '~/components/labels';
-import { PARTIAL_DATE_PATTERN, formatPartialDate, localName } from '~/lib/format';
-import { spellingIndex } from '~/lib/spellings';
+import {
+  PARTIAL_DATE_PATTERN,
+  formatPartialDate,
+  localName,
+  localTerm,
+  placeLabel,
+} from '~/lib/format';
 import {
   type RecordEditData,
   type RecordEditPerson,
@@ -59,14 +61,6 @@ const dateLabels: Record<RecordKind, () => string> = {
   households: m.records_col_list_date,
   taxpayers: m.records_col_list_date,
 };
-
-// A lookup's options, indexed by their spellings.
-const lookupOf = (options: LookupOption[], listId: string, unlinked: string): Lookup => ({
-  options,
-  index: spellingIndex(options.map((o) => ({ id: o.value, spellings: o.spellings }))),
-  listId,
-  unlinked,
-});
 
 /** Where the records list was, to return there after saving. */
 export interface ListPlace {
@@ -134,19 +128,22 @@ const nextAfter = (previous: RecordEditData): RecordEditData => {
 };
 
 /**
- * The admin's form for one record, or for a new one of type `kind` without
- * `id` (in the list's source, or following record `after` on its page): its
- * source and page, the record, its kind's details and the people
- * it names (~/lib/record-people). A register's form has one person in each
- * role; a list's (a household, a farm) has all its people, and more can be
- * added: one blank person is always at the end (also before JavaScript
- * loads), and Add person brings another. It posts to the saveRecord action
- * (and works before JavaScript loads); a save redirects to the list at
- * `returnTo` (a new record to the list's last page) with a toast, Save and
- * add next to a new record's form that follows this one, and
- * Cancel goes to `cancelHref`. A save the server refuses keeps the form as
- * typed, says why and marks the fields at fault. An existing record's form
- * is followed by its Delete section.
+ * The admin's form for one record, or for a new one without `id`: of the
+ * type of the source the list shows (`returnTo.source`, which the new record
+ * then stays in: the source isn't asked again, and Save and add next leads),
+ * else of type `kind`; or following record `after` on its page. Its source
+ * and page, the record, its kind's details and the people it names
+ * (~/lib/record-people). A register's form has one person in each role; a
+ * list's (a household, a farm) has all its people, and more can be added:
+ * one blank person is always at the end (also before JavaScript loads), and
+ * Add person brings another. A locality, clergyman or relation the record
+ * names that isn't known yet can be added in its field (LookupField). It
+ * posts to the saveRecord action (and works before JavaScript loads); a save
+ * redirects to the list at `returnTo` (a new record to the list's last page)
+ * with a toast, Save and add next to a new record's form that follows this
+ * one, and Cancel goes to `cancelHref`. A save the server refuses keeps the
+ * form as typed, says why and marks the fields at fault. An existing
+ * record's form is followed by its Delete section.
  */
 export default function RecordEditForm(props: {
   id?: number;
@@ -155,40 +152,65 @@ export default function RecordEditForm(props: {
   returnTo: ListPlace;
   cancelHref: string;
 }) {
-  const record = createMemo(
-    (): Promise<QueryData<typeof getRecordEdit>> | RecordEditData => {
-      if (props.id) return getRecordEdit(props.id);
-      const kind = props.kind ?? 'baptisms';
-      const after = props.after;
-      // A record of another type than the list's starts empty.
-      if (after) {
-        return getRecordEdit(after).then((previous) =>
-          previous?.kind === kind ? nextAfter(previous) : blank(kind),
-        );
-      }
-      return blank(kind, Number(props.returnTo.source) || null);
-    },
-    { name: 'record-edit' },
-  );
   const options = createMemo(
     (): Promise<QueryData<typeof getRecordEditOptions>> => getRecordEditOptions(),
     { name: 'edit-options' },
   );
+  // The source the list shows, which a new record is added to.
+  const startSource = createMemo(
+    () => options()?.sources.find((s) => String(s.id) === props.returnTo.source),
+    { name: 'edit-start-source' },
+  );
+  const inSource = () => !props.id && !!startSource();
+  const record = createMemo(
+    (): Promise<QueryData<typeof getRecordEdit>> | RecordEditData => {
+      if (props.id) return getRecordEdit(props.id);
+      const source = startSource();
+      const kind = source?.kind ?? props.kind ?? 'baptisms';
+      const after = props.after;
+      // A record of another type than the list's starts empty.
+      if (after) {
+        return getRecordEdit(after).then((previous) =>
+          previous?.kind === kind ? nextAfter(previous) : blank(kind, source?.id ?? null),
+        );
+      }
+      return blank(kind, source?.id ?? null);
+    },
+    { name: 'record-edit' },
+  );
+  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
+  // This form's refused saves (the latest shown, its fields marked).
+  const { error, invalid } = useFormErrors(saveRecord, isThisForm);
+  // The parish of the source the record is (or starts) in: where a locality
+  // added in the form starts.
+  const sourceParishId = () => {
+    const sourceId = startSource()?.id ?? record()?.sourceId ?? null;
+    return options()?.sources.find((s) => s.id === sourceId)?.parishId ?? null;
+  };
   // The places to link to, with their parish when it isn't their namesake;
-  // the relations of a list's people; the clergy.
+  // the relations of a list's people; the clergy. Each can be added in its
+  // field: a new locality starts in the source's parish, an estate as a manor.
   const places = createMemo(
     (): Lookup =>
       lookupOf(
         (options()?.places ?? []).map((place) => ({
           value: place.id,
-          label:
-            place.parish && place.parish !== place.name
-              ? `${place.name} (${place.parish})`
-              : place.name,
+          label: placeLabel(place),
           spellings: place.spellings,
         })),
-        'record-place-spellings',
-        m.lookup_place_unlinked(),
+        {
+          label: m.lookup_create_place(),
+          fields: (prefix, text) => (
+            <NewPlaceFields
+              prefix={prefix}
+              text={text}
+              kind={prefix.startsWith('estate') ? 'manor' : 'village'}
+              parishes={options()?.parishes ?? []}
+              parishId={sourceParishId()}
+              invalid={invalid}
+            />
+          ),
+        },
       ),
     { name: 'edit-places' },
   );
@@ -197,11 +219,15 @@ export default function RecordEditForm(props: {
       lookupOf(
         (options()?.relations ?? []).map((t) => ({
           value: t.id,
-          label: t.name,
+          label: localTerm(t.name),
           spellings: t.spellings,
         })),
-        'record-relation-spellings',
-        m.lookup_relation_unlinked(),
+        {
+          label: m.lookup_create_relation(),
+          fields: (prefix, text) => (
+            <NewRelationFields prefix={prefix} text={text} invalid={invalid} />
+          ),
+        },
       ),
     { name: 'edit-relations' },
   );
@@ -210,17 +236,18 @@ export default function RecordEditForm(props: {
       lookupOf(
         (options()?.clergy ?? []).map((c) => ({
           value: c.id,
-          label: c.name,
+          label: localName(c.name),
           spellings: c.spellings,
         })),
-        'record-clergy-spellings',
-        m.lookup_clergy_unlinked(),
+        {
+          label: m.lookup_create_clergy(),
+          fields: (prefix, text) => (
+            <NewClergyFields prefix={prefix} text={text} invalid={invalid} />
+          ),
+        },
       ),
     { name: 'edit-clergy' },
   );
-  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
-  // This form's refused saves (the latest shown, its fields marked).
-  const { error, invalid } = useFormErrors(saveRecord, isThisForm);
   // A save lands on the records list with a toast.
   const toast = useToast();
   useFormDone(saveRecord, isThisForm, () =>
@@ -252,7 +279,7 @@ export default function RecordEditForm(props: {
             </div>
           </Show>
           {/* While a save is in flight the router marks the form aria-busy. */}
-          <form method="post" action={saveRecord} class="group flex flex-col gap-6">
+          <form method="post" action={saveRecord} class="group flex max-w-5xl flex-col gap-6">
             <input type="hidden" name="returnKind" value={props.returnTo.kind ?? ''} />
             <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
             <input type="hidden" name="returnPage" value={props.returnTo.page ?? ''} />
@@ -260,249 +287,271 @@ export default function RecordEditForm(props: {
             <input type="hidden" name="id" value={r.id || ''} />
             <input type="hidden" name="version" value={r.version} />
 
-            {/* Two columns from xl up: the record and its details beside the
-              people it names. */}
-            <div class="grid items-start gap-8 xl:grid-cols-2">
-              <div class="flex flex-col gap-6">
-                <Section title={m.record_edit_record()}>
-                  <Select
-                    name="sourceId"
-                    label={m.record_edit_source()}
-                    value={r.sourceId}
-                    options={sourcesOf(r.kind).map((s) => ({ value: s.id, label: s.title }))}
-                    invalid={invalid('sourceId')}
-                  />
-                  <TextInput
-                    name="page"
-                    label={m.record_edit_page()}
-                    value={r.page}
-                    hint={m.record_edit_page_hint()}
-                    maxlength={FIELD_MAX.line}
-                    invalid={invalid('page')}
-                  />
-                  <Select
-                    name="status"
-                    label={m.record_edit_status()}
-                    value={r.status}
-                    options={recordStatuses.map((s) => ({
-                      value: s,
-                      label: recordStatusLabels[s](),
-                    }))}
-                    invalid={invalid('status')}
-                  />
-                  <DateInput
-                    name="date"
-                    label={dateLabels[r.kind]()}
-                    value={r.date}
-                    invalid={invalid('date')}
-                  />
-                  <Show when={r.kind === 'baptisms'}>
-                    <DateInput
-                      name="birthDate"
-                      label={m.records_col_born()}
-                      value={r.baptism?.birthDate}
-                      invalid={invalid('birthDate')}
-                    />
-                  </Show>
-                  {/* A marriage has no place of its own: the bride and groom
-                    each have where they lived. */}
-                  <Show when={r.kind !== 'marriages'}>
-                    <LookupField
-                      textName="placeText"
-                      idName="placeId"
-                      label={
-                        r.kind === 'deaths' ? m.records_col_death_place() : m.record_edit_village()
-                      }
-                      text={r.placeText}
-                      id={r.placeId}
-                      lookup={places()}
-                      invalid={invalid}
-                    />
-                  </Show>
-                  <TextArea
-                    name="note"
-                    label={m.records_col_note()}
-                    value={r.note}
-                    rows={3}
-                    maxlength={FIELD_MAX.text}
-                    invalid={invalid('note')}
-                    class="sm:col-span-2"
-                  />
-                </Section>
-
-                <Show when={r.kind === 'baptisms'}>
-                  <Section title={m.record_edit_baptism()}>
-                    <LookupField
-                      textName="officiantText"
-                      idName="officiantId"
-                      label={m.record_edit_officiant()}
-                      text={r.baptism?.officiantText}
-                      id={r.baptism?.officiantId}
-                      lookup={clergy()}
-                      invalid={invalid}
-                    />
+            {/* In the order a register entry reads: the entry (where and
+                when), the people it names, then what else the entry says.
+                Status, notes and the rarer details fold away at the end. */}
+            <Section title={m.record_edit_record()} wide>
+              {/* A record added to the list's source stays in it. */}
+              <Show
+                when={inSource() ? startSource() : undefined}
+                fallback={
+                  <div class="sm:col-span-2">
                     <Select
-                      name="location"
-                      label={m.record_edit_location()}
-                      value={r.baptism?.location}
-                      none={m.form_none()}
-                      options={baptismLocations.map((l) => ({
-                        value: l,
-                        label: baptismLocationLabels[l](),
-                      }))}
-                      invalid={invalid('location')}
+                      name="sourceId"
+                      label={m.record_edit_source()}
+                      value={r.sourceId}
+                      options={sourcesOf(r.kind).map((s) => ({ value: s.id, label: s.title }))}
+                      invalid={invalid('sourceId')}
                     />
-                    <DateInput
-                      name="emergencyDate"
-                      label={m.record_edit_emergency()}
-                      value={r.baptism?.emergencyDate}
-                      invalid={invalid('emergencyDate')}
-                    />
-                    <Select
-                      name="multipleBirth"
-                      label={m.record_edit_multiple_birth()}
-                      value={r.baptism?.multipleBirth}
-                      none={m.record_edit_single()}
-                      options={[
-                        { value: 2, label: m.records_twins() },
-                        { value: 3, label: m.records_triplets() },
-                      ]}
-                      invalid={invalid('multipleBirth')}
-                    />
-                    <div class="flex flex-col justify-end gap-2 pb-2">
-                      <Checkbox
-                        name="illegitimate"
-                        label={m.records_illegitimate()}
-                        checked={r.baptism?.illegitimate ?? false}
-                      />
-                      <Checkbox
-                        name="stillborn"
-                        label={m.records_stillborn()}
-                        checked={r.baptism?.stillborn ?? false}
-                      />
-                    </div>
-                  </Section>
-                </Show>
+                  </div>
+                }
+              >
+                {(source) => (
+                  <div class="fieldset sm:col-span-2">
+                    <span class="fieldset-legend">{m.record_edit_source()}</span>
+                    <input type="hidden" name="sourceId" value={source().id} />
+                    <p class="py-2 font-medium">{source().title}</p>
+                  </div>
+                )}
+              </Show>
+              <TextInput
+                name="page"
+                label={m.record_edit_page()}
+                value={r.page}
+                hint={m.record_edit_page_hint()}
+                maxlength={FIELD_MAX.line}
+                invalid={invalid('page')}
+              />
+              <Show when={isListKind(r.kind)}>
+                <TextInput
+                  name="holdingNo"
+                  label={
+                    r.kind === 'households'
+                      ? m.records_col_household()
+                      : `${m.records_col_farm()}: ${m.record_edit_holding_no()}`
+                  }
+                  value={r.holding?.holdingNo}
+                  maxlength={FIELD_MAX.line}
+                  invalid={invalid('holdingNo')}
+                />
+              </Show>
+              <Show when={r.kind === 'baptisms'}>
+                <DateInput
+                  name="birthDate"
+                  label={m.records_col_born()}
+                  value={r.baptism?.birthDate}
+                  invalid={invalid('birthDate')}
+                />
+              </Show>
+              <DateInput
+                name="date"
+                label={dateLabels[r.kind]()}
+                value={r.date}
+                invalid={invalid('date')}
+              />
+              <Show when={r.kind === 'deaths'}>
+                <DateInput
+                  name="burialDate"
+                  label={m.records_col_buried()}
+                  value={r.death?.burialDate}
+                  invalid={invalid('burialDate')}
+                />
+              </Show>
+              {/* A marriage has no place of its own: the bride and groom
+                each have where they lived. */}
+              <Show when={r.kind !== 'marriages'}>
+                <LookupField
+                  textName="placeText"
+                  idName="placeId"
+                  label={
+                    r.kind === 'deaths' ? m.records_col_death_place() : m.record_edit_village()
+                  }
+                  text={r.placeText}
+                  id={r.placeId}
+                  lookup={places()}
+                  invalid={invalid}
+                />
+              </Show>
+              <Show when={r.kind === 'taxpayers'}>
+                <LookupField
+                  textName="estateText"
+                  idName="estatePlaceId"
+                  label={m.records_col_estate()}
+                  text={r.holding?.estateText}
+                  id={r.holding?.estatePlaceId}
+                  lookup={places()}
+                  invalid={invalid}
+                />
+                <TextInput
+                  name="tenantText"
+                  label={m.record_edit_tenant()}
+                  value={r.holding?.tenantText}
+                  invalid={invalid('tenantText')}
+                />
+              </Show>
+            </Section>
 
-                <Show when={isListKind(r.kind)}>
-                  <Section title={m.record_edit_holding()}>
-                    <TextInput
-                      name="holdingNo"
-                      label={
-                        r.kind === 'households'
-                          ? m.records_col_household()
-                          : `${m.records_col_farm()}: ${m.record_edit_holding_no()}`
-                      }
-                      value={r.holding?.holdingNo}
-                      maxlength={FIELD_MAX.line}
-                      invalid={invalid('holdingNo')}
-                    />
-                    <Show when={r.kind === 'taxpayers'}>
-                      <TextInput
-                        name="tenantText"
-                        label={m.record_edit_tenant()}
-                        value={r.holding?.tenantText}
-                        invalid={invalid('tenantText')}
-                      />
-                      <LookupField
-                        textName="estateText"
-                        idName="estatePlaceId"
-                        label={m.records_col_estate()}
-                        text={r.holding?.estateText}
-                        id={r.holding?.estatePlaceId}
-                        lookup={places()}
+            <section class="flex flex-col gap-3">
+              <h2 class="text-lg font-semibold">{m.record_edit_people()}</h2>
+              <p class="text-sm text-base-content/60">{m.record_edit_remove_hint()}</p>
+              {/* A list's people, numbered in the form; then a register's,
+                one in each role. */}
+              <Show
+                when={isListKind(r.kind) ? r.kind : undefined}
+                fallback={
+                  <For
+                    each={editedRoles[r.kind as keyof typeof editedRoles] as readonly EditedRole[]}
+                  >
+                    {(role) => (
+                      <PersonFields
+                        prefix={role}
+                        legend={editedRoleLabels[role]()}
+                        fields={personFieldsOf(r.kind as keyof typeof editedRoles, role)}
+                        person={r.people[role] ?? null}
+                        latin={languageOf(r)}
+                        places={places()}
+                        relations={relations()}
                         invalid={invalid}
                       />
-                    </Show>
-                  </Section>
-                </Show>
+                    )}
+                  </For>
+                }
+              >
+                {(kind) => (
+                  <ListPeople
+                    kind={kind()}
+                    members={r.members}
+                    latin={languageOf(r)}
+                    places={places()}
+                    relations={relations()}
+                    invalid={invalid}
+                  />
+                )}
+              </Show>
+            </section>
 
+            {/* What else a baptism or death entry says, as a rule. */}
+            <Show when={r.kind === 'baptisms'}>
+              <Section title={m.record_edit_baptism()} wide>
+                <LookupField
+                  textName="officiantText"
+                  idName="officiantId"
+                  label={m.record_edit_officiant()}
+                  text={r.baptism?.officiantText}
+                  id={r.baptism?.officiantId}
+                  lookup={clergy()}
+                  invalid={invalid}
+                />
+                <Select
+                  name="location"
+                  label={m.record_edit_location()}
+                  value={r.baptism?.location}
+                  none={m.form_none()}
+                  options={baptismLocations.map((l) => ({
+                    value: l,
+                    label: baptismLocationLabels[l](),
+                  }))}
+                  invalid={invalid('location')}
+                />
+              </Section>
+            </Show>
+            <Show when={r.kind === 'deaths'}>
+              <Section title={m.record_edit_death()} wide>
+                <div class="sm:col-span-2">
+                  <TextInput
+                    name="causeText"
+                    label={m.records_col_cause()}
+                    value={r.death?.causeText}
+                    invalid={invalid('causeText')}
+                  />
+                </div>
+              </Section>
+            </Show>
+
+            {/* The rest: open when any of it is set, so nothing hides. */}
+            <details class="rounded-box border border-base-300 p-4" open={hasMore(r)}>
+              <summary class="cursor-pointer text-lg font-semibold">{m.record_edit_more()}</summary>
+              <div class="mt-2 grid gap-x-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Select
+                  name="status"
+                  label={m.record_edit_status()}
+                  value={r.status}
+                  options={recordStatuses.map((s) => ({
+                    value: s,
+                    label: recordStatusLabels[s](),
+                  }))}
+                  invalid={invalid('status')}
+                />
+                <Show when={r.kind === 'baptisms'}>
+                  <DateInput
+                    name="emergencyDate"
+                    label={m.record_edit_emergency()}
+                    value={r.baptism?.emergencyDate}
+                    invalid={invalid('emergencyDate')}
+                  />
+                  <Select
+                    name="multipleBirth"
+                    label={m.record_edit_multiple_birth()}
+                    value={r.baptism?.multipleBirth}
+                    none={m.record_edit_single()}
+                    options={[
+                      { value: 2, label: m.records_twins() },
+                      { value: 3, label: m.records_triplets() },
+                    ]}
+                    invalid={invalid('multipleBirth')}
+                  />
+                  <div class="flex flex-col justify-end gap-2 pb-2">
+                    <Checkbox
+                      name="illegitimate"
+                      label={m.records_illegitimate()}
+                      checked={r.baptism?.illegitimate ?? false}
+                    />
+                    <Checkbox
+                      name="stillborn"
+                      label={m.records_stillborn()}
+                      checked={r.baptism?.stillborn ?? false}
+                    />
+                  </div>
+                </Show>
                 <Show when={r.kind === 'deaths'}>
-                  <Section title={m.record_edit_death()}>
-                    <DateInput
-                      name="burialDate"
-                      label={m.records_col_buried()}
-                      value={r.death?.burialDate}
-                      invalid={invalid('burialDate')}
+                  <TextInput
+                    name="burialPlaceText"
+                    label={m.record_edit_burial_place()}
+                    value={r.death?.burialPlaceText}
+                    invalid={invalid('burialPlaceText')}
+                  />
+                  <div class="flex flex-col justify-end gap-2 pb-2">
+                    <Checkbox
+                      name="stillborn"
+                      label={m.records_stillborn()}
+                      checked={r.death?.stillborn ?? false}
                     />
-                    <TextInput
-                      name="burialPlaceText"
-                      label={m.record_edit_burial_place()}
-                      value={r.death?.burialPlaceText}
-                      invalid={invalid('burialPlaceText')}
-                    />
-                    <TextInput
-                      name="causeText"
-                      label={m.records_col_cause()}
-                      value={r.death?.causeText}
-                      invalid={invalid('causeText')}
-                    />
-                    <div class="flex flex-col justify-end gap-2 pb-2">
-                      <Checkbox
-                        name="stillborn"
-                        label={m.records_stillborn()}
-                        checked={r.death?.stillborn ?? false}
-                      />
-                    </div>
-                  </Section>
+                  </div>
                 </Show>
+                <TextArea
+                  name="note"
+                  label={m.records_col_note()}
+                  value={r.note}
+                  rows={3}
+                  maxlength={FIELD_MAX.text}
+                  invalid={invalid('note')}
+                  class="sm:col-span-2 lg:col-span-4"
+                />
               </div>
-
-              <section class="flex flex-col gap-3">
-                <h2 class="text-lg font-semibold">{m.record_edit_people()}</h2>
-                <p class="text-sm text-base-content/60">{m.record_edit_remove_hint()}</p>
-                {/* A list's people, numbered in the form; then a register's,
-                  one in each role. */}
-                <Show
-                  when={isListKind(r.kind) ? r.kind : undefined}
-                  fallback={
-                    <For
-                      each={
-                        editedRoles[r.kind as keyof typeof editedRoles] as readonly EditedRole[]
-                      }
-                    >
-                      {(role) => (
-                        <PersonFields
-                          prefix={role}
-                          legend={editedRoleLabels[role]()}
-                          fields={personFieldsOf(r.kind as keyof typeof editedRoles, role)}
-                          person={r.people[role] ?? null}
-                          latin={languageOf(r)}
-                          places={places()}
-                          relations={relations()}
-                          invalid={invalid}
-                        />
-                      )}
-                    </For>
-                  }
-                >
-                  {(kind) => (
-                    <ListPeople
-                      kind={kind()}
-                      members={r.members}
-                      latin={languageOf(r)}
-                      places={places()}
-                      relations={relations()}
-                      invalid={invalid}
-                    />
-                  )}
-                </Show>
-              </section>
-            </div>
+            </details>
 
             {/* Kept in view at the bottom of the window while scrolling. */}
-            {/* A new record can be followed by the next one on its page. */}
+            {/* A new record can be followed by the next one on its page: in
+                a source, that is the usual way on. */}
             <FormActions
               error={error()}
               cancelHref={props.cancelHref}
               saveAndNext={!r.id}
+              primary={inSource() ? 'next' : 'save'}
               class="sticky bottom-0 -mx-4 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8"
             />
           </form>
           {/* What the lookups' inputs suggest. */}
-          <SpellingList lookup={places()} />
-          <SpellingList lookup={relations()} />
-          <SpellingList lookup={clergy()} />
           <Show when={r.id}>
             <DeleteSection
               action={deleteRecord}
@@ -510,7 +559,6 @@ export default function RecordEditForm(props: {
               version={r.version}
               title={m.record_delete()}
               text={m.record_delete_text()}
-              confirmLabel={m.record_delete_confirm()}
               inUse={undefined}
               deleted={m.record_deleted()}
             >
@@ -702,34 +750,20 @@ function PersonFields(props: {
     <fieldset class="fieldset rounded-box border border-base-300 p-4">
       <legend class="fieldset-legend">{props.legend}</legend>
       <Show when={props.person}>
-        {(person) => (
-          <>
-            <input type="hidden" name={field('id')} value={person().id} />
-            {/* The person this mention is, or a link to say who (a page of
-                its own: what is typed here and not saved yet is left). */}
-            <p class="mb-2 text-sm">
-              <Show
-                when={person().person}
-                fallback={
-                  <a href={paths.people.link(person().id)} class="link">
-                    {m.record_edit_link_person()}
-                  </a>
-                }
-              >
-                {(linked) => (
-                  <>
-                    {m.record_edit_person()}:{' '}
-                    <a href={paths.people(linked().id)()} class="link font-medium">
-                      {localName(linked().name)}
-                    </a>
-                  </>
-                )}
-              </Show>
-            </p>
-          </>
+        {(person) => <input type="hidden" name={field('id')} value={person().id} />}
+      </Show>
+      {/* The person this mention is linked to. */}
+      <Show when={props.person?.person}>
+        {(linked) => (
+          <p class="mb-2 text-sm">
+            {m.record_edit_person()}:{' '}
+            <a href={paths.people(linked().id)()} class="link font-medium">
+              {localName(linked().name)}
+            </a>
+          </p>
         )}
       </Show>
-      <div class="grid gap-x-4 sm:grid-cols-2">
+      <div class="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-4">
         <NameFields
           prefix={props.prefix}
           value={value}
@@ -738,19 +772,37 @@ function PersonFields(props: {
           invalid={props.invalid}
         />
         <For each={props.fields}>{(f) => input(f)}</For>
+        {/* Or who they are, decided with the save. */}
+        <Show when={!props.person?.person}>
+          <PersonLinkField prefix={props.prefix} />
+        </Show>
       </div>
     </fieldset>
   );
 }
 
-function Section(props: { title: string; children: JSX.Element }) {
+// `wide` lays short fields four to a row on large screens.
+function Section(props: { title: string; children: JSX.Element; wide?: boolean }) {
   return (
     <section class="flex flex-col gap-1">
       <h2 class="text-lg font-semibold">{props.title}</h2>
-      <div class="grid gap-x-4 sm:grid-cols-2">{props.children}</div>
+      <div class={['grid gap-x-4 sm:grid-cols-2', props.wide && 'lg:grid-cols-4']}>
+        {props.children}
+      </div>
     </section>
   );
 }
+
+// Whether any of what the form folds away is set: then it starts open.
+const hasMore = (r: RecordEditData) =>
+  r.status !== 'ok' ||
+  !!r.note ||
+  !!r.baptism?.emergencyDate ||
+  !!r.baptism?.multipleBirth ||
+  !!r.baptism?.illegitimate ||
+  !!r.baptism?.stillborn ||
+  !!r.death?.burialPlaceText ||
+  !!r.death?.stillborn;
 
 // A date as the page shows it (12.3.1895, 3.1895, 1895); the server reads
 // it back (parsePartialDate) and the pattern catches typos before sending.

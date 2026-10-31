@@ -24,7 +24,8 @@ type Part = (typeof parts)[number][0];
  * correct a misread split. Once one is corrected, typing a name no longer
  * splits it, and "<prefix>.split" posts "manual" so the server keeps them;
  * otherwise the server splits typed names again (it knows more given names).
- * The names are fields of the parent's two-column grid; the parts span both.
+ * The names are fields of the parent's grid, two columns wide where it has
+ * four; the parts span the row.
  */
 export default function NameFields(props: {
   prefix: string;
@@ -89,7 +90,7 @@ export default function NameFields(props: {
         onInput={(text, form) => typed('Fi', text, form)}
       />
       <input type="hidden" name={field('split')} value={corrected() ? 'manual' : 'auto'} />
-      <details class="mb-2 text-sm sm:col-span-2" open={partsInvalid()}>
+      <details class="mb-2 text-sm sm:col-span-2 lg:col-span-4" open={partsInvalid()}>
         <summary class="cursor-pointer">
           <span class="font-medium">{m.record_edit_name_parts()}</span>
           <Show when={corrected()}>
@@ -160,7 +161,7 @@ function NameInput(props: {
   onInput: (text: string, form: HTMLFormElement | null) => void;
 }) {
   return (
-    <label class="fieldset">
+    <label class="fieldset lg:col-span-2">
       <span class="fieldset-legend">{props.label}</span>
       <input
         name={props.name}

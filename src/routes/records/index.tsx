@@ -2,8 +2,12 @@ import { Title } from '@solidjs/meta';
 import { useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createMemo, isPending } from 'solid-js';
+import { dynamic } from '@solidjs/web';
 import { env } from 'virtual:env/client';
 import AddIcon from '~icons/ri/add-line';
+import TwinsIcon from '~icons/ri/group-line';
+import TripletsIcon from '~icons/ri/team-line';
+import UnwedIcon from '~icons/ri/link-unlink';
 
 import type { QueryData } from '~/lib/query-data';
 import { recordKindLabels } from '~/components/labels';
@@ -218,6 +222,17 @@ const columns: Record<RecordKind, (() => string)[]> = {
   ],
 };
 
+// A status shown as an icon beside the name, its meaning in the tooltip and
+// the accessible name, so a row of a parish register stays one line.
+function StatusIcon(props: { icon: typeof TwinsIcon; label: string; class?: string }) {
+  const Icon = dynamic(() => props.icon);
+  return (
+    <span class={['inline-flex shrink-0 text-base-content/70', props.class]} title={props.label}>
+      <Icon class="size-4" role="img" aria-label={props.label} />
+    </span>
+  );
+}
+
 function RecordTableRow(props: { kind: RecordKind; row: RecordRow; editHref?: string }) {
   const date = (value: string | null) => (
     <td class="tabular-nums whitespace-nowrap">{formatPartialDate(value)}</td>
@@ -250,15 +265,18 @@ function RecordTableRow(props: { kind: RecordKind; row: RecordRow; editHref?: st
             <span class="font-medium">{localName(props.row.child)}</span>
             <Show when={props.row.multipleBirth}>
               {(count) => (
-                <span class="badge shrink-0 badge-soft badge-sm whitespace-nowrap badge-info">
-                  {count() >= 3 ? m.records_triplets() : m.records_twins()}
-                </span>
+                <Show
+                  when={count() >= 3}
+                  fallback={
+                    <StatusIcon icon={TwinsIcon} label={m.records_twins()} class="text-info" />
+                  }
+                >
+                  <StatusIcon icon={TripletsIcon} label={m.records_triplets()} class="text-info" />
+                </Show>
               )}
             </Show>
             <Show when={props.row.illegitimate}>
-              <span class="badge shrink-0 badge-outline badge-sm whitespace-nowrap">
-                {m.records_illegitimate()}
-              </span>
+              <StatusIcon icon={UnwedIcon} label={m.records_illegitimate()} />
             </Show>
           </div>
         </td>

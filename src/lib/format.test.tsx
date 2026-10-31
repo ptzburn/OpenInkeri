@@ -11,7 +11,7 @@ import {
 describe('formatDate', () => {
   test('writes day.month.year without leading zeros', () => {
     expect(formatDate(new Date('2026-10-13T12:00:00Z'))).toBe('13.10.2026');
-    expect(formatDate(new Date('2026-02-01T12:00:00Z'))).toBe('1.2.2026');
+    expect(formatDate(new Date('2026-02-01T12:00:00Z'))).toBe('01.02.2026');
   });
 
   test('takes the calendar day in UTC', () => {
@@ -22,8 +22,8 @@ describe('formatDate', () => {
 
 describe('formatPartialDate', () => {
   test('writes only the parts the date has', () => {
-    expect(formatPartialDate('1895-03-02')).toBe('2.3.1895');
-    expect(formatPartialDate('1895-03')).toBe('3.1895');
+    expect(formatPartialDate('1895-03-02')).toBe('02.03.1895');
+    expect(formatPartialDate('1895-03')).toBe('03.1895');
     expect(formatPartialDate('1895')).toBe('1895');
     expect(formatPartialDate(null)).toBe('');
   });
@@ -31,7 +31,7 @@ describe('formatPartialDate', () => {
 
 describe('lifespan', () => {
   test('writes the years known, with a dash between', () => {
-    expect(lifespan('1895-03-02', '1960')).toBe('2.3.1895–1960');
+    expect(lifespan('1895-03-02', '1960')).toBe('02.03.1895–1960');
     expect(lifespan('1895', null)).toBe('1895–');
     expect(lifespan(null, '1960')).toBe('–1960');
     expect(lifespan(null, null)).toBe('');

@@ -3,17 +3,18 @@ import { Show, createMemo } from 'solid-js';
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
-import { localName, parishInUse } from '~/lib/format';
+import { localName, parishInUse, placeLabel } from '~/lib/format';
 import {
   DeleteSection,
   FormActions,
-  Select,
   TextArea,
   TextInput,
   postedName,
   useFormDone,
   useFormErrors,
 } from '~/components/form-fields';
+import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
+import { NewPlaceFields } from '~/components/new-row-fields';
 import { useToast } from '~/components/toaster';
 import { type ParishEditData, deleteParish, getParishEdit, saveParish } from '~/data/parishes';
 import { getPlaceOptions } from '~/data/places';
@@ -33,11 +34,13 @@ const blank: ParishEditData = {
 
 /**
  * The admin's form for one parish, or for a new one without `id`: its names,
- * the locality its church stands in and a note. It posts to the saveParish action (and works before
- * JavaScript loads); a save redirects to the parishes list, and Cancel goes
- * to `cancelHref`. A save the server refuses keeps the form as typed, says
- * why and marks the fields at fault. A save is confirmed with a toast; an
- * existing parish's form is followed by its Delete section.
+ * the locality its church stands in and a note. The locality is typed by
+ * name and linked to the one it names; one not known yet can be added in
+ * its field (LookupField), in this parish. It posts to the saveParish action
+ * (and works before JavaScript loads); a save redirects to the parishes
+ * list, and Cancel goes to `cancelHref`. A save the server refuses keeps the
+ * form as typed, says why and marks the fields at fault. A save is confirmed
+ * with a toast; an existing parish's form is followed by its Delete section.
  */
 export default function ParishEditForm(props: { id?: number; cancelHref: string }) {
   const parish = createMemo(
@@ -48,27 +51,30 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
   const places = createMemo((): Promise<QueryData<typeof getPlaceOptions>> => getPlaceOptions(), {
     name: 'parish-places',
   });
-  // The church's choices: the parish's own localities first, then the rest
-  // with their parish.
-  const churchOptions = createMemo(
-    () => {
-      const id = props.id;
-      const all = places() ?? [];
-      return [
-        ...all.filter((p) => id && p.parishId === id).map((p) => ({ value: p.id, label: p.name })),
-        ...all
-          .filter((p) => !id || p.parishId !== id)
-          .map((p) => ({
-            value: p.id,
-            label: p.parish && p.parish !== p.name ? `${p.name} (${p.parish})` : p.name,
-          })),
-      ];
-    },
-    { name: 'parish-church-options' },
-  );
   const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
   // This form's refused saves (the latest shown, its fields marked).
   const { error, invalid } = useFormErrors(saveParish, isThisForm);
+  // The church's choices: every locality, with its parish when it isn't its
+  // namesake; a new one can be added here, in this parish.
+  const churchLookup = createMemo(
+    (): Lookup =>
+      lookupOf(
+        (places() ?? []).map((p) => ({
+          value: p.id,
+          label: placeLabel(p),
+          spellings: p.spellings,
+        })),
+        {
+          label: m.lookup_create_place(),
+          fields: (prefix, text) => (
+            <NewPlaceFields prefix={prefix} text={text} invalid={invalid} />
+          ),
+        },
+      ),
+    { name: 'parish-church-lookup' },
+  );
+  const churchName = (id: number | null) =>
+    localName((places() ?? []).find((p) => p.id === id)?.name ?? null) || null;
   // A save lands on the parishes list with a toast, naming the parish as
   // saved (a rename shows the new name).
   const toast = useToast();
@@ -108,13 +114,14 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
                 invalid={invalid('nameFi')}
               />
               <div class="sm:col-span-2">
-                <Select
-                  name="churchPlaceId"
+                <LookupField
+                  textName="churchText"
+                  idName="churchPlaceId"
                   label={m.parish_church()}
-                  value={p.churchPlaceId}
-                  none={m.form_none()}
-                  options={churchOptions()}
-                  invalid={invalid('churchPlaceId')}
+                  text={churchName(p.churchPlaceId)}
+                  id={p.churchPlaceId}
+                  lookup={churchLookup()}
+                  invalid={invalid}
                 />
                 <p class="label">{m.parish_church_hint()}</p>
               </div>
@@ -142,7 +149,6 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
               version={p.version}
               title={m.parish_delete()}
               text={m.parish_delete_text()}
-              confirmLabel={m.parish_delete_confirm()}
               inUse={parishInUse(p)}
               deleted={m.parish_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
             />

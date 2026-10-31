@@ -121,7 +121,6 @@ export default function PersonEditForm(props: { id: number; cancelHref: string }
             version={p.version}
             title={m.person_delete()}
             text={m.person_delete_text({ count: p.mentions })}
-            confirmLabel={m.person_delete_confirm()}
             inUse={undefined}
             deleted={m.person_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
           />

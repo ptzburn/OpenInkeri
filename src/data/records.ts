@@ -41,6 +41,7 @@ import {
 import { type NameLanguage, lastWord, splitName } from '~/lib/name-split';
 import { foldForSearch, searchTextOf } from '~/lib/search-text';
 import { rowsSpelled, spellingIndex } from '~/lib/spellings';
+import type { Names } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -66,6 +67,25 @@ import {
   version,
 } from '~/server/forms';
 import { adminOnly, signedIn } from '~/server/guards';
+import {
+  type By,
+  type Created,
+  createClergy,
+  createFlag,
+  createPlace,
+  createRelation,
+  deleteCreated,
+  newClergy,
+  newPlace,
+  newRelation,
+  parseNewRow,
+} from '~/server/linked-rows';
+import {
+  type LinkTarget,
+  createPersonFrom,
+  linkStatements,
+  optionalLinkTarget,
+} from '~/server/link-person';
 
 export const RECORDS_PAGE_SIZE = 50;
 
@@ -297,12 +317,24 @@ export interface RecordEditData {
 
 export interface RecordEditOptionsData {
   /** With the spellings records use for them (place_alias), their names among them. */
-  places: { id: number; name: string; parish: string | null; spellings: string[] }[];
-  clergy: { id: number; name: string; spellings: string[] }[];
+  places: { id: number; name: Names; parish: Names | null; spellings: string[] }[];
+  clergy: { id: number; name: Names; spellings: string[] }[];
   /** How a person belongs to a household or farm ("Сын", "Боболь"), with its names in each language. */
-  relations: { id: number; name: string; spellings: string[] }[];
-  /** The sources a record can be in: one of its own type. */
-  sources: { id: number; title: string; kind: RecordKind; language: string | null }[];
+  relations: {
+    id: number;
+    name: { ru: string; fi: string | null; en: string | null };
+    spellings: string[];
+  }[];
+  /** The sources a record can be in: one of its own type. Its parish is where a new locality starts. */
+  sources: {
+    id: number;
+    title: string;
+    kind: RecordKind;
+    language: string | null;
+    parishId: number | null;
+  }[];
+  /** The parishes a locality added in the form can belong to. */
+  parishes: { id: number; name: Names }[];
 }
 
 const personaColumns = {
@@ -401,11 +433,11 @@ export const getRecordEdit = query(async (id: number): Promise<RecordEditData | 
 export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsData> => {
   'use server';
   adminOnly();
-  const [places, clergy, relations, sources] = await Promise.all([
+  const [places, clergy, relations, sources, parishes] = await Promise.all([
     db.query.place.findMany({
       columns: { id: true, nameRu: true, nameFi: true },
       with: {
-        parish: { columns: { nameRu: true } },
+        parish: { columns: { nameRu: true, nameFi: true } },
         aliases: { columns: { name: true } },
       },
       orderBy: { nameRu: 'asc' },
@@ -420,28 +452,33 @@ export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsDat
       orderBy: { ru: 'asc' },
     }),
     db.query.source.findMany({
-      columns: { id: true, title: true, kind: true, language: true },
+      columns: { id: true, title: true, kind: true, language: true, parishId: true },
       orderBy: { title: 'asc' },
+    }),
+    db.query.parish.findMany({
+      columns: { id: true, nameRu: true, nameFi: true },
+      orderBy: { nameRu: 'asc' },
     }),
   ]);
   return {
     places: places.map((p) => ({
       id: p.id,
-      name: p.nameRu,
-      parish: p.parish?.nameRu ?? null,
+      name: { ru: p.nameRu, fi: p.nameFi },
+      parish: p.parish ? { ru: p.parish.nameRu, fi: p.parish.nameFi } : null,
       spellings: spellings(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
     })),
     clergy: clergy.map((c) => ({
       id: c.id,
-      name: c.nameRu,
+      name: { ru: c.nameRu, fi: c.nameFi },
       spellings: spellings(c.nameRu, c.nameFi),
     })),
     relations: relations.map((t) => ({
       id: t.id,
-      name: t.ru,
+      name: { ru: t.ru, fi: t.fi, en: t.en },
       spellings: spellings(t.ru, t.fi, t.en),
     })),
     sources,
+    parishes: parishes.map((p) => ({ id: p.id, name: { ru: p.nameRu, fi: p.nameFi } })),
   };
 }, 'record-edit-options');
 
@@ -554,29 +591,40 @@ const memberIndexes = (entries: Record<string, unknown>) =>
     .map(Number)
     .sort((a, b) => a - b);
 
-// One person's fields, named "<prefix>.<field>".
+// One person's fields, named "<prefix>.<field>", and who they are linked to
+// as the record is saved ("<prefix>.personId": nobody, 'new' or a person).
 const personEntries = (prefix: string, fields: readonly PersonField[]) => [
   ...nameFields.map((f) => [`${prefix}.${f}`, text] as const),
   ...fields.map((f) => [`${prefix}.${f}`, personField[f]] as const),
+  [`${prefix}.personId`, optionalLinkTarget] as const,
 ];
+
+// Beside each value as written, the box that asks to add the row it names
+// (see createLinked): "placeText" → "placeCreate", "members.0.relationText"
+// → "members.0.relationCreate".
+const createFlags = (entries: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.keys(entries)
+      .filter((key) => key.slice(key.lastIndexOf('.') + 1) in linkedFields)
+      .map((key) => [key.replace(/Text$/, 'Create'), createFlag]),
+  );
 
 // A kind's whole form: a register's people are named "role.field", a
 // list's "members.N.field".
-const formOf = (kind: RecordKind, members: number[]) =>
-  v.object({
-    ...common,
-    ...kindFields[kind],
-    ...Object.fromEntries(
-      isListKind(kind)
-        ? members.flatMap((n) => [
-            [`members.${n}.id`, optionalId] as const,
-            ...personEntries(`members.${n}`, listFields[kind]),
-          ])
-        : editedRoles[kind].flatMap((role: EditedRole) =>
-            personEntries(role, personFieldsOf(kind, role)),
-          ),
-    ),
-  });
+const formOf = (kind: RecordKind, members: number[]) => {
+  const people: Record<string, v.GenericSchema> = Object.fromEntries(
+    isListKind(kind)
+      ? members.flatMap((n) => [
+          [`members.${n}.id`, optionalId] as const,
+          ...personEntries(`members.${n}`, listFields[kind]),
+        ])
+      : editedRoles[kind].flatMap((role: EditedRole) =>
+          personEntries(role, personFieldsOf(kind, role)),
+        ),
+  );
+  const fields = { ...common, ...kindFields[kind], ...people };
+  return v.object({ ...fields, ...createFlags(fields) });
+};
 
 type Values = Record<string, string | number | boolean | null>;
 
@@ -634,35 +682,46 @@ async function splitNames(splits: NameSplit[]) {
   }
 }
 
-// A value as written and its link, by the as-written field: a place, or a
-// household or farm relation.
+// A value as written and its link, by the as-written field: a place, a
+// household or farm relation, or the clergyman who baptised.
 const linkedFields = {
   placeText: ['placeId', 'place'],
   estateText: ['estatePlaceId', 'place'],
   residenceText: ['residenceId', 'place'],
   birthplaceText: ['birthplaceId', 'place'],
   relationText: ['relationTermId', 'relation'],
+  officiantText: ['officiantId', 'clergy'],
 } as const;
+type LinkedTable = (typeof linkedFields)[keyof typeof linkedFields][1];
 
-/**
- * Links the values posted as written without a link to the place or
- * relation they name, when exactly one has that spelling (~/lib/spellings).
- * The form does this while the admin types; this covers a form posted
- * before JavaScript loaded. A value several rows are spelled as stays
- * unlinked for the admin to choose.
- */
-async function linkSpellings(input: Values) {
-  const unlinked = Object.entries(input).flatMap(([key, value]) => {
+// The values posted as written without a link: each with the key of its
+// link, the key its "add this" box and fields are named after, and the
+// table it names.
+const unlinkedValues = (input: Values) =>
+  Object.entries(input).flatMap(([key, value]) => {
     const dot = key.lastIndexOf('.');
     const field = key.slice(dot + 1);
     if (!(field in linkedFields) || typeof value !== 'string') return [];
     const [idField, table] = linkedFields[field as keyof typeof linkedFields];
-    const idKey = key.slice(0, dot + 1) + idField;
-    return idKey in input && input[idKey] === null ? [{ idKey, text: value, table }] : [];
+    const prefix = key.slice(0, dot + 1);
+    const idKey = prefix + idField;
+    return idKey in input && input[idKey] === null
+      ? [{ idKey, base: prefix + field.slice(0, -'Text'.length), text: value, table }]
+      : [];
   });
+
+/**
+ * Links the values posted as written without a link to the place, relation
+ * or clergyman they name, when exactly one has that spelling
+ * (~/lib/spellings). The form does this while the admin types; this covers
+ * a form posted before JavaScript loaded. A value several rows are spelled
+ * as stays unlinked for the admin to choose.
+ */
+async function linkSpellings(input: Values) {
+  const unlinked = unlinkedValues(input);
   if (!unlinked.length) return;
-  const wants = (table: 'place' | 'relation') => unlinked.some((u) => u.table === table);
-  const [places, relations] = await Promise.all([
+  const wants = (table: LinkedTable) => unlinked.some((u) => u.table === table);
+  const [places, relations, clergymen] = await Promise.all([
     wants('place')
       ? db.query.place.findMany({
           columns: { id: true, nameRu: true, nameFi: true },
@@ -675,6 +734,9 @@ async function linkSpellings(input: Values) {
           columns: { id: true, ru: true, fi: true, en: true },
         })
       : [],
+    wants('clergy')
+      ? db.query.clergy.findMany({ columns: { id: true, nameRu: true, nameFi: true } })
+      : [],
   ]);
   const indexes = {
     place: spellingIndex(
@@ -686,11 +748,62 @@ async function linkSpellings(input: Values) {
     relation: spellingIndex(
       relations.map((t) => ({ id: t.id, spellings: spellings(t.ru, t.fi, t.en) })),
     ),
+    clergy: spellingIndex(
+      clergymen.map((c) => ({ id: c.id, spellings: spellings(c.nameRu, c.nameFi) })),
+    ),
   };
   for (const { idKey, text, table } of unlinked) {
     const ids = rowsSpelled(indexes[table], text);
     if (ids.length === 1) input[idKey] = ids[0];
   }
+}
+
+// How each kind of row is read from the form and created (src/server/linked-rows.ts).
+const creators: Record<
+  LinkedTable,
+  (prefix: string, entries: Record<string, unknown>, text: string, by: By) => Promise<Created>
+> = {
+  place: async (prefix, entries, text, by) => {
+    const parsed = parseNewRow(newPlace, prefix, entries);
+    if (!parsed.success) throw refusedFields(parsed.issues);
+    return createPlace(parsed.output, by, text);
+  },
+  clergy: async (prefix, entries, _text, by) => {
+    const parsed = parseNewRow(newClergy, prefix, entries);
+    if (!parsed.success) throw refusedFields(parsed.issues);
+    return createClergy(parsed.output, by);
+  },
+  relation: async (prefix, entries, _text, by) => {
+    const parsed = parseNewRow(newRelation, prefix, entries);
+    if (!parsed.success) throw refusedFields(parsed.issues);
+    return createRelation(parsed.output, by);
+  },
+};
+const refusedFields = (issues: readonly v.BaseIssue<unknown>[]) =>
+  refuse({ message: m.form_invalid(), fields: fieldsAtFault(issues) }, 400);
+
+/**
+ * Creates the rows the form asks to add for values still unlinked after
+ * linkSpellings (their "<field>Create" box ticked), from the fields posted
+ * as "<field>New.<column>", and links the values to them; a second value in
+ * the form spelled like a row just created links to it instead. Refused,
+ * with the fields at fault, when a new row's fields don't read. Returns the
+ * rows, with the statements for the save's batch (their change_log entries,
+ * a locality's spelling as written).
+ */
+async function createLinked(entries: Record<string, unknown>, input: Values, by: By) {
+  const created: { table: LinkedTable; row: Created }[] = [];
+  for (const { idKey, base, text, table } of unlinkedValues(input)) {
+    if (entries[`${base}Create`] !== 'on') continue;
+    const same = created.find(
+      (c) =>
+        c.table === table && c.row.spellings.some((s) => foldForSearch(s) === foldForSearch(text)),
+    );
+    const row = same?.row ?? (await creators[table](`${base}New`, entries, text, by));
+    if (!same) created.push({ table, row });
+    input[idKey] = row.id;
+  }
+  return created.map((c) => c.row);
 }
 
 /**
@@ -748,10 +861,13 @@ export const saveRecord = action(async (formData: FormData) => {
     throw refuse({ message: m.record_edit_conflict() }, 409);
   }
   await linkSpellings(input);
+  const now = new Date();
+  // The localities, clergy and relations the form adds exist before the
+  // record points to them; their log entries go in the record's batch.
+  const added = await createLinked(entries, input, { userId: user.id, now });
 
   // A new record gets its id first: its details and people point to it.
   // Then the save goes on as for any record, from the empty one.
-  const now = new Date();
   const stamp = { updatedAt: now, updatedBy: user.id };
   let before = existing;
   if (!before) {
@@ -825,11 +941,40 @@ export const saveRecord = action(async (formData: FormData) => {
     }),
   );
 
-  const statements = [];
+  // Who each person is, when the form says: a person (who must exist, and
+  // not be named in this record already, by another mention or twice in the
+  // form), or a new one made from the mention. Checked before anything is
+  // written. A mention already linked keeps its person.
+  const by = { userId: user.id, now };
+  const isEmpty = (values: Values) =>
+    Object.values(values).every((value) => value === null || value === false);
+  const asked = edited.flatMap(({ prefix, values, current }) => {
+    const target = input[`${prefix}.personId`] as LinkTarget | null;
+    return target === null || current?.personId || isEmpty(values) ? [] : [{ prefix, target }];
+  });
+  for (const { prefix, target } of asked) {
+    if (target === 'new') continue;
+    const field = { [`${prefix}.personId`]: '' };
+    const twice = asked.some((a) => a.prefix !== prefix && a.target === target);
+    const found = await db.query.person.findFirst({ where: { id: target }, columns: { id: true } });
+    if (!found) throw refuse({ message: m.person_missing(), fields: field }, 404);
+    const inRecord =
+      existing &&
+      (await db.$count(persona, and(eq(persona.recordId, rid), eq(persona.personId, target))));
+    if (twice || inRecord) {
+      throw refuse({ message: m.person_link_same_record(), fields: field }, 409);
+    }
+  }
+
+  const statements = added.flatMap((row) => row.statements);
   const kept = [];
-  for (const { role, values, current } of edited) {
+  // A mention to link that the form adds is written first, for its id; the
+  // links are made after the record's batch (see below).
+  const links: { personaId: number; role: PersonaRole; values: Values; target: LinkTarget }[] = [];
+  const insertedPersonas: number[] = [];
+  for (const { prefix, role, values, current } of edited) {
     // An unticked box says nothing either.
-    const empty = Object.values(values).every((value) => value === null || value === false);
+    const empty = isEmpty(values);
     // The given names folded, for finding mentions by them (the person
     // page's suggestions).
     values.givenRuFolded = values.givenRu ? foldForSearch(String(values.givenRu)) : null;
@@ -840,6 +985,8 @@ export const saveRecord = action(async (formData: FormData) => {
       statements.push(db.delete(persona).where(eq(persona.id, current.id)));
       continue;
     }
+    const target = asked.find((a) => a.prefix === prefix)?.target;
+    let personaId = current?.id;
     if (current) {
       statements.push(
         db
@@ -848,19 +995,22 @@ export const saveRecord = action(async (formData: FormData) => {
           .where(eq(persona.id, current.id)),
       );
     } else if (!empty) {
-      statements.push(
-        db.insert(persona).values({
-          recordId: rid,
-          role,
-          ...values,
-          sex:
-            'sex' in values ? (values.sex as Sex | null) : (sexOfRole[role as EditedRole] ?? null),
-          createdBy: user.id,
-          ...stamp,
-        }),
-      );
+      const row = db.insert(persona).values({
+        recordId: rid,
+        role,
+        ...values,
+        sex: 'sex' in values ? (values.sex as Sex | null) : (sexOfRole[role as EditedRole] ?? null),
+        createdBy: user.id,
+        ...stamp,
+      });
+      if (target) {
+        const [inserted] = await row.returning({ id: persona.id });
+        personaId = inserted.id;
+        insertedPersonas.push(inserted.id);
+      } else statements.push(row);
     } else continue;
     kept.push({ ...current, ...values });
+    if (target && personaId) links.push({ personaId, role, values, target });
   }
 
   // The kind's details: one row beside the record, written whole.
@@ -996,8 +1146,43 @@ export const saveRecord = action(async (formData: FormData) => {
     await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
   } catch (error) {
     console.error('Saving a record failed', error);
-    // A new record whose details or people couldn't be written goes again.
+    // A new record whose details or people couldn't be written goes again,
+    // with what it added.
     if (created) await db.delete(record).where(eq(record.id, rid));
+    else if (insertedPersonas.length) {
+      await db.delete(persona).where(inArray(persona.id, insertedPersonas));
+    }
+    await deleteCreated(added);
+    throw refuse({ message: m.form_failed() }, 500);
+  }
+
+  // The links the form asked for, now that every mention has its id. A
+  // person made from a mention takes its names, sex and dates
+  // (src/server/link-person.ts). The record is saved by now: a link that
+  // fails leaves it saved, unlinked, and says so.
+  try {
+    for (const { personaId, role, values, target } of links) {
+      const personId =
+        target === 'new'
+          ? await createPersonFrom(
+              {
+                id: personaId,
+                role,
+                sex: (values.sex as Sex | null | undefined) ?? null,
+                nameRu: values.nameRu as string | null,
+                nameFi: values.nameFi as string | null,
+                birthDate: (values.birthDate as string | null | undefined) ?? null,
+                deathDate: (values.deathDate as string | null | undefined) ?? null,
+                recordDate: input.date,
+                recordBirthDate: (input.birthDate as string | null | undefined) ?? null,
+              },
+              by,
+            )
+          : target;
+      await db.batch(linkStatements(personaId, personId, by));
+    }
+  } catch (error) {
+    console.error('Linking a mention failed', error);
     throw refuse({ message: m.form_failed() }, 500);
   }
   const listKind = kind === 'baptisms' ? undefined : kind; // the default
@@ -1055,7 +1240,7 @@ const deletion = v.object({
 
 /**
  * Deletes the edit page's record, with its details and the people it names
- * (on delete cascade), once its confirm box is ticked, then redirects to the
+ * (on delete cascade), once confirmed in its dialog, then redirects to the
  * records list it came from. change_log keeps the record as it was. Refused,
  * like a save, when it changed since the page loaded it.
  */

@@ -2,6 +2,7 @@ import { For, Show, createMemo } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
+import { localName } from '~/lib/format';
 import {
   DeleteSection,
   FieldError,
@@ -14,6 +15,8 @@ import {
   useFormErrors,
 } from '~/components/form-fields';
 import { recordKindLabels, sourceLanguageLabels } from '~/components/labels';
+import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
+import { NewParishFields } from '~/components/new-row-fields';
 import { useToast } from '~/components/toaster';
 import { getParishOptions } from '~/data/parishes';
 import { type SourceEditData, deleteSource, getSourceEdit, saveSource } from '~/data/sources';
@@ -38,11 +41,14 @@ const blank: SourceEditData = {
 /**
  * The admin's form for one source, or for a new one without `id`: its
  * title, type, parish, archive reference, years and language, and a note.
- * It posts to the saveSource action (and works before JavaScript loads); a
- * save redirects to the sources list with a toast, and Cancel goes to
- * `cancelHref`. A save the server refuses keeps the form as typed, says why
- * and marks the fields at fault. While records belong to the source its
- * type is fixed and it can't be deleted.
+ * The parish is typed by name and linked to the one it names; one not known
+ * yet can be added in its field (LookupField), with a locality of its name
+ * as its church. It posts to the saveSource action (and works before
+ * JavaScript loads); a save redirects to the sources list with a toast, and
+ * Save and add records (a new source) to the form of its first record.
+ * Cancel goes to `cancelHref`. A save the server refuses keeps the form as
+ * typed, says why and marks the fields at fault. While records belong to the
+ * source its type is fixed and it can't be deleted.
  */
 export default function SourceEditForm(props: { id?: number; cancelHref: string }) {
   const source = createMemo(
@@ -57,6 +63,26 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
   const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
   // This form's refused saves (the latest shown, its fields marked).
   const { error, invalid } = useFormErrors(saveSource, isThisForm);
+  // The parishes to link to, by either name; a new one can be added here.
+  const parishLookup = createMemo(
+    (): Lookup =>
+      lookupOf(
+        (parishes() ?? []).map((p) => ({
+          value: p.id,
+          label: localName(p.name),
+          spellings: p.spellings,
+        })),
+        {
+          label: m.lookup_create_parish(),
+          fields: (prefix, text) => (
+            <NewParishFields prefix={prefix} text={text} invalid={invalid} />
+          ),
+        },
+      ),
+    { name: 'source-parish-lookup' },
+  );
+  const parishName = (id: number | null) =>
+    localName((parishes() ?? []).find((p) => p.id === id)?.name ?? null) || null;
   // A save lands on the sources list with a toast, naming the source as
   // saved (a new title shows).
   const toast = useToast();
@@ -112,13 +138,14 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
                   <span class="label">{m.source_kind_locked()}</span>
                 </Show>
               </label>
-              <Select
-                name="parishId"
+              <LookupField
+                textName="parishText"
+                idName="parishId"
                 label={m.sources_col_parish()}
-                value={s.parishId}
-                none={m.form_none()}
-                options={(parishes() ?? []).map((p) => ({ value: p.id, label: p.name }))}
-                invalid={invalid('parishId')}
+                text={parishName(s.parishId)}
+                id={s.parishId}
+                lookup={parishLookup()}
+                invalid={invalid}
               />
               <TextInput
                 name="yearFrom"
@@ -170,9 +197,13 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
               />
             </div>
 
+            {/* A new source is usually added to transcribe it: its first
+                record's form can follow. */}
             <FormActions
               error={error()}
               cancelHref={props.cancelHref}
+              saveAndNext={!s.id}
+              nextLabel={m.source_save_and_records()}
               class="border-t border-base-300 pt-4"
             />
           </form>
@@ -183,7 +214,6 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
               version={s.version}
               title={m.source_delete()}
               text={m.source_delete_text()}
-              confirmLabel={m.source_delete_confirm()}
               inUse={s.records ? m.source_delete_in_use({ count: s.records }) : undefined}
               deleted={m.source_deleted({ title: s.title })}
             />

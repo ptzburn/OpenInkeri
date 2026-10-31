@@ -64,7 +64,7 @@ export default function Sources() {
                   <th class="text-right">{m.sources_col_records()}</th>
                   <th>{m.form_note()}</th>
                   <Show when={canEdit()}>
-                    <th>
+                    <th colspan={2}>
                       <span class="sr-only">{m.records_col_actions()}</span>
                     </th>
                   </Show>
@@ -75,6 +75,7 @@ export default function Sources() {
                   {(source) => (
                     <SourceTableRow
                       source={source()}
+                      canEdit={canEdit()}
                       editHref={canEdit() ? paths.sources(source().id).edit() : undefined}
                     />
                   )}
@@ -96,13 +97,14 @@ const years = (from: number | null, to: number | null) =>
 const languageName = (code: string | null) =>
   sourceLanguages.find((l) => l === code) ? sourceLanguageLabels[code as SourceLanguage]() : code;
 
-function SourceTableRow(props: { source: SourceRow; editHref?: string }) {
-  // The title and the count open the source's records, where they are added.
-  const recordsHref = () =>
-    paths.records({
-      kind: props.source.kind === 'baptisms' ? undefined : props.source.kind,
-      source: String(props.source.id),
-    });
+function SourceTableRow(props: { source: SourceRow; canEdit: boolean; editHref?: string }) {
+  // The title and the count open the source's records; Add records a new
+  // record's form in the source (an admin transcribes it from there).
+  const listPlace = () => ({
+    kind: props.source.kind === 'baptisms' ? undefined : props.source.kind,
+    source: String(props.source.id),
+  });
+  const recordsHref = () => paths.records(listPlace());
   return (
     <tr>
       <td>
@@ -129,6 +131,18 @@ function SourceTableRow(props: { source: SourceRow; editHref?: string }) {
       <td class="max-w-64 truncate text-base-content/70" title={props.source.note ?? undefined}>
         {props.source.note}
       </td>
+      <Show when={props.canEdit}>
+        <td class="w-0 text-right">
+          <a
+            href={paths.records.new(listPlace())}
+            class="btn btn-square btn-ghost btn-xs"
+            aria-label={m.sources_add_records()}
+            title={m.sources_add_records()}
+          >
+            <AddIcon class="size-4" aria-hidden="true" />
+          </a>
+        </td>
+      </Show>
       <EditLinkCell href={props.editHref} label={m.source_edit_open()} />
     </tr>
   );

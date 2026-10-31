@@ -1,7 +1,7 @@
 import { Loading, flush } from 'solid-js';
 import { captureArtifact, expectNoSilentHolds } from '@solidjs/diagnostics';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
@@ -87,7 +87,9 @@ vi.mock('~/data/parishes', async () => {
       { id: 5, nameRu: 'Губаницы', nameFi: 'Hevaa', note: null, villages: 1, sources: 1 },
       { id: 6, nameRu: 'Курляндия', nameFi: null, note: 'Не приход', villages: 0, sources: 0 },
     ]),
-    getParishOptions: vi.fn(async () => [{ id: 5, name: 'Губаницы' }]),
+    getParishOptions: vi.fn(async () => [
+      { id: 5, name: { ru: 'Губаницы', fi: 'Hevaa' }, spellings: ['Губаницы', 'Hevaa'] },
+    ]),
     getParishEdit: vi.fn(async (id: number) =>
       id === 5
         ? {
@@ -120,8 +122,20 @@ vi.mock('~/data/places', async () => {
     getPlaces: vi.fn(async () => places.list()),
     // The church's choices: Горки in parish 5, Кикерино in another parish.
     getPlaceOptions: vi.fn(async () => [
-      { id: 2, name: 'Кикерино', parishId: 7, parish: 'Волосово' },
-      { id: 1, name: 'Горки', parishId: 5, parish: 'Губаницы' },
+      {
+        id: 2,
+        name: { ru: 'Кикерино', fi: null },
+        parishId: 7,
+        parish: { ru: 'Волосово', fi: null },
+        spellings: ['Кикерино'],
+      },
+      {
+        id: 1,
+        name: { ru: 'Горки', fi: 'Gorkka' },
+        parishId: 5,
+        parish: { ru: 'Губаницы', fi: 'Hevaa' },
+        spellings: ['Горки', 'Горка'],
+      },
     ]),
     getPlaceEdit: vi.fn(async (id: number) =>
       id === 1
@@ -296,6 +310,8 @@ describe('editing a village', () => {
   test('opens with the place as stored', async () => {
     await openGorki();
     expect(field('nameFi')).toHaveValue('Gorkka');
+    // Its parish shows by name, linked.
+    expect(field('parishText')).toHaveValue('Hevaa'); // English shows the Finnish name
     expect(field('parishId')).toHaveValue('5');
     expect(field('coordinates')).toHaveValue('59.613487, 30.22519');
     expect(field('coordinateStatus')).toHaveValue('approximate');
@@ -338,14 +354,14 @@ describe('editing a village', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete locality' })).toBeDisabled();
-    expect(screen.getByRole('checkbox', { name: 'I want to delete this locality' })).toBeDisabled();
   });
 
   test('deleting a locality returns to the list as it was, with a toast', async () => {
     await openGorki();
-    const button = screen.getByRole('button', { name: 'Delete locality' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this locality' }));
-    fireEvent.submit(button.closest('form') as HTMLFormElement);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete locality' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete locality' }),
+    );
 
     await waitFor(() => expect(window.location.pathname).toBe('/places/villages'));
     expect(window.location.search).toBe(`?q=${encodeURIComponent('горк')}`);
@@ -434,12 +450,13 @@ describe('/places/parishes', () => {
     fireEvent.click((await screen.findAllByRole('link', { name: 'Edit parish' }))[0]);
     await screen.findByRole('heading', { level: 1, name: 'Edit parish' });
     await waitFor(() => expect(field('nameFi')).toHaveValue('Hevaa'));
-    // The church: the parish's own localities first, the rest with their parish.
+    // The church: its locality by name, linked to the one it names; the
+    // localities to choose from show their parish.
     await waitFor(() => expect(field('churchPlaceId')).toHaveValue('1'));
-    const choices = [...(field('churchPlaceId') as HTMLSelectElement).options].map((o) => o.text);
-    expect(choices).toEqual(['— none —', 'Горки', 'Кикерино (Волосово)']);
+    expect(field('churchText')).toHaveValue('Gorkka'); // English shows the Finnish name
     fireEvent.input(field('note'), { target: { value: 'Губаницкий приход' } });
-    fireEvent.change(field('churchPlaceId'), { target: { value: '2' } });
+    fireEvent.input(field('churchText'), { target: { value: 'Кикерино' } });
+    await waitFor(() => expect(field('churchPlaceId')).toHaveValue('2'));
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
 
     await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
@@ -467,12 +484,38 @@ describe('/places/parishes', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Parish Testi added.');
   });
 
+  test('a church locality not known yet is added with the parish', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/new');
+    await waitFor(() => expect(field('churchText')).toBeInTheDocument());
+    fireEvent.input(field('nameRu'), { target: { value: 'Тест' } });
+    // A locality no spelling names: its fields appear, to add it by its names.
+    fireEvent.input(field('churchText'), { target: { value: 'Тест' } });
+    await waitFor(() => expect(field('churchNew.nameRu')).toHaveValue('Тест'));
+    expect(field('churchPlaceId')).toHaveValue('');
+    expect(screen.getByText('Add as a new locality')).toBeInTheDocument();
+    expect(field('churchCreate')).toHaveValue('on');
+    expect(field('churchNew.nameFi')).toHaveValue('');
+    expect(field('churchNew.kind')).toHaveValue('village');
+    // No parish to choose: the locality goes in this parish.
+    expect(field('churchNew.parishId')).toBeNull();
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+    const [saved] = parishes.saved;
+    expect(saved.get('churchText')).toBe('Тест');
+    expect(saved.get('churchPlaceId')).toBe('');
+    expect(saved.get('churchCreate')).toBe('on');
+    expect(saved.get('churchNew.nameRu')).toBe('Тест');
+  });
+
   test('deleting a parish posts its id and version once confirmed', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/5/edit');
-    const button = await screen.findByRole('button', { name: 'Delete parish' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
-    fireEvent.submit(button.closest('form') as HTMLFormElement);
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete parish' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete parish' }),
+    );
 
     await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
     const [deleted] = parishes.deleted;
@@ -487,9 +530,10 @@ describe('/places/parishes', () => {
     me.current = { isAdmin: true };
     parishes.deleteFailsWith = { message: 'The parish still has villages (1) or sources (1).' };
     renderAt('/places/parishes/5/edit');
-    const button = await screen.findByRole('button', { name: 'Delete parish' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
-    fireEvent.submit(button.closest('form') as HTMLFormElement);
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete parish' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete parish' }),
+    );
 
     expect(await screen.findByRole('alert')).toHaveTextContent('villages (1) or sources (1)');
     expect(window.location.pathname).toBe('/places/parishes/5/edit');
@@ -508,7 +552,6 @@ describe('/places/parishes', () => {
       ),
     ).toBeInTheDocument();
     expect(button).toBeDisabled();
-    expect(screen.getByRole('checkbox', { name: 'I want to delete this parish' })).toBeDisabled();
   });
 
   test('the warning names only what belongs to the parish', async () => {
@@ -534,7 +577,52 @@ describe('/places/parishes', () => {
     fireEvent.click(await screen.findByRole('link', { name: 'Add locality' }));
     await screen.findByRole('heading', { level: 1, name: 'New locality' });
     await waitFor(() => expect(field('parishId')).toHaveValue('5'));
+    expect(field('parishText')).toHaveValue('Hevaa'); // English shows the Finnish name
     expect(field('returnParish')).toHaveValue('5');
+  });
+
+  test('the parish is typed by name; one not known yet is added with the locality', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/villages/new');
+    await waitFor(() => expect(field('parishText')).toBeTruthy());
+    expect(field('parishId')).toHaveValue('');
+    fireEvent.input(field('nameRu'), { target: { value: 'Серебетта' } });
+    // Either name links the parish.
+    fireEvent.input(field('parishText'), { target: { value: 'Hevaa' } });
+    await waitFor(() => expect(field('parishId')).toHaveValue('5'));
+    // A parish no name matches: its fields appear, to add it without a
+    // church (the locality being added may well be it).
+    fireEvent.input(field('parishText'), { target: { value: 'Туутари' } });
+    await waitFor(() => expect(field('parishId')).toHaveValue(''));
+    expect(screen.getByText('Add as a new parish')).toBeInTheDocument();
+    expect(field('parishNew.nameRu')).toHaveValue('Туутари');
+    fireEvent.input(field('parishNew.nameFi'), { target: { value: 'Tuutari' } });
+    expect(
+      screen.queryByRole('checkbox', { name: 'Also add a locality of this name, as its church' }),
+    ).toBeNull();
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/places/villages'));
+    const [saved] = places.saved;
+    expect(saved.get('nameRu')).toBe('Серебетта');
+    expect(saved.get('parishText')).toBe('Туутари');
+    expect(saved.get('parishId')).toBe('');
+    expect(saved.get('parishCreate')).toBe('on');
+    expect(saved.get('parishNew.nameRu')).toBe('Туутари');
+    expect(saved.get('parishNew.nameFi')).toBe('Tuutari');
+    expect(saved.get('parishNew.church')).toBeNull();
+  });
+
+  test('a parish typed in Latin letters is the Finnish name; the Russian one is asked for', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/villages/new');
+    await waitFor(() => expect(field('parishText')).toBeTruthy());
+    fireEvent.input(field('parishText'), { target: { value: 'Tuutari' } });
+    await waitFor(() => expect(field('parishNew.nameFi')).toHaveValue('Tuutari'));
+    expect(field('parishNew.nameFi')).toHaveAttribute('type', 'hidden');
+    expect(field('parishNew.nameRu')).not.toHaveAttribute('type', 'hidden');
+    expect(field('parishNew.nameRu')).toHaveValue('');
+    expect(field('parishNew.nameRu')).toBeRequired();
   });
 });
 
@@ -614,10 +702,12 @@ describe('reactivity', () => {
     me.current = { isAdmin: true };
     parishes.deleteFailsWith = { message: 'The parish still has villages (1) or sources (1).' };
     renderAt('/places/parishes/5/edit');
-    const button = await screen.findByRole('button', { name: 'Delete parish' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete parish' }));
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Delete parish',
+    });
     await capture('parish-delete-refused', async () => {
-      fireEvent.submit(button.closest('form') as HTMLFormElement);
+      fireEvent.click(confirm);
       await screen.findByRole('alert');
     });
   });
@@ -625,10 +715,12 @@ describe('reactivity', () => {
   test('a delete', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/5/edit');
-    const button = await screen.findByRole('button', { name: 'Delete parish' });
-    fireEvent.click(screen.getByRole('checkbox', { name: 'I want to delete this parish' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete parish' }));
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', {
+      name: 'Delete parish',
+    });
     await capture('parish-delete', async () => {
-      fireEvent.submit(button.closest('form') as HTMLFormElement);
+      fireEvent.click(confirm);
       await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
       await screen.findAllByRole('link', { name: 'Edit parish' });
     });

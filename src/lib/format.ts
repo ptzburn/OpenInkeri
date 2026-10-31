@@ -2,43 +2,39 @@
 import { m } from '~/paraglide/messages.js';
 import { getLocale } from '~/paraglide/runtime.js';
 
-// Day.month.year, the Finnish way (13.10.2026, 1.2.2026). The calendar day is
-// taken in UTC: the server renders the page and the browser hydrates it, and
-// a fixed zone makes both print the same day.
+// Day.month.year with two digits each (13.10.2026, 01.02.2026), as Finnish
+// prints it. The calendar day is taken in UTC: the server renders the page
+// and the browser hydrates it, and a fixed zone makes both print the same day.
 const dateFormat = new Intl.DateTimeFormat('fi', {
-  day: 'numeric',
-  month: 'numeric',
+  day: '2-digit',
+  month: '2-digit',
   year: 'numeric',
   timeZone: 'UTC',
 });
 
-/** A date as the app shows it: 13.10.2026. */
+/** A date as the app shows it: 13.10.2026, 01.02.2026. */
 export function formatDate(date: Date | string | number): string {
   return dateFormat.format(new Date(date));
 }
 
 /**
  * A record's date as stored (ISO 8601 cut to what the source says: '1895',
- * '1895-03', '1895-03-12') in the same style: 12.3.1895, 3.1895, 1895.
+ * '1895-03', '1895-03-02') in the same style: 02.03.1895, 03.1895, 1895.
  */
 export function formatPartialDate(date: string | null | undefined): string {
   if (!date) return '';
-  return date
-    .split('-')
-    .map((part) => String(Number(part)))
-    .reverse()
-    .join('.');
+  return date.split('-').reverse().join('.');
 }
 
-/** A person's life years as known: 12.3.1895–1960, 1895–, –1960; '' when neither is. */
+/** A person's life years as known: 02.03.1895–1960, 1895–, –1960; '' when neither is. */
 export function lifespan(born: string | null, died: string | null): string {
   return born || died ? `${formatPartialDate(born)}–${formatPartialDate(died)}` : '';
 }
 
 /**
- * The reverse of formatPartialDate: '12.3.1895', '3.1895' or '1895' (leading
- * zeros allowed) as stored, '1895-03-12'. '' is null; anything else, or a
- * day the month doesn't have, is undefined.
+ * The reverse of formatPartialDate: '02.03.1895', '03.1895' or '1895' (the
+ * zeros optional: '2.3.1895') as stored, '1895-03-02'. '' is null; anything
+ * else, or a day the month doesn't have, is undefined.
  */
 export function parsePartialDate(text: string): string | null | undefined {
   const value = text.trim();
@@ -97,6 +93,19 @@ export function localName(names: { ru: string | null; fi: string | null } | null
   if (!names) return '';
   const ru = getLocale() === 'ru';
   return (ru ? (names.ru ?? names.fi) : (names.fi ?? names.ru)) ?? '';
+}
+
+/** A row's names in both languages, as the option lists carry them. */
+export type Names = { ru: string; fi: string | null };
+
+/**
+ * A locality as a form's choice: its name in the reader's language, with
+ * its parish's when that isn't the same name ("Горки (Губаницы)").
+ */
+export function placeLabel(place: { name: Names; parish: Names | null }): string {
+  const name = localName(place.name);
+  const parish = place.parish ? localName(place.parish) : null;
+  return parish && parish !== name ? `${name} (${parish})` : name;
 }
 
 /** A term (a vocabulary's value) in the reader's language, or in Russian when it has no translation. */

@@ -1,7 +1,7 @@
 import { Loading, flush } from 'solid-js';
 import { captureArtifact } from '@solidjs/diagnostics';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
@@ -292,9 +292,35 @@ vi.mock('~/data/session', () => ({
   getCurrentUser: vi.fn(async () => me.current),
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
 }));
+// The people a mention can be linked to, searched by name in the form.
+vi.mock('~/data/people', () => ({
+  getPeople: vi.fn(async (search: string) => {
+    const rows = [
+      {
+        id: 7,
+        name: { ru: 'Иван Варис', fi: 'Juho Varis' },
+        sex: 'male',
+        birthDate: '1860',
+        deathDate: null,
+        mentions: 3,
+      },
+      {
+        id: 8,
+        name: { ru: 'Мария Варис', fi: 'Maria Varis' },
+        sex: 'female',
+        birthDate: null,
+        deathDate: null,
+        mentions: 1,
+      },
+    ].filter((r) => `${r.name.ru} ${r.name.fi}`.toLowerCase().includes(search.toLowerCase()));
+    return { total: rows.length, page: 1, pages: 1, people: rows };
+  }),
+}));
 vi.mock('~/data/records', async () => {
   const { action } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
+  // A row's names, in Russian only.
+  const ru = (name: string) => ({ ru: name, fi: null });
   return {
     getRecords,
     RECORDS_PAGE_SIZE: 50,
@@ -310,19 +336,29 @@ vi.mock('~/data/records', async () => {
     getRecordEditOptions: vi.fn(async () => ({
       // Горки is also spelled Горка; Волгово and Вохново are both spelled Волково.
       places: [
-        { id: 1, name: 'Горки', parish: 'Губаницы', spellings: ['Горки', 'Горка'] },
-        { id: 2, name: 'Волгово', parish: 'Губаницы', spellings: ['Волгово', 'Волково'] },
-        { id: 3, name: 'Вохново', parish: 'Губаницы', spellings: ['Вохново', 'Волково'] },
+        { id: 1, name: ru('Горки'), parish: ru('Губаницы'), spellings: ['Горки', 'Горка'] },
+        { id: 2, name: ru('Волгово'), parish: ru('Губаницы'), spellings: ['Волгово', 'Волково'] },
+        { id: 3, name: ru('Вохново'), parish: ru('Губаницы'), spellings: ['Вохново', 'Волково'] },
       ],
-      clergy: [{ id: 7, name: 'Берг', spellings: ['Берг'] }],
+      clergy: [{ id: 7, name: ru('Берг'), spellings: ['Берг'] }],
       relations: [
-        { id: 1, name: 'Глава', spellings: ['Глава', 'isäntä'] },
-        { id: 2, name: 'Жена', spellings: ['Жена', 'vaimo'] },
+        { id: 1, name: { ru: 'Глава', fi: 'isäntä', en: null }, spellings: ['Глава', 'isäntä'] },
+        { id: 2, name: { ru: 'Жена', fi: 'vaimo', en: null }, spellings: ['Жена', 'vaimo'] },
       ],
       sources: [
-        { id: 1, title: 'Губаницы: крещения', kind: 'baptisms', language: 'ru' },
-        { id: 2, title: 'Губаницы: умершие', kind: 'deaths', language: 'ru' },
-        { id: 3, title: 'Губаницы: общий список', kind: 'households', language: 'fi' },
+        { id: 1, title: 'Губаницы: крещения', kind: 'baptisms', language: 'ru', parishId: 5 },
+        { id: 2, title: 'Губаницы: умершие', kind: 'deaths', language: 'ru', parishId: 5 },
+        {
+          id: 3,
+          title: 'Губаницы: общий список',
+          kind: 'households',
+          language: 'fi',
+          parishId: null,
+        },
+      ],
+      parishes: [
+        { id: 5, name: ru('Губаницы') },
+        { id: 7, name: ru('Волосово') },
       ],
     })),
     // Like the server: a delete redirects to the list place the form carried.
@@ -387,14 +423,14 @@ describe('/records', () => {
     await waitFor(() => expect(childNames(container)).toHaveLength(50));
     expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1, null);
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
-    const first = container.querySelector('tbody tr')!;
-    expect(first).toHaveTextContent('3.1895'); // born, month only
-    expect(first).toHaveTextContent('12.3.1895'); // baptised
-    expect(first).toHaveTextContent('Twins');
+    const first = container.querySelector<HTMLElement>('tbody tr')!;
+    expect(first).toHaveTextContent('03.1895'); // born, month only
+    expect(first).toHaveTextContent('12.03.1895'); // baptised
+    expect(within(first).getByRole('img', { name: 'Twins' })).toBeInTheDocument();
     // English shows the Finnish form when the register gives one.
     expect(first).toHaveTextContent('Juhana Aataminp. Waris');
     expect(container.querySelector('tbody tr:nth-child(2)')).toHaveTextContent('Maria');
-    expect(first.querySelector('[title]')).toHaveAttribute('title', 'In the source: Горкка');
+    expect(within(first).getByTitle('In the source: Горкка')).toBeInTheDocument();
   });
 
   test('pages through ?page, and the ends have no link onward', async () => {
@@ -452,7 +488,7 @@ describe('/records', () => {
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
     expect(headers).toEqual(['Married', 'Groom', 'Bride', 'Notes']);
     const row = groom.closest('tr')!;
-    expect(row).toHaveTextContent('14.1.1918');
+    expect(row).toHaveTextContent('14.01.1918');
     // English shows the Finnish name of the village when it has one.
     expect(row).toHaveTextContent('age 39 · Tserepovitsa');
     // A village not resolved to a place shows as written.
@@ -474,8 +510,8 @@ describe('/records', () => {
       'Notes',
     ]);
     const row = deceased.closest('tr')!;
-    expect(row).toHaveTextContent('7.1.1918');
-    expect(row).toHaveTextContent('14.1.1918');
+    expect(row).toHaveTextContent('07.01.1918');
+    expect(row).toHaveTextContent('14.01.1918');
     expect(row).toHaveTextContent('3 г. 2 мес. 9 дн.');
     expect(row).toHaveTextContent('Медниково');
     expect(row).toHaveTextContent('воспаление лёгких');
@@ -491,7 +527,7 @@ describe('/records', () => {
     expect(row).toHaveTextContent('Kirkonkylä');
     // The relation in the reader's language, else in Russian.
     expect(head.closest('li')).toHaveTextContent(
-      'Myyry Nikolai Kaarlonp. — Head · 28.7.1858 – 9.10.1936vihitty 14.05.1878',
+      'Myyry Nikolai Kaarlonp. — Head · 28.07.1858 – 09.10.1936vihitty 14.05.1878',
     );
     expect(row.querySelectorAll('li')[1]).toHaveTextContent('Waris Maria Aatamint. — Жена');
   });
@@ -549,14 +585,46 @@ describe('editing a baptism', () => {
   const field = (name: string) =>
     document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
 
-  test('each saved mention links to its person, or to linking one', async () => {
+  test('a mention links to its person, or says who it is as the record is saved', async () => {
     await openMaria();
-    // The father is linked to a person; the child isn't yet.
+    // The father is linked to a person: shown, not asked again.
     expect(screen.getByRole('link', { name: 'Juho Varis' })).toHaveAttribute('href', '/people/7');
-    expect(screen.getByRole('link', { name: 'Link to person' })).toHaveAttribute(
-      'href',
-      '/people/link/10',
-    );
+    expect(field('father.personId')).toBeNull();
+    // The child isn't yet: nobody, a new person, or someone found by name.
+    const choice = field('child.personId') as HTMLInputElement;
+    expect(choice).toHaveAttribute('type', 'radio');
+    expect(choice.value).toBe('');
+    expect(choice).toBeChecked();
+    const child = choice.closest('fieldset')!;
+    const search = child.querySelector('input[type=search]') as HTMLInputElement;
+    fireEvent.input(search, { target: { value: 'Варис' } });
+    const found = await within(child).findByRole('radio', { name: /Maria Varis/ });
+    expect((found as HTMLInputElement).value).toBe('8');
+    expect(
+      within(child)
+        .getByRole('radio', { name: /Juho Varis/ })
+        .closest('label'),
+    ).toHaveTextContent('1860–');
+    fireEvent.click(found);
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/records'));
+    const [saved] = editing.saved;
+    expect(saved.get('child.personId')).toBe('8');
+    expect(saved.get('father.personId')).toBeNull();
+    expect(saved.get('mother.personId')).toBe('');
+  });
+
+  test('a new person can be made from a mention as the record is saved', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?source=1');
+    await waitFor(() => expect(field('child.nameRu')).toBeTruthy());
+    fireEvent.input(field('child.nameRu'), { target: { value: 'Мария' } });
+    fireEvent.click(screen.getAllByRole('radio', { name: 'New person from this mention' })[0]);
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(editing.saved).toHaveLength(1));
+    expect(editing.saved[0].get('child.personId')).toBe('new');
   });
 
   test('a place is typed once, as written, and says what it is linked to', async () => {
@@ -564,61 +632,82 @@ describe('editing a baptism', () => {
     // Stored linked by hand to a place this spelling isn't one of: kept.
     const village = field('placeText');
     expect(village).toHaveValue('Горкка');
-    expect(village).toHaveAttribute('list', 'record-place-spellings');
+    expect(village).toHaveAttribute('role', 'combobox');
     expect(field('placeId')).toHaveValue('1');
-    expect(village.closest('.fieldset')).toHaveTextContent('→ Горки (Губаницы)');
-    // The datalist offers each spelling once, with the place it names.
-    const spellings = [...document.querySelectorAll('#record-place-spellings option')];
-    expect(spellings.map((o) => o.getAttribute('value'))).toEqual([
-      'Горки',
-      'Горка',
-      'Волгово',
-      'Волково',
-      'Вохново',
-    ]);
-    expect(spellings[1]).toHaveAttribute('label', 'Горки (Губаницы)');
-    expect(spellings[3]).toHaveAttribute('label', 'Волгово (Губаницы) · Вохново (Губаницы)');
+    // Focused, no dropdown: the text matches no place. The chevron opens
+    // every place once.
+    fireEvent.focus(village);
+    flush();
+    expect(screen.queryByRole('listbox')).toBeNull();
+    fireEvent.mouseDown(screen.getByRole('button', { name: 'Locality: show choices' }));
+    flush();
+    const options = () =>
+      within(screen.getByRole('listbox'))
+        .getAllByRole('option')
+        .map((o) => o.textContent);
+    expect(options()).toEqual(['Горки (Губаницы)', 'Волгово (Губаницы)', 'Вохново (Губаницы)']);
+    // Typed, it lists the places with a spelling containing the text, the
+    // spelling shown when the name doesn't.
+    fireEvent.input(village, { target: { value: 'волк' } });
+    flush();
+    expect(options()).toEqual(['Волгово (Губаницы)Волково', 'Вохново (Губаницы)Волково']);
+    fireEvent.keyDown(village, { key: 'ArrowDown' });
+    flush();
+    fireEvent.keyDown(village, { key: 'Enter' });
+    flush();
+    expect(village).toHaveValue('Волково');
+    expect(field('placeId')).toHaveValue('2');
+    expect(screen.queryByRole('listbox')).toBeNull();
   });
 
-  test('typing a spelling links it; several to choose from, or none, say so', async () => {
+  test('typing a spelling links it; several open a choice, none the fields to add', async () => {
     await openMaria();
     const village = field('placeText');
-    const status = () => village.closest('.fieldset')!.querySelector('summary')!;
     const { artifact } = await captureArtifact(
       async () => {
-        // Another place's spelling, in another case: linked to it.
+        // Another place's spelling, in another case: linked to it, silently.
         fireEvent.input(village, { target: { value: 'ВОЛГОВО' } });
         flush();
         expect(field('placeId')).toHaveValue('2');
-        expect(status()).toHaveTextContent('→ Волгово (Губаницы)');
+        expect(field('placeId')).toHaveAttribute('type', 'hidden');
 
         // Two places' spelling, one of them the linked one: kept.
         fireEvent.input(village, { target: { value: 'Волково' } });
         flush();
         expect(field('placeId')).toHaveValue('2');
 
-        // A spelling no place has: unlinked, saying how to link it.
+        // A spelling no place has: unlinked, and the fields to add the place
+        // appear, the value as written as its Russian name, with the flag
+        // that asks the save for it.
         fireEvent.input(village, { target: { value: 'Неизвестная' } });
         flush();
         expect(field('placeId')).toHaveValue('');
-        expect(status()).toHaveTextContent('Not linked to a locality.');
+        expect(screen.getByText('Add as a new locality')).toBeInTheDocument();
+        expect(field('placeCreate')).toHaveValue('on');
+        expect(field('placeNew.nameRu')).toHaveValue('Неизвестная');
+        expect(field('placeNew.nameFi')).toHaveValue('');
+        expect(field('placeNew.kind')).toHaveValue('village');
+        // In the parish of the record's source (Maria's record is in source 1).
+        expect(field('placeNew.parishId')).toHaveValue('5');
 
-        // Two places' spelling with neither linked: the choice opens, with
-        // them first.
+        // Two places' spelling with neither linked: a choice among them,
+        // and nothing is to be added any more.
         fireEvent.input(village, { target: { value: 'Волково' } });
         flush();
         expect(field('placeId')).toHaveValue('');
-        expect(status()).toHaveTextContent('Several match this spelling: choose one');
-        expect(status().parentElement).toHaveAttribute('open');
-        const choices = [...(field('placeId') as HTMLSelectElement).options].map((o) => o.text);
-        expect(choices.slice(0, 3)).toEqual([
-          '— none —',
+        expect(field('placeCreate')).toBeNull();
+        expect(screen.queryByText('Add as a new locality')).toBeNull();
+        const choice = field('placeId') as HTMLSelectElement;
+        expect(choice.tagName).toBe('SELECT');
+        expect([...choice.options].map((o) => o.text)).toEqual([
+          'Several match this spelling: choose one',
           'Волгово (Губаницы)',
           'Вохново (Губаницы)',
         ]);
-        fireEvent.change(field('placeId'), { target: { value: '3' } });
+        fireEvent.change(choice, { target: { value: '3' } });
         flush();
-        expect(status()).toHaveTextContent('→ Вохново (Губаницы)');
+        expect(field('placeId')).toHaveValue('3');
+        expect(field('placeId')).toHaveAttribute('type', 'hidden');
       },
       { scenario: 'record-lookup-typing' },
     );
@@ -736,8 +825,8 @@ describe('editing a baptism', () => {
   test('opens with the record as stored, dates as the page shows them', async () => {
     await openMaria();
     expect(window.location.pathname).toBe('/records/2/edit');
-    expect(field('date')).toHaveValue('12.3.1895');
-    expect(field('birthDate')).toHaveValue('3.1895');
+    expect(field('date')).toHaveValue('12.03.1895');
+    expect(field('birthDate')).toHaveValue('03.1895');
     expect(field('placeId')).toHaveValue('1');
     expect(field('placeText')).toHaveValue('Горкка');
     expect(field('officiantId')).toHaveValue('7');
@@ -763,7 +852,7 @@ describe('editing a baptism', () => {
     expect(saved.get('version')).toBe('4');
     expect(saved.get('mother.nameRu')).toBe('Анна');
     expect(saved.get('placeId')).toBe('2');
-    expect(saved.get('date')).toBe('12.3.1895');
+    expect(saved.get('date')).toBe('12.03.1895');
     expect(saved.get('returnQ')).toBe('мария');
   });
 
@@ -818,10 +907,10 @@ describe('editing a death', () => {
     await openDeath();
     expect(window.location.pathname).toBe('/records/301/edit');
     expect(window.location.search).toBe('?kind=deaths');
-    expect(field('date')).toHaveValue('7.1.1918');
+    expect(field('date')).toHaveValue('07.01.1918');
     expect(screen.getByText('Died')).toBeInTheDocument();
     expect(field('placeId')).toHaveValue('2');
-    expect(field('burialDate')).toHaveValue('14.1.1918');
+    expect(field('burialDate')).toHaveValue('14.01.1918');
     expect(field('burialPlaceText')).toHaveValue('Губаницкое кладбище');
     expect(field('causeText')).toHaveValue('воспаление лёгких');
     expect(field('deceased.ageText')).toHaveValue('3 г. 2 мес. 9 дн.');
@@ -867,7 +956,7 @@ describe('editing a household', () => {
     expect(field('placeText')).toHaveValue('Kirkonkylä');
     expect(field('members.0.id')).toHaveValue('40');
     expect(field('members.0.relationTermId')).toHaveValue('1');
-    expect(field('members.0.birthDate')).toHaveValue('28.7.1858');
+    expect(field('members.0.birthDate')).toHaveValue('28.07.1858');
     expect(field('members.1.nameFi')).toHaveValue('Waris Maria Aatamint.');
     // The blank one has no id: saving it with a name adds the person.
     expect(field('members.2.nameFi')).toHaveValue('');
@@ -981,11 +1070,54 @@ describe('adding and deleting records', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Record added.');
   });
 
-  test('a new record starts in the source the list shows', async () => {
+  test('a new record starts in the source the list shows, and stays in it', async () => {
     me.current = { isAdmin: true };
     renderAt('/records/new?kind=deaths&source=2');
     await waitFor(() => expect(field('sourceId')).toHaveValue('2'));
     expect(field('returnSource')).toHaveValue('2');
+    // The source isn't asked again: it is shown, and posts hidden.
+    expect(field('sourceId').tagName).toBe('INPUT');
+    expect(field('sourceId')).toHaveAttribute('type', 'hidden');
+    expect(screen.getByText('Губаницы: умершие')).toBeInTheDocument();
+    // Transcribing goes on with the next record: Save and add next leads,
+    // though Enter still saves.
+    const form = document.querySelector('main form') as HTMLFormElement;
+    const buttons = [...form.querySelectorAll('button[type="submit"]')];
+    expect(buttons[0]).toHaveTextContent('Save');
+    expect(buttons[0]).not.toHaveClass('btn-primary');
+    expect(buttons[1]).toHaveTextContent('Save and add next');
+    expect(buttons[1]).toHaveClass('btn-primary');
+  });
+
+  test("a new record in a source is of the source's type, whatever the tab", async () => {
+    me.current = { isAdmin: true };
+    // From the sources page: the list's kind isn't given.
+    renderAt('/records/new?source=3');
+    await waitFor(() => expect(field('sourceId')).toHaveValue('3'));
+    expect(field('members.0.nameFi')).toBeInTheDocument();
+    expect(field('child.nameRu')).toBeNull();
+  });
+
+  test('a locality named in a new record is added with it', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?source=2');
+    await waitFor(() => expect(field('deceased.nameRu')).toBeTruthy());
+    fireEvent.input(field('deceased.nameRu'), { target: { value: 'Иван Петров' } });
+    fireEvent.input(field('placeText'), { target: { value: 'Новая' } });
+    // Each locality field (the place, the deceased's birthplace) has its own
+    // fields to add one: a spelling no locality has shows them.
+    await waitFor(() => expect(field('placeNew.nameRu')).toHaveValue('Новая'));
+    fireEvent.change(field('placeNew.parishId'), { target: { value: '7' } });
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/records'));
+    const [saved] = editing.saved;
+    expect(saved.get('placeText')).toBe('Новая');
+    expect(saved.get('placeId')).toBe('');
+    expect(saved.get('placeCreate')).toBe('on');
+    expect(saved.get('placeNew.nameRu')).toBe('Новая');
+    expect(saved.get('placeNew.kind')).toBe('village');
+    expect(saved.get('placeNew.parishId')).toBe('7');
   });
 
   test('Save and add next opens the next record on the same page, village and date', async () => {
@@ -1037,9 +1169,10 @@ describe('adding and deleting records', () => {
     await waitFor(() => expect(field('sourceId')).toHaveValue('1'));
     expect(field('page')).toHaveValue('12об');
 
-    const box = screen.getByRole('checkbox', { name: 'I want to delete this record' });
-    fireEvent.click(box);
     fireEvent.click(screen.getByRole('button', { name: 'Delete record' }));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete record' }),
+    );
     await waitFor(() => expect(window.location.pathname).toBe('/records'));
     const [deleted] = editing.deleted;
     expect(deleted.get('id')).toBe('2');
