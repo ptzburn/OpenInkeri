@@ -1,6 +1,6 @@
 // Rows a form creates while naming them: a locality, a clergyman or a
-// relation typed into a record's form, a parish typed into a source's, the
-// church locality typed into a parish's. The lookup field offers it when the
+// relation typed into a record's form, a parish typed into a source's or a
+// locality's, the church locality typed into a parish's. The lookup field offers it when the
 // value as written names no row; ticked, the form posts "<field>Create=on"
 // and the new row's fields as "<field>New.<column>" (src/components/
 // lookup-field.tsx), and the save creates the row before its own batch, so

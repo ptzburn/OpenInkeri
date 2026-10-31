@@ -13,7 +13,7 @@ import {
   useFormDone,
   useFormErrors,
 } from '~/components/form-fields';
-import { type Lookup, LookupField, SpellingList, lookupOf } from '~/components/lookup-field';
+import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
 import NameFields from '~/components/name-fields';
 import PersonLinkField from '~/components/person-link-field';
 import { NewClergyFields, NewPlaceFields, NewRelationFields } from '~/components/new-row-fields';
@@ -195,7 +195,6 @@ export default function RecordEditForm(props: {
               : place.name,
           spellings: place.spellings,
         })),
-        'record-place-spellings',
         m.lookup_place_unlinked(),
         {
           label: m.lookup_create_place(),
@@ -221,7 +220,6 @@ export default function RecordEditForm(props: {
           label: t.name,
           spellings: t.spellings,
         })),
-        'record-relation-spellings',
         m.lookup_relation_unlinked(),
         {
           label: m.lookup_create_relation(),
@@ -240,7 +238,6 @@ export default function RecordEditForm(props: {
           label: c.name,
           spellings: c.spellings,
         })),
-        'record-clergy-spellings',
         m.lookup_clergy_unlinked(),
         {
           label: m.lookup_create_clergy(),
@@ -555,9 +552,6 @@ export default function RecordEditForm(props: {
             />
           </form>
           {/* What the lookups' inputs suggest. */}
-          <SpellingList lookup={places()} />
-          <SpellingList lookup={relations()} />
-          <SpellingList lookup={clergy()} />
           <Show when={r.id}>
             <DeleteSection
               action={deleteRecord}

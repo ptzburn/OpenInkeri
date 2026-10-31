@@ -14,7 +14,7 @@ import {
   useFormErrors,
 } from '~/components/form-fields';
 import { recordKindLabels, sourceLanguageLabels } from '~/components/labels';
-import { type Lookup, LookupField, SpellingList, lookupOf } from '~/components/lookup-field';
+import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
 import { NewParishFields } from '~/components/new-row-fields';
 import { useToast } from '~/components/toaster';
 import { getParishOptions } from '~/data/parishes';
@@ -67,7 +67,6 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
     (): Lookup =>
       lookupOf(
         (parishes() ?? []).map((p) => ({ value: p.id, label: p.name, spellings: p.spellings })),
-        'source-parish-spellings',
         m.lookup_parish_unlinked(),
         {
           label: m.lookup_create_parish(),
@@ -204,7 +203,6 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
               class="border-t border-base-300 pt-4"
             />
           </form>
-          <SpellingList lookup={parishLookup()} />
           <Show when={s.id}>
             <DeleteSection
               action={deleteSource}

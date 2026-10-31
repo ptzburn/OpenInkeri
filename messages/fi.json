@@ -453,6 +453,7 @@
   "lookup_none": "Ei linkitetty",
   "lookup_several": "Useampi vastaa tätä kirjoitusasua: valitse yksi",
   "lookup_choose": "{field}: linkitetty kohteeseen",
+  "lookup_choices": "{field}: näytä vaihtoehdot",
   "lookup_place_unlinked": "Ei linkitetty paikkaan. Lisää tämä kirjoitusasu paikalle Paikat-sivulla linkittääksesi.",
   "lookup_relation_unlinked": "Ei linkitetty suhteeseen",
   "lookup_clergy_unlinked": "Ei linkitetty pappiin",

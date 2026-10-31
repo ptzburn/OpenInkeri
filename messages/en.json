@@ -453,6 +453,7 @@
   "lookup_none": "Not linked",
   "lookup_several": "Several match this spelling: choose one",
   "lookup_choose": "{field}: linked to",
+  "lookup_choices": "{field}: show choices",
   "lookup_place_unlinked": "Not linked to a locality. Add this spelling to one on the Places page to link it.",
   "lookup_relation_unlinked": "Not linked to a relation",
   "lookup_clergy_unlinked": "Not linked to a clergyman",

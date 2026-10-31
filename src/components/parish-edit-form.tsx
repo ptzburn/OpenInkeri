@@ -13,7 +13,7 @@ import {
   useFormDone,
   useFormErrors,
 } from '~/components/form-fields';
-import { type Lookup, LookupField, SpellingList, lookupOf } from '~/components/lookup-field';
+import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
 import { NewPlaceFields } from '~/components/new-row-fields';
 import { useToast } from '~/components/toaster';
 import { type ParishEditData, deleteParish, getParishEdit, saveParish } from '~/data/parishes';
@@ -64,7 +64,6 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
           label: p.parish && p.parish !== p.name ? `${p.name} (${p.parish})` : p.name,
           spellings: p.spellings,
         })),
-        'parish-church-spellings',
         m.lookup_place_unlinked(),
         {
           label: m.lookup_create_place(),
@@ -143,7 +142,6 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
               class="border-t border-base-300 pt-4"
             />
           </form>
-          <SpellingList lookup={churchLookup()} />
           <Show when={p.id}>
             <DeleteSection
               action={deleteParish}

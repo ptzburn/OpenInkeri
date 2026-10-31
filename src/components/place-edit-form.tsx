@@ -17,6 +17,8 @@ import {
 } from '~/components/form-fields';
 import { useToast } from '~/components/toaster';
 import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
+import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
+import { NewParishFields } from '~/components/new-row-fields';
 import { COORDINATES_PATTERN, formatCoordinates, mapLink } from '~/lib/coordinates';
 import { coordinateStatuses, placeKinds } from '~/lib/place-kinds';
 import { getParishOptions } from '~/data/parishes';
@@ -44,7 +46,10 @@ const blank: PlaceEditData = {
 /**
  * The admin's form for one place, or for a new one without `id`: its names,
  * kind, parish, coordinates, note and the spellings the sources use for it.
- * It posts to the savePlace action (and works before JavaScript loads); a
+ * The parish is typed by name and linked to the one it names; one not known
+ * yet can be added in its field (LookupField), without a church: the parish
+ * page sets that later. It posts to the savePlace action (and works before
+ * JavaScript loads); a
  * save redirects to the villages list as it was (`returnTo`: its search and
  * parish filter), and Cancel goes to `cancelHref`. A new place starts in the
  * parish the list was narrowed to. A save is confirmed with a toast; one the
@@ -72,6 +77,23 @@ export default function PlaceEditForm(props: {
   const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
   // This form's refused saves (the latest shown, its fields marked).
   const { error, invalid } = useFormErrors(savePlace, isThisForm);
+  // The parishes to link to, by either name; a new one can be added here.
+  const parishLookup = createMemo(
+    (): Lookup =>
+      lookupOf(
+        (parishes() ?? []).map((p) => ({ value: p.id, label: p.name, spellings: p.spellings })),
+        m.lookup_parish_unlinked(),
+        {
+          label: m.lookup_create_parish(),
+          fields: (prefix, text) => (
+            <NewParishFields prefix={prefix} text={text} invalid={invalid} church={false} />
+          ),
+        },
+      ),
+    { name: 'place-parish-lookup' },
+  );
+  const parishName = (id: number | null) =>
+    (parishes() ?? []).find((p) => p.id === id)?.name ?? null;
   // A save lands on the localities list with a toast, naming the place as
   // saved (a rename shows the new name).
   const toast = useToast();
@@ -119,16 +141,14 @@ export default function PlaceEditForm(props: {
                 options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
                 invalid={invalid('kind')}
               />
-              <Select
-                name="parishId"
+              <LookupField
+                textName="parishText"
+                idName="parishId"
                 label={m.place_edit_parish()}
-                value={p.parishId}
-                none={m.form_none()}
-                options={(parishes() ?? []).map((parish) => ({
-                  value: parish.id,
-                  label: parish.name,
-                }))}
-                invalid={invalid('parishId')}
+                text={parishName(p.parishId)}
+                id={p.parishId}
+                lookup={parishLookup()}
+                invalid={invalid}
               />
               <TextInput
                 name="coordinates"

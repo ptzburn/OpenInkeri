@@ -1,8 +1,10 @@
 import type { JSX } from '@solidjs/web';
-import { For, Show, createMemo, createSignal } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
+import ChevronIcon from '~icons/ri/arrow-down-s-line';
 
 import { type Fault, FieldError, ariaInvalid } from '~/components/form-fields';
 import { FIELD_MAX } from '~/lib/field-limits';
+import { foldForSearch } from '~/lib/search-text';
 import { type SpellingIndex, rowsSpelled, spellingIndex } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
 
@@ -30,8 +32,6 @@ export interface LookupCreate {
 export interface Lookup {
   options: LookupOption[];
   index: SpellingIndex;
-  /** The <datalist> of their spellings (see SpellingList). */
-  listId: string;
   /** Said under a value that names none of them. */
   unlinked: string;
   /** Offered under a value that names none of them, when a row can be added here. */
@@ -41,16 +41,20 @@ export interface Lookup {
 /** A lookup's options, indexed by their spellings. */
 export const lookupOf = (
   options: LookupOption[],
-  listId: string,
   unlinked: string,
   create?: LookupCreate,
 ): Lookup => ({
   options,
   index: spellingIndex(options.map((o) => ({ id: o.value, spellings: o.spellings }))),
-  listId,
   unlinked,
   create,
 });
+
+/** A row the dropdown offers, with the spelling of it the text matched (its first name when nothing is typed). */
+interface Match {
+  option: LookupOption;
+  spelling: string;
+}
 
 // The names a lookup's field posts beside the value: "placeText" → "placeCreate", "placeNew".
 const createName = (textName: string) => textName.replace(/Text$/, 'Create');
@@ -58,13 +62,16 @@ const newPrefix = (textName: string) => textName.replace(/Text$/, 'New');
 
 /**
  * A value as the source writes it, typed once, and the row it is linked to.
- * The input suggests the known spellings; typing one that names exactly one
- * row links to it, and the line under the input says which, or that it
- * names several (then the choice opens) or none. The line opens a <select>
- * to link to another row, or to none, and, when the lookup allows it, a box
- * to add the row the value names (its fields show once ticked). Posts
- * `textName` and `idName`; before JavaScript loads, the server links an
- * unlinked spelling by the same rule, and the box and fields still work.
+ * A combobox: its dropdown lists the rows, each once, with the spelling the
+ * text matched when that isn't in the row's name; it opens on focus, on the
+ * chevron and on typing, and the arrow keys, Enter, a click and Escape work
+ * as expected. Typing a spelling that names exactly one row links to it,
+ * and the line under the input says which, or that it names several (then
+ * the choice opens) or none. The line opens a <select> to link to another
+ * row, or to none, and, when the lookup allows it, a box to add the row the
+ * value names (its fields show once ticked). Posts `textName` and `idName`;
+ * before JavaScript loads, the server links an unlinked spelling by the same
+ * rule, and the box and fields still work.
  */
 export function LookupField(props: {
   textName: string;
@@ -79,6 +86,9 @@ export function LookupField(props: {
   const [text, setText] = createSignal(() => props.text ?? '', { name: 'lookup-text' });
   const [id, setId] = createSignal(() => props.id ?? null, { name: 'lookup-id' });
   const [creating, setCreating] = createSignal(false, { name: 'lookup-creating' });
+  // The dropdown, and the row in it the arrow keys are on (by its value).
+  const [open, setOpen] = createSignal(false, { name: 'lookup-open' });
+  const [active, setActive] = createSignal<number | null>(null, { name: 'lookup-active' });
   const named = createMemo(() => rowsSpelled(props.lookup.index, text()), {
     name: 'lookup-named',
   });
@@ -87,9 +97,35 @@ export function LookupField(props: {
   const undecided = () => named().length > 1 && !named().includes(id() ?? 0);
   // A value that names no row, where one can be added.
   const unknown = () => !!props.lookup.create && !!text().trim() && !named().length && !linked();
+  // What the dropdown offers: the rows a spelling of which contains the
+  // text, each with that spelling; every row, by its first name, when
+  // nothing is typed or nothing matches (so the list can always be browsed).
+  const matches = createMemo(
+    (): Match[] => {
+      const key = foldForSearch(text());
+      const all = (): Match[] =>
+        props.lookup.options.map((option) => ({
+          option,
+          spelling: option.spellings[0] ?? option.label,
+        }));
+      if (!key) return all();
+      const found: Match[] = [];
+      for (const option of props.lookup.options) {
+        const spelling = option.spellings.find((s) => foldForSearch(s).includes(key));
+        if (spelling !== undefined) found.push({ option, spelling });
+      }
+      return found.length ? found : all();
+    },
+    { name: 'lookup-matches' },
+  );
+  // The spelling is worth showing when the row's name doesn't contain it.
+  const spelledApart = (match: Match) =>
+    !foldForSearch(match.option.label).includes(foldForSearch(match.spelling));
 
   const typed = (value: string) => {
     setText(value);
+    setOpen(true);
+    setActive(null);
     const rows = rowsSpelled(props.lookup.index, value);
     // A spelling of one row links to it; one of several keeps the choice
     // if it is among them; none (or nothing typed) unlinks. A row found
@@ -102,24 +138,147 @@ export function LookupField(props: {
     setId(value);
     if (value !== null) setCreating(false);
   };
+  // A row picked from the dropdown: its matched spelling becomes the value.
+  const pick = (match: Match) => {
+    setText(match.spelling);
+    setId(match.option.value);
+    setCreating(false);
+    setOpen(false);
+    setActive(null);
+  };
+  const move = (step: 1 | -1) => {
+    const rows = matches();
+    if (!rows.length) return;
+    const at = rows.findIndex((r) => r.option.value === active());
+    const next = at === -1 ? (step === 1 ? 0 : rows.length - 1) : at + step;
+    setActive(rows[Math.min(Math.max(next, 0), rows.length - 1)].option.value);
+  };
+  const onKeyDown = (event: KeyboardEvent) => {
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        if (open()) move(1);
+        else setOpen(true);
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        if (open()) move(-1);
+        break;
+      case 'Enter': {
+        const row = open() ? matches().find((r) => r.option.value === active()) : undefined;
+        if (row) {
+          event.preventDefault();
+          pick(row);
+        }
+        break;
+      }
+      case 'Escape':
+        if (open()) {
+          event.preventDefault();
+          setOpen(false);
+          setActive(null);
+        }
+        break;
+      case 'Tab':
+        setOpen(false);
+        break;
+    }
+  };
+
+  let input: HTMLInputElement | undefined;
+  const inputId = () => `${props.textName}-input`;
+  const listId = () => `${props.textName}-list`;
+  const optionId = (value: number) => `${props.textName}-option-${value}`;
   const createId = () => `${createName(props.textName)}-box`;
+  // The row the arrow keys reach stays in view.
+  createEffect(
+    () => active(),
+    (value) => {
+      if (value !== null) {
+        document.getElementById(optionId(value))?.scrollIntoView?.({ block: 'nearest' });
+      }
+    },
+  );
 
   return (
     <div class="fieldset">
-      <label class="flex flex-col gap-2">
-        <span class="fieldset-legend">{props.label}</span>
-        <input
-          name={props.textName}
-          value={text()}
-          list={props.lookup.listId}
-          autocomplete="off"
-          maxlength={FIELD_MAX.text}
-          class="validator input w-full"
-          aria-invalid={ariaInvalid(props.invalid(props.textName))}
-          onInput={(e) => typed(e.currentTarget.value)}
-        />
-        <FieldError fault={props.invalid(props.textName)} />
+      <label for={inputId()} class="fieldset-legend">
+        {props.label}
       </label>
+      <div class="relative">
+        <div class="input validator w-full pr-1">
+          <input
+            ref={(el) => (input = el)}
+            id={inputId()}
+            name={props.textName}
+            value={text()}
+            role="combobox"
+            aria-expanded={open() ? 'true' : 'false'}
+            aria-controls={listId()}
+            aria-autocomplete="list"
+            aria-activedescendant={active() === null ? undefined : optionId(active()!)}
+            autocomplete="off"
+            maxlength={FIELD_MAX.text}
+            class="grow"
+            aria-invalid={ariaInvalid(props.invalid(props.textName))}
+            onInput={(e) => typed(e.currentTarget.value)}
+            onFocus={() => setOpen(true)}
+            onClick={() => setOpen(true)}
+            onBlur={() => {
+              setOpen(false);
+              setActive(null);
+            }}
+            onKeyDown={onKeyDown}
+          />
+          {/* Not a tab stop: the input is the control. Its mousedown keeps the
+              focus (and so the dropdown) where it is. */}
+          <button
+            type="button"
+            tabindex="-1"
+            aria-label={m.lookup_choices({ field: props.label })}
+            aria-expanded={open() ? 'true' : 'false'}
+            aria-controls={listId()}
+            class="btn btn-square btn-ghost btn-xs"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              input?.focus();
+              setOpen(!open());
+            }}
+          >
+            <ChevronIcon class="size-5" aria-hidden="true" />
+          </button>
+        </div>
+        <Show when={open() && matches().length > 0}>
+          <ul
+            id={listId()}
+            role="listbox"
+            aria-label={props.label}
+            class="menu absolute top-full left-0 z-20 mt-1 max-h-64 w-full flex-nowrap overflow-y-auto rounded-box border border-base-300 bg-base-100 shadow-lg menu-sm"
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <For each={matches()}>
+              {(match) => (
+                <li
+                  id={optionId(match.option.value)}
+                  role="option"
+                  aria-selected={active() === match.option.value ? 'true' : 'false'}
+                >
+                  <span
+                    class={{ 'menu-active': active() === match.option.value }}
+                    onClick={() => pick(match)}
+                  >
+                    {match.option.label}
+                    <Show when={spelledApart(match)}>
+                      <span class="text-xs opacity-60">{match.spelling}</span>
+                    </Show>
+                  </span>
+                </li>
+              )}
+            </For>
+          </ul>
+        </Show>
+      </div>
+      <FieldError fault={props.invalid(props.textName)} />
       {/* What the value is linked to; opening it offers the others. */}
       <details class="text-sm" open={undecided() || creating() || !!props.invalid(props.idName)}>
         <summary class="cursor-pointer">
@@ -194,31 +353,3 @@ const orderedBy = (options: LookupOption[], first: number[]) => [
   ...options.filter((o) => first.includes(o.value)),
   ...options.filter((o) => !first.includes(o.value)),
 ];
-
-/** The <datalist> a lookup's inputs suggest from: each spelling once, with what it names. */
-export function SpellingList(props: { lookup: Lookup }) {
-  const entries = createMemo(
-    () => {
-      const seen = new Map<string, string[]>();
-      for (const option of props.lookup.options) {
-        for (const spelling of option.spellings) {
-          const labels = seen.get(spelling) ?? [];
-          labels.push(option.label);
-          seen.set(spelling, labels);
-        }
-      }
-      return [...seen].map(([spelling, labels]) => ({
-        spelling,
-        // The datalist shows the label beside the value, so the same
-        // text twice is left out.
-        label: labels.length === 1 && labels[0] === spelling ? undefined : labels.join(' · '),
-      }));
-    },
-    { name: 'lookup-spellings' },
-  );
-  return (
-    <datalist id={props.lookup.listId}>
-      <For each={entries()}>{(e) => <option value={e.spelling} label={e.label} />}</For>
-    </datalist>
-  );
-}

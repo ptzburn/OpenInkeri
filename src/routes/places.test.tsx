@@ -298,6 +298,8 @@ describe('editing a village', () => {
   test('opens with the place as stored', async () => {
     await openGorki();
     expect(field('nameFi')).toHaveValue('Gorkka');
+    // Its parish shows by name, linked.
+    expect(field('parishText')).toHaveValue('Губаницы');
     expect(field('parishId')).toHaveValue('5');
     expect(field('coordinates')).toHaveValue('59.613487, 30.22519');
     expect(field('coordinateStatus')).toHaveValue('approximate');
@@ -569,7 +571,44 @@ describe('/places/parishes', () => {
     fireEvent.click(await screen.findByRole('link', { name: 'Add locality' }));
     await screen.findByRole('heading', { level: 1, name: 'New locality' });
     await waitFor(() => expect(field('parishId')).toHaveValue('5'));
+    expect(field('parishText')).toHaveValue('Губаницы');
     expect(field('returnParish')).toHaveValue('5');
+  });
+
+  test('the parish is typed by name; one not known yet is added with the locality', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/villages/new');
+    await waitFor(() => expect(field('parishText')).toBeTruthy());
+    expect(field('parishId')).toHaveValue('');
+    fireEvent.input(field('nameRu'), { target: { value: 'Серебетта' } });
+    // Either name links the parish.
+    fireEvent.input(field('parishText'), { target: { value: 'Hevaa' } });
+    await waitFor(() => expect(field('parishId')).toHaveValue('5'));
+    expect(field('parishText').closest('.fieldset')).toHaveTextContent('→ Губаницы');
+    // A parish no name matches is offered to be added, without a church:
+    // the locality being added may well be it.
+    fireEvent.input(field('parishText'), { target: { value: 'Туутари' } });
+    await waitFor(() => expect(field('parishId')).toHaveValue(''));
+    expect(field('parishText').closest('.fieldset')).toHaveTextContent(
+      '“Туутари” is not known yet. Open to add it.',
+    );
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Add as a new parish' }));
+    expect(field('parishNew.nameRu')).toHaveValue('Туутари');
+    fireEvent.input(field('parishNew.nameFi'), { target: { value: 'Tuutari' } });
+    expect(
+      screen.queryByRole('checkbox', { name: 'Also add a locality of this name, as its church' }),
+    ).toBeNull();
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/places/villages'));
+    const [saved] = places.saved;
+    expect(saved.get('nameRu')).toBe('Серебетта');
+    expect(saved.get('parishText')).toBe('Туутари');
+    expect(saved.get('parishId')).toBe('');
+    expect(saved.get('parishCreate')).toBe('on');
+    expect(saved.get('parishNew.nameRu')).toBe('Туутари');
+    expect(saved.get('parishNew.nameFi')).toBe('Tuutari');
+    expect(saved.get('parishNew.church')).toBeNull();
   });
 });
 

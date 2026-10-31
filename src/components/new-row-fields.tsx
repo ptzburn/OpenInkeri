@@ -138,21 +138,25 @@ export function NewRelationFields(props: NewRowProps) {
 
 /**
  * A new parish: its names, and whether a locality of the same name is added
- * as its church (the usual case: the church village names the parish).
+ * as its church (the usual case: the church village names the parish). A
+ * locality's own form leaves the church out (`church={false}`): it is adding
+ * a locality already.
  */
-export function NewParishFields(props: NewRowProps) {
+export function NewParishFields(props: NewRowProps & { church?: boolean }) {
   return (
     <Fields>
       <NameInputs prefix={props.prefix} text={props.text} invalid={props.invalid} />
-      <label class="label cursor-pointer gap-2 sm:col-span-2">
-        <input
-          type="checkbox"
-          name={`${props.prefix}.church`}
-          checked
-          class="checkbox checkbox-sm"
-        />
-        {m.parish_new_church()}
-      </label>
+      <Show when={props.church ?? true}>
+        <label class="label cursor-pointer gap-2 sm:col-span-2">
+          <input
+            type="checkbox"
+            name={`${props.prefix}.church`}
+            checked
+            class="checkbox checkbox-sm"
+          />
+          {m.parish_new_church()}
+        </label>
+      </Show>
     </Fields>
   );
 }

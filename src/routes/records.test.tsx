@@ -630,20 +630,29 @@ describe('editing a baptism', () => {
     // Stored linked by hand to a place this spelling isn't one of: kept.
     const village = field('placeText');
     expect(village).toHaveValue('Горкка');
-    expect(village).toHaveAttribute('list', 'record-place-spellings');
+    expect(village).toHaveAttribute('role', 'combobox');
     expect(field('placeId')).toHaveValue('1');
     expect(village.closest('.fieldset')).toHaveTextContent('→ Горки (Губаницы)');
-    // The datalist offers each spelling once, with the place it names.
-    const spellings = [...document.querySelectorAll('#record-place-spellings option')];
-    expect(spellings.map((o) => o.getAttribute('value'))).toEqual([
-      'Горки',
-      'Горка',
-      'Волгово',
-      'Волково',
-      'Вохново',
-    ]);
-    expect(spellings[1]).toHaveAttribute('label', 'Горки (Губаницы)');
-    expect(spellings[3]).toHaveAttribute('label', 'Волгово (Губаницы) · Вохново (Губаницы)');
+    // Focused, the dropdown lists every place once: the text matches none.
+    fireEvent.focus(village);
+    flush();
+    const options = () =>
+      within(screen.getByRole('listbox'))
+        .getAllByRole('option')
+        .map((o) => o.textContent);
+    expect(options()).toEqual(['Горки (Губаницы)', 'Волгово (Губаницы)', 'Вохново (Губаницы)']);
+    // Typed, it lists the places with a spelling containing the text, the
+    // spelling shown when the name doesn't.
+    fireEvent.input(village, { target: { value: 'волк' } });
+    flush();
+    expect(options()).toEqual(['Волгово (Губаницы)Волково', 'Вохново (Губаницы)Волково']);
+    fireEvent.keyDown(village, { key: 'ArrowDown' });
+    flush();
+    fireEvent.keyDown(village, { key: 'Enter' });
+    flush();
+    expect(village).toHaveValue('Волково');
+    expect(field('placeId')).toHaveValue('2');
+    expect(screen.queryByRole('listbox')).toBeNull();
   });
 
   test('typing a spelling links it; several to choose from, or none, say so', async () => {
