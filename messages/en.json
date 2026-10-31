@@ -281,6 +281,8 @@
   "place_edit_parish": "Parish",
   "place_edit_coordinates": "Coordinates",
   "place_edit_coordinates_hint": "Latitude, longitude, as copied from a map: 59.613487, 30.225190",
+  "place_edit_map_hint": "Click the map to set the coordinates, or drag the marker.",
+  "map_webgl_unsupported": "The map needs WebGL, which this browser does not provide.",
   "place_edit_coordinate_status": "Coordinates are",
   "place_edit_spellings": "Alternative spellings",
   "place_edit_spellings_hint": "One per line. Records that have a new spelling as their locality, and no locality yet, are linked to this one.",

@@ -283,6 +283,8 @@
   "place_edit_parish": "Приход",
   "place_edit_coordinates": "Координаты",
   "place_edit_coordinates_hint": "Широта, долгота, как копируются с карты: 59.613487, 30.225190",
+  "place_edit_map_hint": "Нажмите на карту, чтобы задать координаты, или перетащите метку.",
+  "map_webgl_unsupported": "Для карты нужен WebGL, которого нет в этом браузере.",
   "place_edit_coordinate_status": "Координаты",
   "place_edit_spellings": "Варианты написания",
   "place_edit_spellings_hint": "По одному в строке. Записи с новым написанием места, ещё не связанные с населённым пунктом, будут связаны с этим.",

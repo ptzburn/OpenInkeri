@@ -79,6 +79,10 @@ export default defineConfig({
   ]),
   // Reads the `~/*` → src/* alias from tsconfig.json, so it's defined once.
   resolve: { tsconfigPaths: true },
+  // The map library is imported only when a locality form settles, so the
+  // scanner misses it and Vite would discover it mid-session (a reload,
+  // and a 504 on the first load). Optimized up front instead.
+  optimizeDeps: { include: ['maplibre-gl'] },
   environments: {
     ssr: {
       optimizeDeps: {

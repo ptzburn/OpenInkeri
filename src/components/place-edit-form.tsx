@@ -1,4 +1,4 @@
-import { Show, createMemo } from 'solid-js';
+import { Show, createMemo, createSignal } from 'solid-js';
 import MapIcon from '~icons/ri/map-pin-2-line';
 
 import type { QueryData } from '~/lib/query-data';
@@ -18,6 +18,7 @@ import {
 import { useToast } from '~/components/toaster';
 import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
 import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
+import LocationPicker from '~/components/location-picker';
 import { NewParishFields } from '~/components/new-row-fields';
 import { COORDINATES_PATTERN, formatCoordinates, mapLink } from '~/lib/coordinates';
 import { coordinateStatuses, placeKinds } from '~/lib/place-kinds';
@@ -108,122 +109,136 @@ export default function PlaceEditForm(props: {
   return (
     // Keyed: each place (and each fresh read of it) gets a fresh form.
     <Show when={place()} keyed fallback={<p>{m.place_edit_missing()}</p>}>
-      {(p) => (
-        <>
-          {/* While a save is in flight the router marks the form aria-busy. */}
-          <form method="post" action={savePlace} class="group flex max-w-3xl flex-col gap-6">
-            <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
-            <input type="hidden" name="returnParish" value={props.returnTo.parish ?? ''} />
-            <input type="hidden" name="id" value={p.id || ''} />
-            <input type="hidden" name="version" value={p.version} />
-
-            <div class="grid gap-x-4 sm:grid-cols-2">
-              <TextInput
-                name="nameRu"
-                label={m.form_name_ru()}
-                value={p.nameRu}
-                pattern={CYRILLIC_NAME_PATTERN}
-                hint={m.form_name_ru_hint()}
-                required
-                maxlength={FIELD_MAX.line}
-                invalid={invalid('nameRu')}
-              />
-              <TextInput
-                name="nameFi"
-                label={m.form_name_fi()}
-                value={p.nameFi}
-                pattern={LATIN_NAME_PATTERN}
-                hint={m.form_name_fi_hint()}
-                maxlength={FIELD_MAX.line}
-                invalid={invalid('nameFi')}
-              />
-              <Select
-                name="kind"
-                label={m.place_edit_kind()}
-                value={p.kind}
-                options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
-                invalid={invalid('kind')}
-              />
-              <LookupField
-                textName="parishText"
-                idName="parishId"
-                label={m.place_edit_parish()}
-                text={parishName(p.parishId)}
-                id={p.parishId}
-                lookup={parishLookup()}
-                invalid={invalid}
-              />
-              <TextInput
-                name="coordinates"
-                label={m.place_edit_coordinates()}
-                value={formatCoordinates(p.latitude, p.longitude)}
-                pattern={COORDINATES_PATTERN}
-                maxlength={60}
-                hint={m.place_edit_coordinates_hint()}
-                invalid={invalid('coordinates')}
-              />
-              <Select
-                name="coordinateStatus"
-                label={m.place_edit_coordinate_status()}
-                value={p.coordinateStatus}
-                options={coordinateStatuses.map((s) => ({
-                  value: s,
-                  label: coordinateStatusLabels[s](),
-                }))}
-                invalid={invalid('coordinateStatus')}
-              />
-              <Show when={p.latitude !== null && p.longitude !== null}>
-                <a
-                  href={mapLink(p.latitude!, p.longitude!)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="link self-start text-sm sm:col-span-2"
-                >
-                  <MapIcon class="mr-1 inline size-4 align-text-bottom" aria-hidden="true" />
-                  {m.villages_show_on_map()}
-                </a>
-              </Show>
-              <TextArea
-                name="spellings"
-                label={m.place_edit_spellings()}
-                value={p.spellings.join('\n')}
-                rows={6}
-                hint={m.place_edit_spellings_hint()}
-                invalid={invalid('spellings')}
-              />
-              <TextArea
-                name="note"
-                label={m.form_note()}
-                value={p.note}
-                rows={6}
-                maxlength={FIELD_MAX.text}
-                invalid={invalid('note')}
-              />
-            </div>
-
-            <FormActions
-              error={error()}
-              cancelHref={props.cancelHref}
-              class="border-t border-base-300 pt-4"
-            />
-          </form>
-          <Show when={p.id}>
-            <DeleteSection
-              action={deletePlace}
-              id={p.id}
-              version={p.version}
-              title={m.place_delete()}
-              text={m.place_delete_text()}
-              inUse={placeInUse(p)}
-              deleted={m.place_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
-            >
-              {/* Back to the list as it was, like a save. */}
+      {(p) => {
+        // The coordinates as typed or picked on the map: the field and the map share them.
+        const [coordinates, setCoordinates] = createSignal(
+          () => formatCoordinates(p.latitude, p.longitude),
+          { name: 'place-coordinates' },
+        );
+        return (
+          <>
+            {/* While a save is in flight the router marks the form aria-busy. */}
+            <form method="post" action={savePlace} class="group flex max-w-3xl flex-col gap-6">
               <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
               <input type="hidden" name="returnParish" value={props.returnTo.parish ?? ''} />
-            </DeleteSection>
-          </Show>
-        </>
-      )}
+              <input type="hidden" name="id" value={p.id || ''} />
+              <input type="hidden" name="version" value={p.version} />
+
+              <div class="grid gap-x-4 sm:grid-cols-2">
+                <TextInput
+                  name="nameRu"
+                  label={m.form_name_ru()}
+                  value={p.nameRu}
+                  pattern={CYRILLIC_NAME_PATTERN}
+                  hint={m.form_name_ru_hint()}
+                  required
+                  maxlength={FIELD_MAX.line}
+                  invalid={invalid('nameRu')}
+                />
+                <TextInput
+                  name="nameFi"
+                  label={m.form_name_fi()}
+                  value={p.nameFi}
+                  pattern={LATIN_NAME_PATTERN}
+                  hint={m.form_name_fi_hint()}
+                  maxlength={FIELD_MAX.line}
+                  invalid={invalid('nameFi')}
+                />
+                <Select
+                  name="kind"
+                  label={m.place_edit_kind()}
+                  value={p.kind}
+                  options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
+                  invalid={invalid('kind')}
+                />
+                <LookupField
+                  textName="parishText"
+                  idName="parishId"
+                  label={m.place_edit_parish()}
+                  text={parishName(p.parishId)}
+                  id={p.parishId}
+                  lookup={parishLookup()}
+                  invalid={invalid}
+                />
+                <TextInput
+                  name="coordinates"
+                  label={m.place_edit_coordinates()}
+                  value={coordinates()}
+                  pattern={COORDINATES_PATTERN}
+                  maxlength={60}
+                  hint={m.place_edit_coordinates_hint()}
+                  invalid={invalid('coordinates')}
+                  onInput={setCoordinates}
+                />
+                <Select
+                  name="coordinateStatus"
+                  label={m.place_edit_coordinate_status()}
+                  value={p.coordinateStatus}
+                  options={coordinateStatuses.map((s) => ({
+                    value: s,
+                    label: coordinateStatusLabels[s](),
+                  }))}
+                  invalid={invalid('coordinateStatus')}
+                />
+                <Show when={p.latitude !== null && p.longitude !== null}>
+                  <a
+                    href={mapLink(p.latitude!, p.longitude!)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="link self-start text-sm sm:col-span-2"
+                  >
+                    <MapIcon class="mr-1 inline size-4 align-text-bottom" aria-hidden="true" />
+                    {m.villages_show_on_map()}
+                  </a>
+                </Show>
+                <div class="sm:col-span-2">
+                  <LocationPicker
+                    value={coordinates()}
+                    onPick={(lat, lng) => setCoordinates(formatCoordinates(lat, lng))}
+                  />
+                </div>
+                <TextArea
+                  name="spellings"
+                  label={m.place_edit_spellings()}
+                  value={p.spellings.join('\n')}
+                  rows={6}
+                  hint={m.place_edit_spellings_hint()}
+                  invalid={invalid('spellings')}
+                />
+                <TextArea
+                  name="note"
+                  label={m.form_note()}
+                  value={p.note}
+                  rows={6}
+                  maxlength={FIELD_MAX.text}
+                  invalid={invalid('note')}
+                />
+              </div>
+
+              <FormActions
+                error={error()}
+                cancelHref={props.cancelHref}
+                class="border-t border-base-300 pt-4"
+              />
+            </form>
+            <Show when={p.id}>
+              <DeleteSection
+                action={deletePlace}
+                id={p.id}
+                version={p.version}
+                title={m.place_delete()}
+                text={m.place_delete_text()}
+                inUse={placeInUse(p)}
+                deleted={m.place_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
+              >
+                {/* Back to the list as it was, like a save. */}
+                <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
+                <input type="hidden" name="returnParish" value={props.returnTo.parish ?? ''} />
+              </DeleteSection>
+            </Show>
+          </>
+        );
+      }}
     </Show>
   );
 }

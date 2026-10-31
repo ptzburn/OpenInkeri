@@ -178,6 +178,8 @@ export function TextInput(props: {
   hint?: string;
   /** What a value the browser rejects should be, e.g. "Four digits". */
   error?: string;
+  /** Told what is typed, for a form that follows the value (the coordinates' map). */
+  onInput?: (value: string) => void;
 }) {
   return (
     <label class="fieldset">
@@ -191,6 +193,7 @@ export function TextInput(props: {
         inputmode={props.inputmode}
         class="validator input w-full"
         aria-invalid={ariaInvalid(props.invalid)}
+        onInput={(event) => props.onInput?.(event.currentTarget.value)}
       />
       <FieldError fault={props.invalid} error={props.error} />
       <Show when={props.hint}>{(hint) => <span class="label">{hint()}</span>}</Show>

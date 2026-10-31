@@ -40,3 +40,6 @@ Signed-out routes redirect to `/sign-in`: if `url:` prints that, the cookie is s
 - `.env` quotes the secret; `session.mjs` strips the quotes. Don't paste the raw value elsewhere.
 - Search matches a record's folded search text (child, parents, locality), so `?q=` with a parent's surname finds children without a recorded name.
 - The first page of baptisms has no twins or out-of-wedlock births; search for one (`?q=Ионас` has twins, `?q=Гантту` triplets, `?q=Ниммериг` one out of wedlock) to see those icons.
+- The locality form's map (MapLibre) needs WebGL. Headless Chromium gets it with
+  `chromium.launch({ args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })`;
+  wait for `.maplibregl-canvas`, then a few seconds for the tiles.
