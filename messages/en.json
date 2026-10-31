@@ -120,7 +120,7 @@
   "record_edit_status_ok": "Normal",
   "record_edit_status_lost": "Lost",
   "record_edit_status_illegible": "Illegible",
-  "record_edit_date_hint": "D.M.YYYY, M.YYYY or YYYY",
+  "record_edit_date_hint": "DD.MM.YYYY, MM.YYYY or YYYY",
   "record_edit_village": "Locality",
   "record_edit_officiant": "Baptised by",
   "record_edit_location": "Place of baptism",

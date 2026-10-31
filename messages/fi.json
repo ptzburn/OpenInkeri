@@ -120,7 +120,7 @@
   "record_edit_status_ok": "Tavallinen",
   "record_edit_status_lost": "Kadonnut",
   "record_edit_status_illegible": "Epäselvä",
-  "record_edit_date_hint": "P.K.VVVV, K.VVVV tai VVVV",
+  "record_edit_date_hint": "PP.KK.VVVV, KK.VVVV tai VVVV",
   "record_edit_village": "Paikkakunta",
   "record_edit_officiant": "Kastaja",
   "record_edit_location": "Kastepaikka",

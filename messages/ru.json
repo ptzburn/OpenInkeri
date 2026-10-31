@@ -120,7 +120,7 @@
   "record_edit_status_ok": "Обычная",
   "record_edit_status_lost": "Утрачена",
   "record_edit_status_illegible": "Неразборчива",
-  "record_edit_date_hint": "Д.М.ГГГГ, М.ГГГГ или ГГГГ",
+  "record_edit_date_hint": "ДД.ММ.ГГГГ, ММ.ГГГГ или ГГГГ",
   "record_edit_village": "Населённый пункт",
   "record_edit_officiant": "Крестил",
   "record_edit_location": "Место крещения",

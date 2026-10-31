@@ -208,7 +208,7 @@ describe('/people', () => {
     const maria = await screen.findByRole('link', { name: 'Maria Juhontytär' });
     expect(maria).toHaveAttribute('href', '/people/1');
     const row = maria.closest('tr')!;
-    expect(within(row).getByText('3.1895–')).toBeInTheDocument();
+    expect(within(row).getByText('03.1895–')).toBeInTheDocument();
     expect(within(row).getByText('Female')).toBeInTheDocument();
 
     fireEvent.input(screen.getByRole('searchbox', { name: 'Search people' }), {
@@ -340,7 +340,7 @@ describe('editing a person', () => {
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
     await waitFor(() => expect(window.location.pathname).toBe('/people/1'));
     expect(people.saved[0].get('nameRu')).toBe('Мария Ивановна');
-    expect(people.saved[0].get('birthDate')).toBe('3.1895');
+    expect(people.saved[0].get('birthDate')).toBe('03.1895');
   });
 });
 

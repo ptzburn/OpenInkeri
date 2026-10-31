@@ -422,8 +422,8 @@ describe('/records', () => {
     expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1, null);
     expect(screen.getByText('Page 1 of 3')).toBeInTheDocument();
     const first = container.querySelector<HTMLElement>('tbody tr')!;
-    expect(first).toHaveTextContent('3.1895'); // born, month only
-    expect(first).toHaveTextContent('12.3.1895'); // baptised
+    expect(first).toHaveTextContent('03.1895'); // born, month only
+    expect(first).toHaveTextContent('12.03.1895'); // baptised
     expect(within(first).getByRole('img', { name: 'Twins' })).toBeInTheDocument();
     // English shows the Finnish form when the register gives one.
     expect(first).toHaveTextContent('Juhana Aataminp. Waris');
@@ -486,7 +486,7 @@ describe('/records', () => {
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
     expect(headers).toEqual(['Married', 'Groom', 'Bride', 'Notes']);
     const row = groom.closest('tr')!;
-    expect(row).toHaveTextContent('14.1.1918');
+    expect(row).toHaveTextContent('14.01.1918');
     // English shows the Finnish name of the village when it has one.
     expect(row).toHaveTextContent('age 39 · Tserepovitsa');
     // A village not resolved to a place shows as written.
@@ -508,8 +508,8 @@ describe('/records', () => {
       'Notes',
     ]);
     const row = deceased.closest('tr')!;
-    expect(row).toHaveTextContent('7.1.1918');
-    expect(row).toHaveTextContent('14.1.1918');
+    expect(row).toHaveTextContent('07.01.1918');
+    expect(row).toHaveTextContent('14.01.1918');
     expect(row).toHaveTextContent('3 г. 2 мес. 9 дн.');
     expect(row).toHaveTextContent('Медниково');
     expect(row).toHaveTextContent('воспаление лёгких');
@@ -525,7 +525,7 @@ describe('/records', () => {
     expect(row).toHaveTextContent('Kirkonkylä');
     // The relation in the reader's language, else in Russian.
     expect(head.closest('li')).toHaveTextContent(
-      'Myyry Nikolai Kaarlonp. — Head · 28.7.1858 – 9.10.1936vihitty 14.05.1878',
+      'Myyry Nikolai Kaarlonp. — Head · 28.07.1858 – 09.10.1936vihitty 14.05.1878',
     );
     expect(row.querySelectorAll('li')[1]).toHaveTextContent('Waris Maria Aatamint. — Жена');
   });
@@ -815,8 +815,8 @@ describe('editing a baptism', () => {
   test('opens with the record as stored, dates as the page shows them', async () => {
     await openMaria();
     expect(window.location.pathname).toBe('/records/2/edit');
-    expect(field('date')).toHaveValue('12.3.1895');
-    expect(field('birthDate')).toHaveValue('3.1895');
+    expect(field('date')).toHaveValue('12.03.1895');
+    expect(field('birthDate')).toHaveValue('03.1895');
     expect(field('placeId')).toHaveValue('1');
     expect(field('placeText')).toHaveValue('Горкка');
     expect(field('officiantId')).toHaveValue('7');
@@ -842,7 +842,7 @@ describe('editing a baptism', () => {
     expect(saved.get('version')).toBe('4');
     expect(saved.get('mother.nameRu')).toBe('Анна');
     expect(saved.get('placeId')).toBe('2');
-    expect(saved.get('date')).toBe('12.3.1895');
+    expect(saved.get('date')).toBe('12.03.1895');
     expect(saved.get('returnQ')).toBe('мария');
   });
 
@@ -897,10 +897,10 @@ describe('editing a death', () => {
     await openDeath();
     expect(window.location.pathname).toBe('/records/301/edit');
     expect(window.location.search).toBe('?kind=deaths');
-    expect(field('date')).toHaveValue('7.1.1918');
+    expect(field('date')).toHaveValue('07.01.1918');
     expect(screen.getByText('Died')).toBeInTheDocument();
     expect(field('placeId')).toHaveValue('2');
-    expect(field('burialDate')).toHaveValue('14.1.1918');
+    expect(field('burialDate')).toHaveValue('14.01.1918');
     expect(field('burialPlaceText')).toHaveValue('Губаницкое кладбище');
     expect(field('causeText')).toHaveValue('воспаление лёгких');
     expect(field('deceased.ageText')).toHaveValue('3 г. 2 мес. 9 дн.');
@@ -946,7 +946,7 @@ describe('editing a household', () => {
     expect(field('placeText')).toHaveValue('Kirkonkylä');
     expect(field('members.0.id')).toHaveValue('40');
     expect(field('members.0.relationTermId')).toHaveValue('1');
-    expect(field('members.0.birthDate')).toHaveValue('28.7.1858');
+    expect(field('members.0.birthDate')).toHaveValue('28.07.1858');
     expect(field('members.1.nameFi')).toHaveValue('Waris Maria Aatamint.');
     // The blank one has no id: saving it with a name adds the person.
     expect(field('members.2.nameFi')).toHaveValue('');
