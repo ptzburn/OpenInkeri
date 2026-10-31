@@ -41,6 +41,7 @@ import {
 import { type NameLanguage, lastWord, splitName } from '~/lib/name-split';
 import { foldForSearch, searchTextOf } from '~/lib/search-text';
 import { rowsSpelled, spellingIndex } from '~/lib/spellings';
+import type { Names } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -316,10 +317,14 @@ export interface RecordEditData {
 
 export interface RecordEditOptionsData {
   /** With the spellings records use for them (place_alias), their names among them. */
-  places: { id: number; name: string; parish: string | null; spellings: string[] }[];
-  clergy: { id: number; name: string; spellings: string[] }[];
+  places: { id: number; name: Names; parish: Names | null; spellings: string[] }[];
+  clergy: { id: number; name: Names; spellings: string[] }[];
   /** How a person belongs to a household or farm ("Сын", "Боболь"), with its names in each language. */
-  relations: { id: number; name: string; spellings: string[] }[];
+  relations: {
+    id: number;
+    name: { ru: string; fi: string | null; en: string | null };
+    spellings: string[];
+  }[];
   /** The sources a record can be in: one of its own type. Its parish is where a new locality starts. */
   sources: {
     id: number;
@@ -329,7 +334,7 @@ export interface RecordEditOptionsData {
     parishId: number | null;
   }[];
   /** The parishes a locality added in the form can belong to. */
-  parishes: { id: number; name: string }[];
+  parishes: { id: number; name: Names }[];
 }
 
 const personaColumns = {
@@ -432,7 +437,7 @@ export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsDat
     db.query.place.findMany({
       columns: { id: true, nameRu: true, nameFi: true },
       with: {
-        parish: { columns: { nameRu: true } },
+        parish: { columns: { nameRu: true, nameFi: true } },
         aliases: { columns: { name: true } },
       },
       orderBy: { nameRu: 'asc' },
@@ -451,29 +456,29 @@ export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsDat
       orderBy: { title: 'asc' },
     }),
     db.query.parish.findMany({
-      columns: { id: true, nameRu: true },
+      columns: { id: true, nameRu: true, nameFi: true },
       orderBy: { nameRu: 'asc' },
     }),
   ]);
   return {
     places: places.map((p) => ({
       id: p.id,
-      name: p.nameRu,
-      parish: p.parish?.nameRu ?? null,
+      name: { ru: p.nameRu, fi: p.nameFi },
+      parish: p.parish ? { ru: p.parish.nameRu, fi: p.parish.nameFi } : null,
       spellings: spellings(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
     })),
     clergy: clergy.map((c) => ({
       id: c.id,
-      name: c.nameRu,
+      name: { ru: c.nameRu, fi: c.nameFi },
       spellings: spellings(c.nameRu, c.nameFi),
     })),
     relations: relations.map((t) => ({
       id: t.id,
-      name: t.ru,
+      name: { ru: t.ru, fi: t.fi, en: t.en },
       spellings: spellings(t.ru, t.fi, t.en),
     })),
     sources,
-    parishes: parishes.map((p) => ({ id: p.id, name: p.nameRu })),
+    parishes: parishes.map((p) => ({ id: p.id, name: { ru: p.nameRu, fi: p.nameFi } })),
   };
 }, 'record-edit-options');
 

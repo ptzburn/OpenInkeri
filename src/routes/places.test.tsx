@@ -88,7 +88,7 @@ vi.mock('~/data/parishes', async () => {
       { id: 6, nameRu: 'Курляндия', nameFi: null, note: 'Не приход', villages: 0, sources: 0 },
     ]),
     getParishOptions: vi.fn(async () => [
-      { id: 5, name: 'Губаницы', spellings: ['Губаницы', 'Hevaa'] },
+      { id: 5, name: { ru: 'Губаницы', fi: 'Hevaa' }, spellings: ['Губаницы', 'Hevaa'] },
     ]),
     getParishEdit: vi.fn(async (id: number) =>
       id === 5
@@ -122,8 +122,20 @@ vi.mock('~/data/places', async () => {
     getPlaces: vi.fn(async () => places.list()),
     // The church's choices: Горки in parish 5, Кикерино in another parish.
     getPlaceOptions: vi.fn(async () => [
-      { id: 2, name: 'Кикерино', parishId: 7, parish: 'Волосово', spellings: ['Кикерино'] },
-      { id: 1, name: 'Горки', parishId: 5, parish: 'Губаницы', spellings: ['Горки', 'Горка'] },
+      {
+        id: 2,
+        name: { ru: 'Кикерино', fi: null },
+        parishId: 7,
+        parish: { ru: 'Волосово', fi: null },
+        spellings: ['Кикерино'],
+      },
+      {
+        id: 1,
+        name: { ru: 'Горки', fi: 'Gorkka' },
+        parishId: 5,
+        parish: { ru: 'Губаницы', fi: 'Hevaa' },
+        spellings: ['Горки', 'Горка'],
+      },
     ]),
     getPlaceEdit: vi.fn(async (id: number) =>
       id === 1
@@ -299,7 +311,7 @@ describe('editing a village', () => {
     await openGorki();
     expect(field('nameFi')).toHaveValue('Gorkka');
     // Its parish shows by name, linked.
-    expect(field('parishText')).toHaveValue('Губаницы');
+    expect(field('parishText')).toHaveValue('Hevaa'); // English shows the Finnish name
     expect(field('parishId')).toHaveValue('5');
     expect(field('coordinates')).toHaveValue('59.613487, 30.22519');
     expect(field('coordinateStatus')).toHaveValue('approximate');
@@ -441,10 +453,7 @@ describe('/places/parishes', () => {
     // The church: its locality by name, linked to the one it names; the
     // localities to choose from show their parish.
     await waitFor(() => expect(field('churchPlaceId')).toHaveValue('1'));
-    expect(field('churchText')).toHaveValue('Горки');
-    expect(field('churchText').closest('.fieldset')).toHaveTextContent('→ Горки (Губаницы)');
-    const choices = [...(field('churchPlaceId') as HTMLSelectElement).options].map((o) => o.text);
-    expect(choices).toEqual(['— none —', 'Кикерино (Волосово)', 'Горки (Губаницы)']);
+    expect(field('churchText')).toHaveValue('Gorkka'); // English shows the Finnish name
     fireEvent.input(field('note'), { target: { value: 'Губаницкий приход' } });
     fireEvent.input(field('churchText'), { target: { value: 'Кикерино' } });
     await waitFor(() => expect(field('churchPlaceId')).toHaveValue('2'));
@@ -480,15 +489,12 @@ describe('/places/parishes', () => {
     renderAt('/places/parishes/new');
     await waitFor(() => expect(field('churchText')).toBeInTheDocument());
     fireEvent.input(field('nameRu'), { target: { value: 'Тест' } });
-    // A locality no spelling names: offered to be added, by its names.
+    // A locality no spelling names: its fields appear, to add it by its names.
     fireEvent.input(field('churchText'), { target: { value: 'Тест' } });
-    const status = field('churchText').closest('.fieldset')!.querySelector('summary')!;
-    await waitFor(() => expect(status).toHaveTextContent('“Тест” is not known yet'));
+    await waitFor(() => expect(field('churchNew.nameRu')).toHaveValue('Тест'));
     expect(field('churchPlaceId')).toHaveValue('');
-    const box = screen.getByRole('checkbox', { name: 'Add as a new locality' });
-    expect(box).toHaveAttribute('name', 'churchCreate');
-    fireEvent.click(box);
-    expect(field('churchNew.nameRu')).toHaveValue('Тест');
+    expect(screen.getByText('Add as a new locality')).toBeInTheDocument();
+    expect(field('churchCreate')).toHaveValue('on');
     expect(field('churchNew.nameFi')).toHaveValue('');
     expect(field('churchNew.kind')).toHaveValue('village');
     // No parish to choose: the locality goes in this parish.
@@ -571,7 +577,7 @@ describe('/places/parishes', () => {
     fireEvent.click(await screen.findByRole('link', { name: 'Add locality' }));
     await screen.findByRole('heading', { level: 1, name: 'New locality' });
     await waitFor(() => expect(field('parishId')).toHaveValue('5'));
-    expect(field('parishText')).toHaveValue('Губаницы');
+    expect(field('parishText')).toHaveValue('Hevaa'); // English shows the Finnish name
     expect(field('returnParish')).toHaveValue('5');
   });
 
@@ -584,15 +590,11 @@ describe('/places/parishes', () => {
     // Either name links the parish.
     fireEvent.input(field('parishText'), { target: { value: 'Hevaa' } });
     await waitFor(() => expect(field('parishId')).toHaveValue('5'));
-    expect(field('parishText').closest('.fieldset')).toHaveTextContent('→ Губаницы');
-    // A parish no name matches is offered to be added, without a church:
-    // the locality being added may well be it.
+    // A parish no name matches: its fields appear, to add it without a
+    // church (the locality being added may well be it).
     fireEvent.input(field('parishText'), { target: { value: 'Туутари' } });
     await waitFor(() => expect(field('parishId')).toHaveValue(''));
-    expect(field('parishText').closest('.fieldset')).toHaveTextContent(
-      '“Туутари” is not known yet. Open to add it.',
-    );
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Add as a new parish' }));
+    expect(screen.getByText('Add as a new parish')).toBeInTheDocument();
     expect(field('parishNew.nameRu')).toHaveValue('Туутари');
     fireEvent.input(field('parishNew.nameFi'), { target: { value: 'Tuutari' } });
     expect(
@@ -609,6 +611,18 @@ describe('/places/parishes', () => {
     expect(saved.get('parishNew.nameRu')).toBe('Туутари');
     expect(saved.get('parishNew.nameFi')).toBe('Tuutari');
     expect(saved.get('parishNew.church')).toBeNull();
+  });
+
+  test('a parish typed in Latin letters is the Finnish name; the Russian one is asked for', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/villages/new');
+    await waitFor(() => expect(field('parishText')).toBeTruthy());
+    fireEvent.input(field('parishText'), { target: { value: 'Tuutari' } });
+    await waitFor(() => expect(field('parishNew.nameFi')).toHaveValue('Tuutari'));
+    expect(field('parishNew.nameFi')).toHaveAttribute('type', 'hidden');
+    expect(field('parishNew.nameRu')).not.toHaveAttribute('type', 'hidden');
+    expect(field('parishNew.nameRu')).toHaveValue('');
+    expect(field('parishNew.nameRu')).toBeRequired();
   });
 });
 

@@ -8,16 +8,19 @@ import { LookupField, lookupOf } from './lookup-field';
 
 // The lookup field on its own: a combobox over three localities, two of
 // which share the spelling "Волково".
-const lookup = lookupOf(
-  [
-    { value: 1, label: 'Горки (Губаницы)', spellings: ['Горки', 'Горка'] },
-    { value: 2, label: 'Волгово (Губаницы)', spellings: ['Волгово', 'Волково'] },
-    { value: 3, label: 'Вохново (Губаницы)', spellings: ['Вохново', 'Волково'] },
-  ],
-  'Not linked to a locality',
-);
+const lookup = lookupOf([
+  { value: 1, label: 'Горки (Губаницы)', spellings: ['Горки', 'Горка'] },
+  { value: 2, label: 'Волгово (Губаницы)', spellings: ['Волгово', 'Волково'] },
+  { value: 3, label: 'Вохново (Губаницы)', spellings: ['Вохново', 'Волково'] },
+]);
 
-function renderField(text: string | null = null, id: number | null = null) {
+// The same, where a locality not known yet can be added by its Russian name.
+const lookupWithCreate = lookupOf(lookup.options, {
+  label: 'Add as a new locality',
+  fields: (prefix, text) => <input name={`${prefix}.nameRu`} value={text} />,
+});
+
+function renderField(text: string | null = null, id: number | null = null, create = false) {
   render(() => (
     <form>
       <LookupField
@@ -26,7 +29,7 @@ function renderField(text: string | null = null, id: number | null = null) {
         label="Locality"
         text={text}
         id={id}
-        lookup={lookup}
+        lookup={create ? lookupWithCreate : lookup}
         invalid={() => undefined}
       />
     </form>
@@ -81,7 +84,6 @@ describe('LookupField', () => {
         expect(input).toHaveValue('Волково');
         expect(id()).toBe('3');
         expect(screen.queryByRole('listbox')).toBeNull();
-        expect(input.closest('.fieldset')).toHaveTextContent('→ Вохново (Губаницы)');
       },
       { scenario: 'lookup-keys' },
     );
@@ -136,5 +138,58 @@ describe('LookupField', () => {
     fireEvent.input(input, { target: { value: 'горкк' } });
     flush();
     expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  test('a shared spelling opens a choice; a value naming no row shows the fields to add it', async () => {
+    const { input, id } = renderField(null, null, true);
+    const { artifact } = await captureArtifact(
+      async () => {
+        // Nothing under the field while the value names one row or none yet.
+        fireEvent.input(input, { target: { value: 'Горка' } });
+        flush();
+        expect(id()).toBe('1');
+        expect(screen.queryByRole('combobox', { name: /Several/ })).toBeNull();
+        expect(screen.queryByText('Add as a new locality')).toBeNull();
+        // Nor while the dropdown still has rows for what is typed so far.
+        fireEvent.input(input, { target: { value: 'Го' } });
+        flush();
+        expect(id()).toBe('');
+        expect(screen.getByRole('listbox')).toBeInTheDocument();
+        expect(screen.queryByText('Add as a new locality')).toBeNull();
+
+        // Two rows share the spelling: a choice among them, none chosen.
+        fireEvent.input(input, { target: { value: 'Волково' } });
+        flush();
+        expect(id()).toBe('');
+        const choice = screen.getByRole('combobox', {
+          name: 'Several match this spelling: choose one',
+        }) as HTMLInputElement | HTMLSelectElement as HTMLSelectElement;
+        expect([...choice.options].map((o) => o.text)).toEqual([
+          'Several match this spelling: choose one',
+          'Волгово (Губаницы)',
+          'Вохново (Губаницы)',
+        ]);
+        fireEvent.change(choice, { target: { value: '2' } });
+        flush();
+        expect(id()).toBe('2');
+        expect(screen.queryByRole('combobox', { name: /Several/ })).toBeNull();
+
+        // No row has the spelling: the fields to add one, prefilled, and
+        // the flag asking for it; back to a known spelling, they go.
+        fireEvent.input(input, { target: { value: 'Новая' } });
+        flush();
+        expect(id()).toBe('');
+        expect(screen.getByText('Add as a new locality')).toBeInTheDocument();
+        expect(document.querySelector('[name="placeCreate"]')).toHaveValue('on');
+        expect(document.querySelector('[name="placeNew.nameRu"]')).toHaveValue('Новая');
+        fireEvent.input(input, { target: { value: 'Горки' } });
+        flush();
+        expect(id()).toBe('1');
+        expect(screen.queryByText('Add as a new locality')).toBeNull();
+        expect(document.querySelector('[name="placeCreate"]')).toBeNull();
+      },
+      { scenario: 'lookup-choice-and-create' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
   });
 });

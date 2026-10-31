@@ -3,7 +3,7 @@ import { Show, createMemo } from 'solid-js';
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
-import { localName, parishInUse } from '~/lib/format';
+import { localName, parishInUse, placeLabel } from '~/lib/format';
 import {
   DeleteSection,
   FormActions,
@@ -61,10 +61,9 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
       lookupOf(
         (places() ?? []).map((p) => ({
           value: p.id,
-          label: p.parish && p.parish !== p.name ? `${p.name} (${p.parish})` : p.name,
+          label: placeLabel(p),
           spellings: p.spellings,
         })),
-        m.lookup_place_unlinked(),
         {
           label: m.lookup_create_place(),
           fields: (prefix, text) => (
@@ -74,7 +73,8 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
       ),
     { name: 'parish-church-lookup' },
   );
-  const churchName = (id: number | null) => (places() ?? []).find((p) => p.id === id)?.name ?? null;
+  const churchName = (id: number | null) =>
+    localName((places() ?? []).find((p) => p.id === id)?.name ?? null) || null;
   // A save lands on the parishes list with a toast, naming the parish as
   // saved (a rename shows the new name).
   const toast = useToast();

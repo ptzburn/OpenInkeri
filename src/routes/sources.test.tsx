@@ -53,7 +53,7 @@ vi.mock('~/data/session', () => ({
 }));
 vi.mock('~/data/parishes', () => ({
   getParishOptions: vi.fn(async () => [
-    { id: 5, name: 'Губаницы', spellings: ['Губаницы', 'Hevaa'] },
+    { id: 5, name: { ru: 'Губаницы', fi: 'Hevaa' }, spellings: ['Губаницы', 'Hevaa'] },
   ]),
 }));
 vi.mock('~/data/sources', async () => {
@@ -203,14 +203,10 @@ describe('/sources', () => {
     // Either name links the parish.
     fireEvent.input(field('parishText')!, { target: { value: 'Hevaa' } });
     await waitFor(() => expect(field('parishId')).toHaveValue('5'));
-    expect(field('parishText')!.closest('.fieldset')).toHaveTextContent('→ Губаницы');
-    // A parish no name matches is offered to be added, with its church.
+    // A parish no name matches: its fields appear, to add it with its church.
     fireEvent.input(field('parishText')!, { target: { value: 'Туутари' } });
     await waitFor(() => expect(field('parishId')).toHaveValue(''));
-    expect(field('parishText')!.closest('.fieldset')).toHaveTextContent(
-      '“Туутари” is not known yet. Open to add it.',
-    );
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Add as a new parish' }));
+    expect(screen.getByText('Add as a new parish')).toBeInTheDocument();
     expect(field('parishNew.nameRu')).toHaveValue('Туутари');
     fireEvent.input(field('parishNew.nameFi')!, { target: { value: 'Tuutari' } });
     expect(
@@ -236,7 +232,7 @@ describe('/sources', () => {
     await waitFor(() => expect(field('title')).toBeTruthy());
     expect(screen.queryByRole('button', { name: 'Save and add records' })).toBeNull();
     // Its parish shows by name, linked.
-    expect(field('parishText')).toHaveValue('Губаницы');
+    expect(field('parishText')).toHaveValue('Hevaa'); // English shows the Finnish name
     expect(field('parishId')).toHaveValue('5');
   });
 

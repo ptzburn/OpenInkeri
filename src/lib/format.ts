@@ -95,6 +95,19 @@ export function localName(names: { ru: string | null; fi: string | null } | null
   return (ru ? (names.ru ?? names.fi) : (names.fi ?? names.ru)) ?? '';
 }
 
+/** A row's names in both languages, as the option lists carry them. */
+export type Names = { ru: string; fi: string | null };
+
+/**
+ * A locality as a form's choice: its name in the reader's language, with
+ * its parish's when that isn't the same name ("Горки (Губаницы)").
+ */
+export function placeLabel(place: { name: Names; parish: Names | null }): string {
+  const name = localName(place.name);
+  const parish = place.parish ? localName(place.parish) : null;
+  return parish && parish !== name ? `${name} (${parish})` : name;
+}
+
 /** A term (a vocabulary's value) in the reader's language, or in Russian when it has no translation. */
 export function localTerm(
   term: { ru: string; fi: string | null; en: string | null } | null,

@@ -2,6 +2,7 @@ import { For, Show, createMemo } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
+import { localName } from '~/lib/format';
 import {
   DeleteSection,
   FieldError,
@@ -66,8 +67,11 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
   const parishLookup = createMemo(
     (): Lookup =>
       lookupOf(
-        (parishes() ?? []).map((p) => ({ value: p.id, label: p.name, spellings: p.spellings })),
-        m.lookup_parish_unlinked(),
+        (parishes() ?? []).map((p) => ({
+          value: p.id,
+          label: localName(p.name),
+          spellings: p.spellings,
+        })),
         {
           label: m.lookup_create_parish(),
           fields: (prefix, text) => (
@@ -78,7 +82,7 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
     { name: 'source-parish-lookup' },
   );
   const parishName = (id: number | null) =>
-    (parishes() ?? []).find((p) => p.id === id)?.name ?? null;
+    localName((parishes() ?? []).find((p) => p.id === id)?.name ?? null) || null;
   // A save lands on the sources list with a toast, naming the source as
   // saved (a new title shows).
   const toast = useToast();

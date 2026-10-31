@@ -7,7 +7,7 @@ import { redirect } from '@solidjs/web';
 import { and, count, eq, isNotNull } from 'drizzle-orm';
 import * as v from 'valibot';
 
-import { parishInUse } from '~/lib/format';
+import { type Names, parishInUse } from '~/lib/format';
 import { rowsSpelled, spellingIndex } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -49,7 +49,7 @@ export interface ParishRow {
 
 export interface ParishOption {
   id: number;
-  name: string;
+  name: Names;
   /** Its names in both languages, for a lookup field to link a parish as typed. */
   spellings: string[];
 }
@@ -105,7 +105,7 @@ export const getParishOptions = query(async (): Promise<ParishOption[]> => {
   });
   return parishes.map((p) => ({
     id: p.id,
-    name: p.nameRu,
+    name: { ru: p.nameRu, fi: p.nameFi },
     spellings: p.nameFi ? [p.nameRu, p.nameFi] : [p.nameRu],
   }));
 }, 'parish-options');

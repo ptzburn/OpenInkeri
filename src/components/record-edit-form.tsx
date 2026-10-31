@@ -24,7 +24,13 @@ import {
   recordStatusLabels,
   sexLabels,
 } from '~/components/labels';
-import { PARTIAL_DATE_PATTERN, formatPartialDate, localName } from '~/lib/format';
+import {
+  PARTIAL_DATE_PATTERN,
+  formatPartialDate,
+  localName,
+  localTerm,
+  placeLabel,
+} from '~/lib/format';
 import {
   type RecordEditData,
   type RecordEditPerson,
@@ -189,13 +195,9 @@ export default function RecordEditForm(props: {
       lookupOf(
         (options()?.places ?? []).map((place) => ({
           value: place.id,
-          label:
-            place.parish && place.parish !== place.name
-              ? `${place.name} (${place.parish})`
-              : place.name,
+          label: placeLabel(place),
           spellings: place.spellings,
         })),
-        m.lookup_place_unlinked(),
         {
           label: m.lookup_create_place(),
           fields: (prefix, text) => (
@@ -217,10 +219,9 @@ export default function RecordEditForm(props: {
       lookupOf(
         (options()?.relations ?? []).map((t) => ({
           value: t.id,
-          label: t.name,
+          label: localTerm(t.name),
           spellings: t.spellings,
         })),
-        m.lookup_relation_unlinked(),
         {
           label: m.lookup_create_relation(),
           fields: (prefix, text) => (
@@ -235,10 +236,9 @@ export default function RecordEditForm(props: {
       lookupOf(
         (options()?.clergy ?? []).map((c) => ({
           value: c.id,
-          label: c.name,
+          label: localName(c.name),
           spellings: c.spellings,
         })),
-        m.lookup_clergy_unlinked(),
         {
           label: m.lookup_create_clergy(),
           fields: (prefix, text) => (

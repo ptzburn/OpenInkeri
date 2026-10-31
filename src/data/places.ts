@@ -18,7 +18,7 @@ import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
 import { parseCoordinates } from '~/lib/coordinates';
-import { placeInUse } from '~/lib/format';
+import { type Names, placeInUse } from '~/lib/format';
 import {
   type CoordinateStatus,
   type PlaceKind,
@@ -108,9 +108,9 @@ export interface PlaceEditData {
 
 export interface PlaceOption {
   id: number;
-  name: string;
+  name: Names;
   parishId: number | null;
-  parish: string | null;
+  parish: Names | null;
   /** Its names and the spellings records use for it, for a lookup field to link a locality as typed. */
   spellings: string[];
 }
@@ -231,23 +231,23 @@ export const getPlaceEdit = query(async (id: number): Promise<PlaceEditData | nu
   return { ...rest, spellings: aliases.map((a) => a.name), ...uses };
 }, 'place-edit');
 
-/** Every place, by Russian name, with its parish: a form's choices of locality. */
+/** Every place, by both names, with its parish: a form's choices of locality. */
 export const getPlaceOptions = query(async (): Promise<PlaceOption[]> => {
   'use server';
   adminOnly();
   const places = await db.query.place.findMany({
     columns: { id: true, nameRu: true, nameFi: true, parishId: true },
     with: {
-      parish: { columns: { nameRu: true } },
+      parish: { columns: { nameRu: true, nameFi: true } },
       aliases: { columns: { name: true } },
     },
     orderBy: { nameRu: 'asc' },
   });
   return places.map((p) => ({
     id: p.id,
-    name: p.nameRu,
+    name: { ru: p.nameRu, fi: p.nameFi },
     parishId: p.parishId,
-    parish: p.parish?.nameRu ?? null,
+    parish: p.parish ? { ru: p.parish.nameRu, fi: p.parish.nameFi } : null,
     spellings: [
       ...new Set([p.nameRu, ...(p.nameFi ? [p.nameFi] : []), ...p.aliases.map((a) => a.name)]),
     ],

@@ -81,8 +81,11 @@ export default function PlaceEditForm(props: {
   const parishLookup = createMemo(
     (): Lookup =>
       lookupOf(
-        (parishes() ?? []).map((p) => ({ value: p.id, label: p.name, spellings: p.spellings })),
-        m.lookup_parish_unlinked(),
+        (parishes() ?? []).map((p) => ({
+          value: p.id,
+          label: localName(p.name),
+          spellings: p.spellings,
+        })),
         {
           label: m.lookup_create_parish(),
           fields: (prefix, text) => (
@@ -93,7 +96,7 @@ export default function PlaceEditForm(props: {
     { name: 'place-parish-lookup' },
   );
   const parishName = (id: number | null) =>
-    (parishes() ?? []).find((p) => p.id === id)?.name ?? null;
+    localName((parishes() ?? []).find((p) => p.id === id)?.name ?? null) || null;
   // A save lands on the localities list with a toast, naming the place as
   // saved (a rename shows the new name).
   const toast = useToast();

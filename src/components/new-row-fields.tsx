@@ -1,20 +1,21 @@
 import type { JSX } from '@solidjs/web';
 import { Show } from 'solid-js';
 
-import { type Fault, Select, TextInput } from '~/components/form-fields';
+import { type Fault, FieldError, Select, TextInput } from '~/components/form-fields';
 import { placeKindLabels } from '~/components/labels';
 import { FIELD_MAX } from '~/lib/field-limits';
+import { type Names, localName } from '~/lib/format';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import { type PlaceKind, placeKinds } from '~/lib/place-kinds';
 import { m } from '~/paraglide/messages.js';
 
-// The fields of a row a lookup field offers to add (LookupCreate in
+// The fields of a row a lookup field adds (LookupCreate in
 // ./lookup-field.tsx), named "<prefix>.<column>" as src/server/linked-rows.ts
-// reads them. They are prefilled from the value as written: as the Russian
-// name when it is in Cyrillic, as the Finnish one when in Latin letters. The
-// fields have no `required` or `pattern`: they are hidden until their box is
-// ticked, and a hidden invalid field would stop the form from submitting.
-// The server checks them (russianName, finnishName).
+// reads them. The value as written is one of the row's names already: the
+// Russian one when it is in Cyrillic, the Finnish one when in Latin letters.
+// It is posted as that name, hidden, and only the other name is asked for:
+// the Finnish, optional, or the Russian, which every row must have. The
+// server checks them (russianName, finnishName).
 
 interface NewRowProps {
   prefix: string;
@@ -26,26 +27,51 @@ interface NewRowProps {
 const inCyrillic = (text: string) => matchesPattern(CYRILLIC_NAME_PATTERN, text);
 const inLatin = (text: string) => matchesPattern(LATIN_NAME_PATTERN, text);
 
-// A row's names in both alphabets, the value as written in its own.
-function NameInputs(props: NewRowProps & { english?: boolean }) {
+// A row's names: the value as written as the one in its own alphabet,
+// hidden, and the other one to type. A value in neither alphabet (digits,
+// say) shows both, for the server's refusal to land somewhere visible.
+function NameInputs(props: NewRowProps) {
+  const russian = () => inCyrillic(props.text);
+  const finnish = () => !russian() && inLatin(props.text);
   return (
     <>
-      <TextInput
-        name={`${props.prefix}.nameRu`}
-        label={m.form_name_ru()}
-        value={inCyrillic(props.text) ? props.text : null}
-        hint={m.form_name_ru_hint()}
-        maxlength={FIELD_MAX.line}
-        invalid={props.invalid(`${props.prefix}.nameRu`)}
-      />
-      <TextInput
-        name={`${props.prefix}.nameFi`}
-        label={m.form_name_fi()}
-        value={inLatin(props.text) ? props.text : null}
-        hint={m.form_name_fi_hint()}
-        maxlength={FIELD_MAX.line}
-        invalid={props.invalid(`${props.prefix}.nameFi`)}
-      />
+      <Show
+        when={!russian()}
+        fallback={
+          <>
+            <input type="hidden" name={`${props.prefix}.nameRu`} value={props.text} />
+            <FieldError fault={props.invalid(`${props.prefix}.nameRu`)} />
+          </>
+        }
+      >
+        <TextInput
+          name={`${props.prefix}.nameRu`}
+          label={m.form_name_ru()}
+          value={null}
+          required
+          hint={m.form_name_ru_hint()}
+          maxlength={FIELD_MAX.line}
+          invalid={props.invalid(`${props.prefix}.nameRu`)}
+        />
+      </Show>
+      <Show
+        when={!finnish()}
+        fallback={
+          <>
+            <input type="hidden" name={`${props.prefix}.nameFi`} value={props.text} />
+            <FieldError fault={props.invalid(`${props.prefix}.nameFi`)} />
+          </>
+        }
+      >
+        <TextInput
+          name={`${props.prefix}.nameFi`}
+          label={m.form_name_fi()}
+          value={null}
+          hint={m.form_name_fi_hint()}
+          maxlength={FIELD_MAX.line}
+          invalid={props.invalid(`${props.prefix}.nameFi`)}
+        />
+      </Show>
     </>
   );
 }
@@ -67,7 +93,7 @@ function Fields(props: { children: JSX.Element }) {
 export function NewPlaceFields(
   props: NewRowProps & {
     kind?: PlaceKind;
-    parishes?: { id: number; name: string }[];
+    parishes?: { id: number; name: Names }[];
     parishId?: number | null;
   },
 ) {
@@ -88,7 +114,7 @@ export function NewPlaceFields(
             label={m.place_edit_parish()}
             value={props.parishId}
             none={m.form_none()}
-            options={parishes().map((p) => ({ value: p.id, label: p.name }))}
+            options={parishes().map((p) => ({ value: p.id, label: localName(p.name) }))}
             invalid={props.invalid(`${props.prefix}.parishId`)}
           />
         )}
