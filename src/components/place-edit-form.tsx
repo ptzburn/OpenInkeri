@@ -167,8 +167,10 @@ export default function PlaceEditForm(props: {
         const [open, setOpen] = createSignal(false, { name: 'place-sheet-open' });
         return (
           // The map is the page, filling the box under the header, with the
-          // form a panel over its left side from lg up, scrolling inside
-          // itself, Cancel and Save at its bottom; a sheet below lg.
+          // form a sheet along its left edge from lg up, against the
+          // sidebar, the map showing through; it scrolls inside itself,
+          // Cancel and Save at its bottom, their line level with the
+          // sidebar's account corner. A sheet at the bottom below lg.
           <div class="absolute inset-0">
             <LocationPicker
               class="absolute inset-0 h-full"
@@ -183,10 +185,10 @@ export default function PlaceEditForm(props: {
             />
             <section
               class={[
-                'absolute z-1 flex flex-col overflow-hidden border-base-300 bg-base-100 shadow-xl',
-                'max-lg:inset-x-0 max-lg:bottom-0 max-lg:rounded-t-box max-lg:border-t max-lg:transition-[height] max-lg:duration-300 max-lg:ease-out',
+                'absolute z-1 flex flex-col overflow-hidden border-base-300 bg-base-100/90 backdrop-blur-md',
+                'max-lg:inset-x-0 max-lg:bottom-0 max-lg:rounded-t-box max-lg:border-t max-lg:shadow-xl max-lg:transition-[height] max-lg:duration-300 max-lg:ease-out',
                 open() ? 'max-lg:h-[88%]' : 'max-lg:h-2/5',
-                'lg:top-4 lg:bottom-4 lg:left-4 lg:w-md lg:rounded-box lg:border',
+                'lg:inset-y-0 lg:left-0 lg:w-md lg:border-r',
               ]}
               aria-labelledby="place-form-title"
               onFocusIn={() => setOpen(true)}
