@@ -1,7 +1,8 @@
-import { Errored, For, Show, createMemo, createSignal, isPending, onSettled } from 'solid-js';
+import { Errored, For, Show, createMemo, createSignal, isPending } from 'solid-js';
 import SearchIcon from '~icons/ri/search-line';
 
 import { createCombobox } from '~/components/combobox';
+import { createDebounced } from '~/components/debounce';
 import { gazetteerKindLabels } from '~/components/labels';
 import { getGazetteerHits, getMapHits } from '~/data/gazetteer';
 import type { GazetteerHit } from '~/lib/gazetteer';
@@ -30,8 +31,8 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
   const [mapSearch, setMapSearch] = createSignal<string | null>(null, {
     name: 'place-search-map',
   });
-  let typing: ReturnType<typeof setTimeout> | undefined;
-  onSettled(() => () => clearTimeout(typing));
+  // Once typing pauses.
+  const typing = createDebounced(setSearch);
 
   // The hits start as none, settled, so a search on its way leaves the last
   // list up (marked stale) instead of a fallback; the whole map's hits the
@@ -85,8 +86,7 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
     setText(value);
     setMapSearch(null);
     box.typed();
-    clearTimeout(typing);
-    typing = setTimeout(() => setSearch(value), 300);
+    typing.call(value);
   };
 
   // The spelling the search matched, when it is neither of the hit's names.

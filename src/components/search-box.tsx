@@ -1,6 +1,8 @@
 import type { JSX } from '@solidjs/web';
-import { createEffect, onSettled, untrack } from 'solid-js';
+import { createEffect, untrack } from 'solid-js';
 import SearchIcon from '~icons/ri/search-line';
+
+import { createDebounced } from '~/components/debounce';
 
 /**
  * A list's search box, searching as you type: `onSearch` gets the text once
@@ -22,14 +24,9 @@ export default function SearchBox(props: {
   inputClass?: string;
   children?: JSX.Element;
 }) {
-  let typing: ReturnType<typeof setTimeout> | undefined;
-  const search = (value: string) => {
-    clearTimeout(typing);
-    props.onSearch(value);
-  };
-  // A search still waiting when the page goes must not fire: it would put
-  // ?q= on whatever page came next.
-  onSettled(() => () => clearTimeout(typing));
+  // Once typing pauses (a search still waiting when the page goes is
+  // dropped: it would put ?q= on whatever page came next).
+  const typing = createDebounced((value: string) => props.onSearch(value));
 
   // The input is not bound to the URL: the URL catches up only once a
   // search's results arrive, and a bound value would then rewind whatever
@@ -53,7 +50,8 @@ export default function SearchBox(props: {
       class={props.class}
       onSubmit={(event) => {
         event.preventDefault();
-        search(new FormData(event.currentTarget).get('q') as string);
+        typing.cancel();
+        props.onSearch(new FormData(event.currentTarget).get('q') as string);
       }}
     >
       <label class={['input w-full', props.inputClass]}>
@@ -65,11 +63,7 @@ export default function SearchBox(props: {
           value={initial}
           placeholder={props.placeholder}
           aria-label={props.label}
-          onInput={(event) => {
-            const value = event.currentTarget.value;
-            clearTimeout(typing);
-            typing = setTimeout(() => search(value), 300);
-          }}
+          onInput={(event) => typing.call(event.currentTarget.value)}
         />
       </label>
       {props.children}
