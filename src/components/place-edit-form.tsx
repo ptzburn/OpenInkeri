@@ -165,6 +165,13 @@ export default function PlaceEditForm(props: {
           const found = (markers() ?? []).find((n) => n.church?.id === parishId());
           return found ? { lat: found.latitude, lng: found.longitude } : null;
         };
+        // The save bar: kept in view at the bottom of the window while
+        // scrolling, over the pinned map; where nothing follows the form (a
+        // new locality) it reaches the page's bottom edge.
+        const barClass = [
+          'sticky bottom-0 z-10 -mx-4 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8',
+          p.id ? '' : '-mb-4 lg:-mb-8',
+        ].join(' ');
         return (
           <>
             {/* While a save is in flight the router marks the form aria-busy. */}
@@ -178,7 +185,7 @@ export default function PlaceEditForm(props: {
                   left, the map on the right, pinned under the header while
                   the fields scroll, with the coordinates it sets beneath it.
                   Below lg the map follows the search, above the fields. */}
-              <div class="grid gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
+              <div class="grid gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start">
                 <PlaceSearch onPick={fill} />
                 <div class="flex flex-col gap-2 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
                   <LocationPicker
@@ -253,7 +260,7 @@ export default function PlaceEditForm(props: {
                     />
                   </div>
                 </div>
-                <div class="grid gap-x-4 sm:grid-cols-2 lg:col-start-1">
+                <div class="grid content-start gap-x-4 sm:grid-cols-2 lg:col-start-1">
                   <TextInput
                     name="nameRu"
                     label={m.form_name_ru()}
@@ -314,13 +321,7 @@ export default function PlaceEditForm(props: {
                 </div>
               </div>
 
-              {/* Kept in view at the bottom of the window while scrolling,
-                  over the pinned map. */}
-              <FormActions
-                error={error()}
-                cancelHref={props.cancelHref}
-                class="sticky bottom-0 z-10 -mx-4 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8"
-              />
+              <FormActions error={error()} cancelHref={props.cancelHref} class={barClass} />
             </form>
             <Show when={p.id}>
               <DeleteSection
