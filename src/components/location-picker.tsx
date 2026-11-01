@@ -128,38 +128,33 @@ export default function LocationPicker(props: {
       const next = styleFor();
       if (next !== style) created?.setStyle((style = next));
     };
-    void import('maplibre-gl').then(
-      ({ AttributionControl, Map, Marker, NavigationControl, setWorkerUrl }) => {
-        if (disposed || !container) return;
-        setWorkerUrl(workerUrl);
-        const at = coordinates();
-        const focus = untrack(() => props.focus);
-        const start = at ?? focus;
-        created = new Map({
-          container,
-          style,
-          center: start ? [start.lng, start.lat] : INGRIA.center,
-          zoom: at ? PLACE_ZOOM : focus ? PARISH_ZOOM : INGRIA.zoom,
-          attributionControl: false,
-        });
-        // Top right, under the zoom buttons: the form's panel (or sheet)
-        // covers the other corners.
-        created.addControl(new NavigationControl({ showCompass: false }), 'top-right');
-        created.addControl(new AttributionControl({ compact: true }), 'top-right');
-        // The dots go on with each style, the theme switch's included.
-        const withPlaces = created;
-        withPlaces.on('style.load', () => addPlaces(withPlaces, places));
-        created.on('click', (event) => pick(round(event.lngLat.lat), round(event.lngLat.lng)));
-        const pin = new Marker({ draggable: true });
-        pin.on('dragend', () => {
-          const { lat, lng } = pin.getLngLat();
-          pick(round(lat), round(lng));
-        });
-        marker = pin;
-        document.addEventListener('change', restyle);
-        setMap(created);
-      },
-    );
+    void import('maplibre-gl').then(({ Map, Marker, NavigationControl, setWorkerUrl }) => {
+      if (disposed || !container) return;
+      setWorkerUrl(workerUrl);
+      const at = coordinates();
+      const focus = untrack(() => props.focus);
+      const start = at ?? focus;
+      created = new Map({
+        container,
+        style,
+        center: start ? [start.lng, start.lat] : INGRIA.center,
+        zoom: at ? PLACE_ZOOM : focus ? PARISH_ZOOM : INGRIA.zoom,
+        attributionControl: { compact: true },
+      });
+      created.addControl(new NavigationControl({ showCompass: false }), 'top-right');
+      // The dots go on with each style, the theme switch's included.
+      const withPlaces = created;
+      withPlaces.on('style.load', () => addPlaces(withPlaces, places));
+      created.on('click', (event) => pick(round(event.lngLat.lat), round(event.lngLat.lng)));
+      const pin = new Marker({ draggable: true });
+      pin.on('dragend', () => {
+        const { lat, lng } = pin.getLngLat();
+        pick(round(lat), round(lng));
+      });
+      marker = pin;
+      document.addEventListener('change', restyle);
+      setMap(created);
+    });
     return () => {
       disposed = true;
       document.removeEventListener('change', restyle);

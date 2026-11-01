@@ -42,3 +42,16 @@ form[aria-busy] button {
     overscroll-behavior-y: none;
   }
 }
+
+/* The locality form's map on a small screen: the search floats at the top
+   of the map and the form is a sheet over its bottom, so the attribution
+   moves up under the search, and the zoom buttons go (pinch, or double-tap). */
+@media (width < 64rem) {
+  .place-map .maplibregl-ctrl-top-right {
+    display: none;
+  }
+  .place-map .maplibregl-ctrl-bottom-right {
+    top: 4rem;
+    bottom: auto;
+  }
+}
