@@ -5,7 +5,7 @@ import AddIcon from '~icons/ri/user-add-line';
 import LinkIcon from '~icons/ri/link';
 
 import type { QueryData } from '~/lib/query-data';
-import EditPage from '~/components/edit-page';
+import EditPage, { BackLink } from '~/components/edit-page';
 import { useFormErrors } from '~/components/form-fields';
 import { personaRoleLabels, recordKindLabels } from '~/components/labels';
 import PeopleTable from '~/components/people-table';
@@ -47,7 +47,8 @@ export default function LinkMention(props: RouteProps<'/people/link/:persona'>) 
   };
 
   return (
-    <EditPage title={m.link_title()} backHref={backHref()} backLabel={m.link_back()}>
+    <EditPage title={m.link_title()}>
+      <BackLink href={backHref()} label={m.link_back()} />
       <Show when={data()} fallback={<p>{m.person_link_missing()}</p>}>
         {(d) => (
           <div class="flex max-w-4xl flex-col gap-6">
