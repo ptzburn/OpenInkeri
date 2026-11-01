@@ -240,12 +240,13 @@ export const getPlaceEdit = query(async (id: number): Promise<PlaceEditData | nu
   return { ...rest, spellings: aliases.map((a) => a.name), ...uses };
 }, 'place-edit');
 
-/** A located place as the locality form's map shows it, with the parish whose church stands there, when one does. */
+/** A located place as the locality form's map shows it: its parish, and the parish whose church stands there, when one does. */
 export interface PlaceMarker {
   id: number;
   name: Names;
   latitude: number;
   longitude: number;
+  parish: Names | null;
   church: { id: number; name: Names } | null;
 }
 
@@ -255,20 +256,32 @@ export const getPlaceMarkers = query(async (): Promise<PlaceMarker[]> => {
   adminOnly();
   const [places, parishes] = await Promise.all([
     db.query.place.findMany({
-      columns: { id: true, nameRu: true, nameFi: true, latitude: true, longitude: true },
+      columns: {
+        id: true,
+        nameRu: true,
+        nameFi: true,
+        latitude: true,
+        longitude: true,
+        parishId: true,
+      },
       where: { latitude: { isNotNull: true as const }, longitude: { isNotNull: true as const } },
     }),
     db.query.parish.findMany({
       columns: { id: true, nameRu: true, nameFi: true, churchPlaceId: true },
-      where: { churchPlaceId: { isNotNull: true as const } },
     }),
   ]);
-  const churchOf = new Map(parishes.map((p) => [p.churchPlaceId!, { id: p.id, name: namesOf(p) }]));
+  const parishNames = new Map(parishes.map((p) => [p.id, namesOf(p)]));
+  const churchOf = new Map(
+    parishes
+      .filter((p) => p.churchPlaceId !== null)
+      .map((p) => [p.churchPlaceId!, { id: p.id, name: namesOf(p) }]),
+  );
   return places.map((p) => ({
     id: p.id,
     name: namesOf(p),
     latitude: p.latitude!,
     longitude: p.longitude!,
+    parish: (p.parishId !== null && parishNames.get(p.parishId)) || null,
     church: churchOf.get(p.id) ?? null,
   }));
 }, 'place-markers');

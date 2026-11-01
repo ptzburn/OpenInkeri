@@ -55,3 +55,26 @@ form[aria-busy] button {
     bottom: auto;
   }
 }
+
+/* The locality form's map names a dot pointed at in a popup: in the app's
+   colours, light or dark, with its tip to match whichever way it opens. */
+.place-map .maplibregl-popup-content {
+  padding: 0.4rem 0.6rem;
+  border-radius: var(--radius-box);
+  background: var(--color-base-100);
+  color: var(--color-base-content);
+  font: inherit;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.2);
+}
+.place-map .maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: var(--color-base-100);
+}
+.place-map .maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: var(--color-base-100);
+}
+.place-map .maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--color-base-100);
+}
+.place-map .maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--color-base-100);
+}

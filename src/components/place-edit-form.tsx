@@ -262,7 +262,9 @@ export default function PlaceEditForm(props: {
                       the marker: without coordinates the place counts as not
                       located (the server does the same). */}
                     <div class="flex flex-col gap-1 text-sm">
-                      <p class="text-xs text-base-content/60">{m.place_edit_map_hint()}</p>
+                      <p class="text-xs text-base-content/60">
+                        {m.place_edit_map_hint()} {m.place_edit_map_legend()}
+                      </p>
                       <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
                         <Show
                           when={parseCoordinates(coordinates())}
