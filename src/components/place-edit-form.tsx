@@ -3,6 +3,7 @@ import { Show, createMemo, createSignal } from 'solid-js';
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { localName, namesOf, placeInUse } from '~/lib/format';
+import { foldForSearch } from '~/lib/search-text';
 import {
   DeleteSection,
   FormActions,
@@ -135,6 +136,35 @@ export default function PlaceEditForm(props: {
           p.id ? p.parishId : Number(props.returnTo.parish) || null,
           { name: 'place-parish-id' },
         );
+        // The parish as typed and the one linked, as the field reports them:
+        // the field starts from parishId (and follows a settlement picked),
+        // and what it links from then on is known here, apart, so the field's
+        // own props stay as they are while it is typed in.
+        const [parishTyped, setParishTyped] = createSignal('', { name: 'place-parish-typed' });
+        const [parishLinked, setParishLinked] = createSignal(() => parishId(), {
+          name: 'place-parish-linked',
+        });
+        const parishOption = () => parishes()?.find((o) => o.id === parishLinked()) ?? null;
+        // Whether the parish church stands in this locality. Starting from
+        // the parish: it does when the parish says so; a parish typed anew
+        // is named after its church village as a rule, so a parish named
+        // like the locality starts ticked. A tick stands until the parish
+        // changes.
+        const churchHere = () => {
+          const option = parishOption();
+          if (option) return option.church?.id === p.id;
+          const typed = foldForSearch(parishTyped());
+          return (
+            !!typed &&
+            (typed === foldForSearch(nameRu()) || typed === foldForSearch(nameFi() ?? ''))
+          );
+        };
+        const [isChurch, setIsChurch] = createSignal(() => churchHere(), { name: 'place-church' });
+        // Where the chosen parish's church stands, when elsewhere.
+        const churchElsewhere = () => {
+          const at = parishOption()?.church;
+          return at && at.id !== p.id ? localName(at.name) : undefined;
+        };
         const [coordinates, setCoordinates] = createSignal(
           formatCoordinates(p.latitude, p.longitude),
           { name: 'place-coordinates' },
@@ -300,7 +330,35 @@ export default function PlaceEditForm(props: {
                         lookup={parishChoices()}
                         invalid={invalid}
                         class="sm:col-span-2"
+                        onChange={({ text, id }) => {
+                          setParishTyped(text);
+                          setParishLinked(id);
+                        }}
                       />
+                      {/* Once a parish is chosen or typed: whether its church
+                          stands here (the save sets or unsets the parish's
+                          church), and where it stands when elsewhere. */}
+                      <Show when={parishLinked() !== null || parishTyped().trim()}>
+                        <div class="flex flex-col gap-1 sm:col-span-2">
+                          <label class="label cursor-pointer gap-2">
+                            <input
+                              type="checkbox"
+                              name="church"
+                              checked={isChurch()}
+                              class="checkbox checkbox-sm"
+                              onChange={(event) => setIsChurch(event.currentTarget.checked)}
+                            />
+                            {m.place_edit_church()}
+                          </label>
+                          <Show when={churchElsewhere()}>
+                            {(name) => (
+                              <p class="text-xs text-base-content/60">
+                                {m.place_edit_church_elsewhere({ name: name() })}
+                              </p>
+                            )}
+                          </Show>
+                        </div>
+                      </Show>
                       {/* The spellings the sources use come with the records
                         that name the locality: a new one has none to edit. */}
                       <Show when={p.id}>

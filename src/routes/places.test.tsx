@@ -113,7 +113,12 @@ vi.mock('~/data/parishes', async () => {
       { id: 6, nameRu: 'Курляндия', nameFi: null, note: 'Не приход', villages: 0, sources: 0 },
     ]),
     getParishOptions: vi.fn(async () => [
-      { id: 5, name: { ru: 'Губаницы', fi: 'Hevaa' }, spellings: ['Губаницы', 'Hevaa'] },
+      {
+        id: 5,
+        name: { ru: 'Губаницы', fi: 'Hevaa' },
+        spellings: ['Губаницы', 'Hevaa'],
+        church: { id: 1, name: { ru: 'Горки', fi: 'Gorkka' } },
+      },
     ]),
     getParishEdit: vi.fn(async (id: number) =>
       id === 5
@@ -331,6 +336,16 @@ describe('editing a village', () => {
     expect(field('coordinates')).toHaveValue('59.613487, 30.22519');
     expect(field('coordinateStatus')).toHaveValue('approximate');
     expect(field('spellings')).toHaveValue('Бедная Горка\nГорки');
+    // The parish church stands here, the parish says.
+    expect(screen.getByRole('checkbox', { name: 'The parish church stands here' })).toBeChecked();
+  });
+
+  test('unticking the church box posts no church, so the save unsets it', async () => {
+    const form = await openGorki();
+    fireEvent.click(screen.getByRole('checkbox', { name: 'The parish church stands here' }));
+    fireEvent.submit(form);
+    await waitFor(() => expect(places.saved).toHaveLength(1));
+    expect(places.saved[0].get('church')).toBeNull();
   });
 
   test('saves with the version it was loaded at, then returns to the list', async () => {
@@ -685,6 +700,10 @@ describe('/places/parishes', () => {
     // Either name links the parish.
     fireEvent.input(field('parishText'), { target: { value: 'Hevaa' } });
     await waitFor(() => expect(field('parishId')).toHaveValue('5'));
+    // Its church stands elsewhere (English shows the Finnish name).
+    const church = screen.getByRole('checkbox', { name: 'The parish church stands here' });
+    expect(church).not.toBeChecked();
+    expect(screen.getByText('The parish church stands in Gorkka')).toBeInTheDocument();
     // A parish no name matches: its fields appear, to add it without a
     // church (the locality being added may well be it).
     fireEvent.input(field('parishText'), { target: { value: 'Туутари' } });
@@ -707,6 +726,22 @@ describe('/places/parishes', () => {
     expect(saved.get('parishNew.nameRu')).toBe('Туутари');
     expect(saved.get('parishNew.nameFi')).toBe('Tuutari');
     expect(saved.get('parishNew.church')).toBeNull();
+    // Not named after the locality: the church is not here unless said so.
+    expect(saved.get('church')).toBeNull();
+  });
+
+  test('a new parish named after the locality starts with its church here', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/villages/new');
+    await waitFor(() => expect(field('parishText')).toBeTruthy());
+    fireEvent.input(field('nameRu'), { target: { value: 'Туутари' } });
+    fireEvent.input(field('parishText'), { target: { value: 'Туутари' } });
+    const church = await screen.findByRole('checkbox', { name: 'The parish church stands here' });
+    await waitFor(() => expect(church).toBeChecked());
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    await waitFor(() => expect(places.saved).toHaveLength(1));
+    expect(places.saved[0].get('parishCreate')).toBe('on');
+    expect(places.saved[0].get('church')).toBe('on');
   });
 
   test('a parish typed in Latin letters is the Finnish name; the Russian one is asked for', async () => {

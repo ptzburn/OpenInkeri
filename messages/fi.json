@@ -278,6 +278,8 @@
   "place_new_title": "Uusi paikkakunta",
   "place_edit_kind": "Tyyppi",
   "place_edit_parish": "Seurakunta",
+  "place_edit_church": "Seurakunnan kirkko on täällä",
+  "place_edit_church_elsewhere": "Seurakunnan kirkko: {name}",
   "place_edit_coordinates_none": "Ei vielä kartalla.",
   "place_edit_verified": "Sijainti tarkistettu lähteistä",
   "place_edit_remove_marker": "Poista merkki",

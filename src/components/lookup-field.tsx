@@ -98,6 +98,8 @@ export function LookupField(props: {
   invalid: (field: string) => Fault;
   /** The wrapper's classes, e.g. a grid column span. */
   class?: string;
+  /** Told the value as typed or picked and the row it links, for a form that follows them. */
+  onChange?: (value: { text: string; id: number | null }) => void;
 }) {
   // The form is keyed by its record, so these start from it once.
   const [text, setText] = createSignal(() => props.text ?? '', { name: 'lookup-text' });
@@ -159,6 +161,7 @@ export function LookupField(props: {
     pick: (match) => {
       setText(match.spelling);
       setId(match.option.value);
+      props.onChange?.({ text: match.spelling, id: match.option.value });
     },
     closed: () => setBrowsing(false),
     opened: () => setBrowsing(true),
@@ -170,8 +173,11 @@ export function LookupField(props: {
     const rows = rowsSpelled(props.lookup.index, value);
     // A spelling of one row links to it; one of several keeps the choice
     // if it is among them; none (or nothing typed) unlinks.
-    if (rows.length === 1) setId(rows[0]);
-    else if (!rows.includes(id() ?? 0)) setId(null);
+    let linked = id();
+    if (rows.length === 1) linked = rows[0];
+    else if (!rows.includes(linked ?? 0)) linked = null;
+    setId(linked);
+    props.onChange?.({ text: value, id: linked });
   };
 
   let input: HTMLInputElement | undefined;
@@ -269,7 +275,11 @@ export function LookupField(props: {
           aria-label={m.lookup_several()}
           class="validator select mt-1 w-full select-sm"
           aria-invalid={ariaInvalid(props.invalid(props.idName))}
-          onChange={(e) => setId(Number(e.currentTarget.value) || null)}
+          onChange={(e) => {
+            const chosen = Number(e.currentTarget.value) || null;
+            setId(chosen);
+            props.onChange?.({ text: text(), id: chosen });
+          }}
         >
           <option value="">{m.lookup_several()}</option>
           <For each={several()}>

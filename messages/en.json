@@ -278,6 +278,8 @@
   "place_new_title": "New locality",
   "place_edit_kind": "Type",
   "place_edit_parish": "Parish",
+  "place_edit_church": "The parish church stands here",
+  "place_edit_church_elsewhere": "The parish church stands in {name}",
   "place_edit_coordinates_none": "Not located yet.",
   "place_edit_verified": "Position checked against sources",
   "place_edit_remove_marker": "Remove marker",

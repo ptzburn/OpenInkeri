@@ -323,6 +323,8 @@ const form = v.object({
   parishText: line(),
   parishId: optionalId,
   parishCreate: createFlag,
+  /** The box saying the parish church stands in this locality. */
+  church: createFlag,
   coordinates: v.pipe(
     v.optional(v.string(), ''),
     v.transform(parseCoordinates),
@@ -345,8 +347,10 @@ const placeRefusals: Refusals = { missing: m.place_edit_missing, conflict: m.pla
  * Creates a place (no id in the form) or saves the edit page's form over
  * one, then redirects to the villages list (with the search and parish
  * filter it came from). The parish typed by name links to the one it
- * names; one not known yet is created first when the form asks (without a
- * church: the place being saved may well be it, and the parish page sets it).
+ * names; one not known yet is created first when the form asks. The parish
+ * church stands in this place when the form's box says so, and no longer
+ * does when it is unticked (or the place leaves the parish): the parish's
+ * church is set or unset with it, moving the parish on a version.
  * Refused, with the fields at fault, when a value doesn't read; and when the
  * place changed since the page loaded it (its version moved on).
  *
@@ -415,6 +419,36 @@ export const savePlace = action(async (formData: FormData) => {
         .update(place)
         .set({ ...fields, version: before.version + 1, ...stamp })
         .where(and(eq(place.id, id), eq(place.version, before.version))),
+    );
+  }
+
+  // The parish church: ticked, it stands here; unticked, it no longer does
+  // where it did, and a parish the place leaves keeps no church here either.
+  const church = input.church === 'on';
+  const parishIds = [...new Set([parishId, before?.parishId])].filter((n): n is number => !!n);
+  const parishRows = parishIds.length
+    ? await db.query.parish.findMany({
+        where: { id: { in: parishIds } },
+        columns: { id: true, version: true, churchPlaceId: true },
+      })
+    : [];
+  for (const row of parishRows) {
+    const churchPlaceId =
+      row.id === parishId && church ? id : row.churchPlaceId === id ? null : row.churchPlaceId;
+    if (churchPlaceId === row.churchPlaceId) continue;
+    statements.push(
+      db
+        .update(parish)
+        .set({ churchPlaceId, version: row.version + 1, ...stamp })
+        .where(and(eq(parish.id, row.id), eq(parish.version, row.version))),
+      logChange(
+        by,
+        'parish',
+        row.id,
+        'update',
+        { churchPlaceId: row.churchPlaceId, version: row.version },
+        { churchPlaceId, version: row.version + 1 },
+      ),
     );
   }
 
