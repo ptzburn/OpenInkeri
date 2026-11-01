@@ -324,10 +324,12 @@ export function Select(props: {
   invalid: Fault;
   /** Told the value chosen, for a form that follows it (the coordinates' status). */
   onChange?: (value: string) => void;
+  /** The wrapper's classes, e.g. a grid column span. */
+  class?: string;
 }) {
   const current = () => String(props.value ?? '');
   return (
-    <label class="fieldset">
+    <label class={['fieldset', props.class]}>
       <span class="fieldset-legend">{props.label}</span>
       <select
         name={props.name}

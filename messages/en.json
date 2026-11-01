@@ -366,6 +366,8 @@
   "parish_church": "Church",
   "parish_church_hint": "The locality the parish church stands in",
   "parish_new_church": "Also add a locality of this name, as its church",
+  "parish_new_name_ru": "Parish name in Russian",
+  "parish_new_name_fi": "Parish name in Finnish",
   "parish_delete_villages": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],

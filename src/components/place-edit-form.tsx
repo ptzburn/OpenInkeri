@@ -289,6 +289,7 @@ export default function PlaceEditForm(props: {
                         options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
                         invalid={invalid('kind')}
                         onChange={(value) => setKind(value as PlaceKind)}
+                        class="sm:col-span-2"
                       />
                       <LookupField
                         textName="parishText"

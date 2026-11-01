@@ -366,6 +366,8 @@
   "parish_church": "Kirkko",
   "parish_church_hint": "Paikkakunta, jossa seurakunnan kirkko on",
   "parish_new_church": "Lisää myös samanniminen paikkakunta kirkon sijaintina",
+  "parish_new_name_ru": "Seurakunnan nimi venäjäksi",
+  "parish_new_name_fi": "Seurakunnan nimi suomeksi",
   "parish_delete_villages": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],

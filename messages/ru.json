@@ -374,6 +374,8 @@
   "parish_church": "Церковь",
   "parish_church_hint": "Населённый пункт, где стоит церковь прихода",
   "parish_new_church": "Добавить также населённый пункт с этим названием как место церкви",
+  "parish_new_name_ru": "Название прихода по-русски",
+  "parish_new_name_fi": "Название прихода по-фински",
   "parish_delete_villages": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
