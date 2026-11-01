@@ -1,10 +1,11 @@
-// A place's coordinates as the forms take them (pasted from a map site:
-// "59.613487, 30.225190") and as the pages show and link them.
+// A place's coordinates as the locality form posts them ("59.613487,
+// 30.225190", set by its map or its search) and as the pages show and link
+// them.
 
 /**
- * Coordinates as typed or pasted ("59.613487, 30.225190", the form map
- * sites copy), or undefined when they don't read as a latitude and
- * longitude. Empty is null: no coordinates.
+ * Coordinates as posted ("59.613487, 30.225190", the form map sites copy),
+ * or undefined when they don't read as a latitude and longitude. Empty is
+ * null: no coordinates.
  */
 export function parseCoordinates(text: string): { lat: number; lng: number } | null | undefined {
   const trimmed = text.trim();
@@ -16,9 +17,6 @@ export function parseCoordinates(text: string): { lat: number; lng: number } | n
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return undefined;
   return { lat, lng };
 }
-
-/** The HTML pattern for coordinates; the server reads them with parseCoordinates. */
-export const COORDINATES_PATTERN = String.raw`\s*-?\d{1,2}(\.\d+)?\s*[,;\s]\s*-?\d{1,3}(\.\d+)?\s*`;
 
 /** Coordinates as the form shows them, the way they are pasted. */
 export const formatCoordinates = (lat: number | null, lng: number | null) =>

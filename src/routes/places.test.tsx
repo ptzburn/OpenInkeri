@@ -358,15 +358,20 @@ describe('editing a village', () => {
   });
 
   test('a refused save stays, says why and marks the fields', async () => {
-    places.failWith = { message: 'Check the marked fields.', fields: { coordinates: '' } };
+    places.failWith = {
+      message: 'Check the marked fields.',
+      fields: { nameFi: '', coordinates: 'Not on Earth.' },
+    };
     const form = await openGorki();
     fireEvent.submit(form);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Check the marked fields.');
     expect(window.location.pathname).toBe('/places/villages/1/edit');
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
-    expect(field('coordinates')).toHaveAttribute('aria-invalid', 'true');
+    expect(field('nameFi')).toHaveAttribute('aria-invalid', 'true');
     expect(field('nameRu')).not.toHaveAttribute('aria-invalid');
+    // The coordinates have no field to mark: their reason shows under the map.
+    expect(screen.getByText('Not on Earth.')).toBeInTheDocument();
   });
 
   test('a locality that records and birthplaces link to says so and cannot be deleted', async () => {

@@ -21,7 +21,7 @@ import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
 import LocationPicker from '~/components/location-picker';
 import { NewParishFields } from '~/components/new-row-fields';
 import PlaceSearch from '~/components/place-search';
-import { COORDINATES_PATTERN, formatCoordinates, mapLink } from '~/lib/coordinates';
+import { formatCoordinates, mapLink, parseCoordinates } from '~/lib/coordinates';
 import { type GazetteerHit, placeKindOf } from '~/lib/gazetteer';
 import {
   type CoordinateStatus,
@@ -184,21 +184,63 @@ export default function PlaceEditForm(props: {
                   <LocationPicker
                     class="h-[50vh] min-h-72 lg:h-[calc(100dvh-18rem)] lg:min-h-96"
                     value={coordinates()}
-                    onPick={(lat, lng) => setCoordinates(formatCoordinates(lat, lng))}
+                    onPick={(lat, lng) => {
+                      setCoordinates(formatCoordinates(lat, lng));
+                      // Placed by hand: approximate until checked.
+                      if (coordinateStatus() === 'unknown') setCoordinateStatus('approximate');
+                    }}
                     markers={neighbours()}
                     focus={church()}
                   />
+                  {/* The coordinates the map or the search set, posted
+                      hidden: nobody types them. Under the map they read
+                      back, with a link to check them and a way to unset. */}
+                  <input type="hidden" name="coordinates" value={coordinates()} />
                   <div class="grid gap-x-4 sm:grid-cols-2">
-                    <TextInput
-                      name="coordinates"
-                      label={m.place_edit_coordinates()}
-                      value={coordinates()}
-                      pattern={COORDINATES_PATTERN}
-                      maxlength={60}
-                      hint={m.place_edit_coordinates_hint()}
-                      invalid={invalid('coordinates')}
-                      onInput={setCoordinates}
-                    />
+                    <div class="fieldset">
+                      <span class="fieldset-legend">{m.place_edit_coordinates()}</span>
+                      <Show
+                        when={parseCoordinates(coordinates())}
+                        fallback={
+                          <p class="py-2 text-sm text-base-content/60">
+                            {m.place_edit_coordinates_none()}
+                          </p>
+                        }
+                      >
+                        {(at) => (
+                          <p class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 text-sm">
+                            <span class="font-medium tabular-nums">{coordinates()}</span>
+                            <a
+                              href={mapLink(at().lat, at().lng)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="link"
+                            >
+                              <MapIcon
+                                class="mr-1 inline size-4 align-text-bottom"
+                                aria-hidden="true"
+                              />
+                              {m.villages_show_on_map()}
+                            </a>
+                            <button
+                              type="button"
+                              class="link link-hover"
+                              onClick={() => {
+                                setCoordinates('');
+                                setCoordinateStatus('unknown');
+                              }}
+                            >
+                              {m.place_edit_coordinates_clear()}
+                            </button>
+                          </p>
+                        )}
+                      </Show>
+                      <Show when={invalid('coordinates') !== undefined}>
+                        <p class="text-sm text-error">
+                          {invalid('coordinates') || m.form_field_invalid()}
+                        </p>
+                      </Show>
+                    </div>
                     <Select
                       name="coordinateStatus"
                       label={m.place_edit_coordinate_status()}
@@ -209,17 +251,6 @@ export default function PlaceEditForm(props: {
                       }))}
                       invalid={invalid('coordinateStatus')}
                     />
-                    <Show when={p.latitude !== null && p.longitude !== null}>
-                      <a
-                        href={mapLink(p.latitude!, p.longitude!)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="link self-start text-sm sm:col-span-2"
-                      >
-                        <MapIcon class="mr-1 inline size-4 align-text-bottom" aria-hidden="true" />
-                        {m.villages_show_on_map()}
-                      </a>
-                    </Show>
                   </div>
                 </div>
                 <div class="grid gap-x-4 sm:grid-cols-2 lg:col-start-1">
