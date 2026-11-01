@@ -105,10 +105,12 @@ export function postedName(form: FormData): string {
 /**
  * The bottom of an edit form: why the last save was refused, Cancel (a link
  * back) and Save; with `saveAndNext`, also Save and add next, which posts
- * `next=on`. The form must have the `group` class: while a save is in
- * flight the router marks it aria-busy, which shows the spinner and stops
- * further clicks. A form that pins it to the window's bottom passes
- * `saveBarClass(...)`.
+ * `next=on`. While a save is in flight the router marks the form
+ * aria-busy, which shows the spinner and stops further clicks: the form has
+ * the `group` class, with the bar inside it; or, for a bar outside its form
+ * (a panel's footer, given the form's id as `form`, which its buttons
+ * submit), a `group` ancestor holds both. A form that pins the bar to the
+ * window's bottom passes `saveBarClass(...)`.
  */
 export function FormActions(props: {
   error?: FormError;
@@ -119,6 +121,8 @@ export function FormActions(props: {
   /** Which button is the primary one; Save unless said otherwise. */
   primary?: 'save' | 'next';
   class?: string;
+  /** The id of the form to submit, where the bar is outside it. */
+  form?: string;
 }) {
   return (
     <div class={['flex flex-col gap-3', props.class]}>
@@ -135,13 +139,14 @@ export function FormActions(props: {
       <div class="flex flex-row-reverse flex-wrap justify-start gap-2">
         <button
           type="submit"
+          form={props.form}
           class={[
-            'btn group-aria-busy:pointer-events-none group-aria-busy:opacity-60',
+            'btn group-aria-busy:pointer-events-none group-aria-busy:opacity-60 group-has-[form[aria-busy]]:pointer-events-none group-has-[form[aria-busy]]:opacity-60',
             props.primary !== 'next' && 'btn-primary',
           ]}
         >
           <span
-            class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
+            class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block group-has-[form[aria-busy]]:inline-block"
             aria-hidden="true"
           />
           {m.form_save()}
@@ -149,10 +154,11 @@ export function FormActions(props: {
         <Show when={props.saveAndNext}>
           <button
             type="submit"
+            form={props.form}
             name="next"
             value="on"
             class={[
-              'btn group-aria-busy:pointer-events-none group-aria-busy:opacity-60',
+              'btn group-aria-busy:pointer-events-none group-aria-busy:opacity-60 group-has-[form[aria-busy]]:pointer-events-none group-has-[form[aria-busy]]:opacity-60',
               // The primary button is drawn at the end (the row is reversed).
               props.primary === 'next' && 'order-first btn-primary',
             ]}
@@ -251,7 +257,6 @@ export function NamePair(props: {
         label={m.form_name_ru()}
         value={props.nameRu}
         pattern={CYRILLIC_NAME_PATTERN}
-        hint={m.form_name_ru_hint()}
         required
         maxlength={FIELD_MAX.line}
         invalid={props.invalid('nameRu')}
@@ -262,7 +267,6 @@ export function NamePair(props: {
         label={m.form_name_fi()}
         value={props.nameFi}
         pattern={LATIN_NAME_PATTERN}
-        hint={m.form_name_fi_hint()}
         maxlength={FIELD_MAX.line}
         invalid={props.invalid('nameFi')}
         onInput={(value) => props.onInput?.('nameFi', value)}
@@ -315,10 +319,12 @@ export function Select(props: {
   invalid: Fault;
   /** Told the value chosen, for a form that follows it (the coordinates' status). */
   onChange?: (value: string) => void;
+  /** The wrapper's classes, e.g. a grid column span. */
+  class?: string;
 }) {
   const current = () => String(props.value ?? '');
   return (
-    <label class="fieldset">
+    <label class={['fieldset', props.class]}>
       <span class="fieldset-legend">{props.label}</span>
       <select
         name={props.name}
@@ -457,7 +463,7 @@ export function DeleteSection<U>(props: {
                 class="btn btn-error group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
               >
                 <span
-                  class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
+                  class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block group-has-[form[aria-busy]]:inline-block"
                   aria-hidden="true"
                 />
                 {props.title}

@@ -23,7 +23,11 @@ type Hits = GazetteerHit[] | Promise<QueryData<typeof getGazetteerHits>>;
  * it to `onPick`, which fills the form. The input posts nothing: it isn't
  * part of the record, and Enter never submits the form from it.
  */
-export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void }) {
+export default function PlaceSearch(props: {
+  onPick: (hit: GazetteerHit) => void;
+  /** The box's classes: where it sits in the form. */
+  class?: string;
+}) {
   // The text in the input; the search, once typing pauses; the search the
   // whole map was asked for.
   const [text, setText] = createSignal('', { name: 'place-search-text' });
@@ -167,8 +171,10 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
   );
 
   return (
-    <div class="fieldset">
-      <label for={box.ids.input()} class="fieldset-legend">
+    <div class={['fieldset', props.class]}>
+      {/* Below lg the box floats over the map, where a legend would hang
+          in the air: the placeholder says what it is. */}
+      <label for={box.ids.input()} class="fieldset-legend max-lg:sr-only">
         {m.place_search_label()}
       </label>
       <div class="relative">

@@ -26,15 +26,22 @@ interface NewRowProps {
   invalid: (field: string) => Fault;
 }
 
+/** What a new row's name fields are called: "Name in Russian" unless said otherwise. */
+interface NameLabels {
+  ru: string;
+  fi: string;
+}
+
 const inCyrillic = (text: string) => matchesPattern(CYRILLIC_NAME_PATTERN, text);
 const inLatin = (text: string) => matchesPattern(LATIN_NAME_PATTERN, text);
 
 // A row's names: the value as written as the one in its own alphabet,
 // hidden, and the other one to type. A value in neither alphabet (digits,
 // say) shows both, for the server's refusal to land somewhere visible.
-function NameInputs(props: NewRowProps) {
+function NameInputs(props: NewRowProps & { labels?: NameLabels }) {
   const russian = () => inCyrillic(props.text);
   const finnish = () => !russian() && inLatin(props.text);
+  const labels = () => props.labels ?? { ru: m.form_name_ru(), fi: m.form_name_fi() };
   return (
     <>
       <Show
@@ -48,10 +55,9 @@ function NameInputs(props: NewRowProps) {
       >
         <TextInput
           name={`${props.prefix}.nameRu`}
-          label={m.form_name_ru()}
+          label={labels().ru}
           value={null}
           required
-          hint={m.form_name_ru_hint()}
           maxlength={FIELD_MAX.line}
           invalid={props.invalid(`${props.prefix}.nameRu`)}
         />
@@ -67,9 +73,8 @@ function NameInputs(props: NewRowProps) {
       >
         <TextInput
           name={`${props.prefix}.nameFi`}
-          label={m.form_name_fi()}
+          label={labels().fi}
           value={null}
-          hint={m.form_name_fi_hint()}
           maxlength={FIELD_MAX.line}
           invalid={props.invalid(`${props.prefix}.nameFi`)}
         />
@@ -78,9 +83,17 @@ function NameInputs(props: NewRowProps) {
   );
 }
 
-function Fields(props: { children: JSX.Element }) {
+// The box around a new row's fields; `plain` leaves it out, the fields
+// following the lookup's own as if the form's.
+function Fields(props: { plain?: boolean; children: JSX.Element }) {
   return (
-    <div class="mt-2 grid gap-x-4 rounded-box border border-base-300 p-3 sm:grid-cols-2">
+    <div
+      class={
+        props.plain
+          ? 'contents'
+          : 'mt-2 grid gap-x-4 rounded-box border border-base-300 p-3 sm:grid-cols-2'
+      }
+    >
       {props.children}
     </div>
   );
@@ -142,7 +155,6 @@ export function NewRelationFields(props: NewRowProps) {
         name={`${props.prefix}.ru`}
         label={m.form_name_ru()}
         value={inCyrillic(props.text) ? props.text : null}
-        hint={m.form_name_ru_hint()}
         maxlength={FIELD_MAX.line}
         invalid={props.invalid(`${props.prefix}.ru`)}
       />
@@ -168,12 +180,19 @@ export function NewRelationFields(props: NewRowProps) {
  * A new parish: its names, and whether a locality of the same name is added
  * as its church (the usual case: the church village names the parish). A
  * locality's own form leaves the church out (`church={false}`): it is adding
- * a locality already.
+ * a locality already; and asks for the other name `plain`, under its parish
+ * field, with no box around it.
  */
-export function NewParishFields(props: NewRowProps & { church?: boolean }) {
+export function NewParishFields(props: NewRowProps & { church?: boolean; plain?: boolean }) {
   return (
-    <Fields>
-      <NameInputs prefix={props.prefix} text={props.text} invalid={props.invalid} />
+    <Fields plain={props.plain}>
+      {/* Named for the parish: a form adding a locality has name fields of its own. */}
+      <NameInputs
+        prefix={props.prefix}
+        text={props.text}
+        invalid={props.invalid}
+        labels={{ ru: m.parish_new_name_ru(), fi: m.parish_new_name_fi() }}
+      />
       <Show when={props.church ?? true}>
         <label class="label cursor-pointer gap-2 sm:col-span-2">
           <input
@@ -194,17 +213,25 @@ export function NewParishFields(props: NewRowProps & { church?: boolean }) {
 /**
  * The parishes a source or locality links to, by either name; one not known
  * yet can be added in the field, with a locality of its name as its church
- * unless `church` is false (a locality's form is adding one already).
+ * unless `church` is false (a locality's form is adding one already). With
+ * `plain`, nothing says a parish is being added: the other name's field
+ * just follows the parish field.
  */
 export const parishLookup = (
   parishes: ParishOption[] | undefined,
   invalid: (field: string) => Fault,
-  options: { church?: boolean } = {},
+  options: { church?: boolean; plain?: boolean } = {},
 ): Lookup =>
   lookupRows(parishes, (p) => localName(p.name), {
-    label: m.lookup_create_parish(),
+    label: options.plain ? undefined : m.lookup_create_parish(),
     fields: (prefix, text) => (
-      <NewParishFields prefix={prefix} text={text()} invalid={invalid} church={options.church} />
+      <NewParishFields
+        prefix={prefix}
+        text={text()}
+        invalid={invalid}
+        church={options.church}
+        plain={options.plain}
+      />
     ),
   });
 

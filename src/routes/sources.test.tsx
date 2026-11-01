@@ -52,7 +52,12 @@ vi.mock('~/data/session', () => ({
 }));
 vi.mock('~/data/parishes', () => ({
   getParishOptions: vi.fn(async () => [
-    { id: 5, name: { ru: 'Губаницы', fi: 'Hevaa' }, spellings: ['Губаницы', 'Hevaa'] },
+    {
+      id: 5,
+      name: { ru: 'Губаницы', fi: 'Hevaa' },
+      spellings: ['Губаницы', 'Hevaa'],
+      church: null,
+    },
   ]),
 }));
 vi.mock('~/data/sources', async () => {

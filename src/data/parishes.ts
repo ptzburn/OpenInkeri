@@ -61,6 +61,8 @@ export interface ParishOption {
   name: Names;
   /** Its names in both languages, for a lookup field to link a parish as typed. */
   spellings: string[];
+  /** The locality the parish church stands in, when one is set. */
+  church: { id: number; name: Names } | null;
 }
 
 export interface ParishEditData {
@@ -110,12 +112,14 @@ export const getParishOptions = query(async (): Promise<ParishOption[]> => {
   adminOnly();
   const parishes = await db.query.parish.findMany({
     columns: { id: true, nameRu: true, nameFi: true },
+    with: { church: { columns: { id: true, nameRu: true, nameFi: true } } },
     orderBy: { nameRu: 'asc' },
   });
   return parishes.map((p) => ({
     id: p.id,
     name: namesOf(p),
     spellings: spellingsOf(p.nameRu, p.nameFi),
+    church: p.church ? { id: p.church.id, name: namesOf(p.church) } : null,
   }));
 }, 'parish-options');
 
