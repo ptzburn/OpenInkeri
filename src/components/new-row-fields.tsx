@@ -3,8 +3,10 @@ import { Show } from 'solid-js';
 
 import { type Fault, FieldError, Select, TextInput } from '~/components/form-fields';
 import { placeKindLabels } from '~/components/labels';
+import { type Lookup, lookupRows } from '~/components/lookup-field';
+import type { ParishOption } from '~/data/parishes';
 import { FIELD_MAX } from '~/lib/field-limits';
-import { type Names, localName } from '~/lib/format';
+import { type Names, localName, placeLabel } from '~/lib/format';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import { type PlaceKind, placeKinds } from '~/lib/place-kinds';
 import { m } from '~/paraglide/messages.js';
@@ -186,3 +188,51 @@ export function NewParishFields(props: NewRowProps & { church?: boolean }) {
     </Fields>
   );
 }
+
+// --- The lookups the forms share --------------------------------------------------
+
+/**
+ * The parishes a source or locality links to, by either name; one not known
+ * yet can be added in the field, with a locality of its name as its church
+ * unless `church` is false (a locality's form is adding one already).
+ */
+export const parishLookup = (
+  parishes: ParishOption[] | undefined,
+  invalid: (field: string) => Fault,
+  options: { church?: boolean } = {},
+): Lookup =>
+  lookupRows(parishes, (p) => localName(p.name), {
+    label: m.lookup_create_parish(),
+    fields: (prefix, text) => (
+      <NewParishFields prefix={prefix} text={text()} invalid={invalid} church={options.church} />
+    ),
+  });
+
+/**
+ * The localities a form links to, with their parish when it isn't their
+ * namesake; one not known yet can be added in the field. `added` says how:
+ * its kind by the field's prefix (an estate is a manor), and the parishes to
+ * choose from, starting at `parishId`; neither when the parish is fixed.
+ */
+export const placeLookup = (
+  places: { id: number; name: Names; parish: Names | null; spellings: string[] }[] | undefined,
+  invalid: (field: string) => Fault,
+  added: {
+    kind?: (prefix: string) => PlaceKind;
+    parishes?: () => { id: number; name: Names }[];
+    parishId?: () => number | null;
+  } = {},
+): Lookup =>
+  lookupRows(places, placeLabel, {
+    label: m.lookup_create_place(),
+    fields: (prefix, text) => (
+      <NewPlaceFields
+        prefix={prefix}
+        text={text()}
+        kind={added.kind?.(prefix)}
+        parishes={added.parishes?.()}
+        parishId={added.parishId?.()}
+        invalid={invalid}
+      />
+    ),
+  });

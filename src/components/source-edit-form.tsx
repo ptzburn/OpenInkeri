@@ -2,7 +2,6 @@ import { For, Show, createMemo } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
-import { localName } from '~/lib/format';
 import {
   DeleteSection,
   FieldError,
@@ -11,13 +10,11 @@ import {
   TextArea,
   TextInput,
   ariaInvalid,
-  useFormDone,
-  useFormErrors,
+  useEditForm,
 } from '~/components/form-fields';
 import { recordKindLabels, sourceLanguageLabels } from '~/components/labels';
-import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
-import { NewParishFields } from '~/components/new-row-fields';
-import { useToast } from '~/components/toaster';
+import { type Lookup, LookupField, namedRow } from '~/components/lookup-field';
+import { parishLookup } from '~/components/new-row-fields';
 import { getParishOptions } from '~/data/parishes';
 import { type SourceEditData, deleteSource, getSourceEdit, saveSource } from '~/data/sources';
 import { recordKinds, sourceLanguages } from '~/lib/record-kinds';
@@ -60,36 +57,21 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
     (): Promise<QueryData<typeof getParishOptions>> => getParishOptions(),
     { name: 'source-parishes' },
   );
-  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
-  // This form's refused saves (the latest shown, its fields marked).
-  const { error, invalid } = useFormErrors(saveSource, isThisForm);
-  // The parishes to link to, by either name; a new one can be added here.
-  const parishLookup = createMemo(
-    (): Lookup =>
-      lookupOf(
-        (parishes() ?? []).map((p) => ({
-          value: p.id,
-          label: localName(p.name),
-          spellings: p.spellings,
-        })),
-        {
-          label: m.lookup_create_parish(),
-          fields: (prefix, text) => (
-            <NewParishFields prefix={prefix} text={text()} invalid={invalid} />
-          ),
-        },
-      ),
-    { name: 'source-parish-lookup' },
-  );
-  const parishName = (id: number | null) =>
-    localName((parishes() ?? []).find((p) => p.id === id)?.name ?? null) || null;
-  // A save lands on the sources list with a toast, naming the source as
+  // This form's refused saves (the latest shown, its fields marked), and a
+  // save landing on the sources list with a toast naming the source as
   // saved (a new title shows).
-  const toast = useToast();
-  useFormDone(saveSource, isThisForm, (form) => {
-    const posted = form.get('title');
-    const title = typeof posted === 'string' ? posted.trim() : '';
-    toast(props.id ? m.source_saved({ title }) : m.source_created({ title }));
+  const { error, invalid } = useEditForm(
+    saveSource,
+    () => props.id,
+    (form) => {
+      const posted = form.get('title');
+      const title = typeof posted === 'string' ? posted.trim() : '';
+      return props.id ? m.source_saved({ title }) : m.source_created({ title });
+    },
+  );
+  // The parishes to link to, by either name; a new one can be added here.
+  const parishChoices = createMemo((): Lookup => parishLookup(parishes(), invalid), {
+    name: 'source-parish-lookup',
   });
 
   return (
@@ -142,9 +124,9 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
                 textName="parishText"
                 idName="parishId"
                 label={m.sources_col_parish()}
-                text={parishName(s.parishId)}
+                text={namedRow(parishes(), s.parishId)}
                 id={s.parishId}
-                lookup={parishLookup()}
+                lookup={parishChoices()}
                 invalid={invalid}
               />
               <TextInput

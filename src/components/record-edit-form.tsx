@@ -10,28 +10,20 @@ import {
   Select,
   TextArea,
   TextInput,
-  useFormDone,
   saveBarClass,
-  useFormErrors,
+  useEditForm,
 } from '~/components/form-fields';
-import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
+import { type Lookup, LookupField, lookupRows } from '~/components/lookup-field';
 import NameFields from '~/components/name-fields';
 import PersonLinkField from '~/components/person-link-field';
-import { NewClergyFields, NewPlaceFields, NewRelationFields } from '~/components/new-row-fields';
-import { useToast } from '~/components/toaster';
+import { NewClergyFields, NewRelationFields, placeLookup } from '~/components/new-row-fields';
 import {
   baptismLocationLabels,
   editedRoleLabels,
   recordStatusLabels,
   sexLabels,
 } from '~/components/labels';
-import {
-  PARTIAL_DATE_PATTERN,
-  formatPartialDate,
-  localName,
-  localTerm,
-  placeLabel,
-} from '~/lib/format';
+import { PARTIAL_DATE_PATTERN, formatPartialDate, localName, localTerm } from '~/lib/format';
 import {
   type RecordEditData,
   type RecordEditPerson,
@@ -179,9 +171,13 @@ export default function RecordEditForm(props: {
     },
     { name: 'record-edit' },
   );
-  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
-  // This form's refused saves (the latest shown, its fields marked).
-  const { error, invalid } = useFormErrors(saveRecord, isThisForm);
+  // This form's refused saves (the latest shown, its fields marked), and a
+  // save landing on the records list with a toast.
+  const { error, invalid } = useEditForm(
+    saveRecord,
+    () => props.id,
+    () => (props.id ? m.record_saved() : m.record_created()),
+  );
   // The parish of the source the record is (or starts) in: where a locality
   // added in the form starts.
   const sourceParishId = () => {
@@ -193,66 +189,32 @@ export default function RecordEditForm(props: {
   // field: a new locality starts in the source's parish, an estate as a manor.
   const places = createMemo(
     (): Lookup =>
-      lookupOf(
-        (options()?.places ?? []).map((place) => ({
-          value: place.id,
-          label: placeLabel(place),
-          spellings: place.spellings,
-        })),
-        {
-          label: m.lookup_create_place(),
-          fields: (prefix, text) => (
-            <NewPlaceFields
-              prefix={prefix}
-              text={text()}
-              kind={prefix.startsWith('estate') ? 'manor' : 'village'}
-              parishes={options()?.parishes ?? []}
-              parishId={sourceParishId()}
-              invalid={invalid}
-            />
-          ),
-        },
-      ),
+      placeLookup(options()?.places, invalid, {
+        kind: (prefix) => (prefix.startsWith('estate') ? 'manor' : 'village'),
+        parishes: () => options()?.parishes ?? [],
+        parishId: sourceParishId,
+      }),
     { name: 'edit-places' },
   );
   const relations = createMemo(
     (): Lookup =>
-      lookupOf(
-        (options()?.relations ?? []).map((t) => ({
-          value: t.id,
-          label: localTerm(t.name),
-          spellings: t.spellings,
-        })),
-        {
-          label: m.lookup_create_relation(),
-          fields: (prefix, text) => (
-            <NewRelationFields prefix={prefix} text={text()} invalid={invalid} />
-          ),
-        },
-      ),
+      lookupRows(options()?.relations, (t) => localTerm(t.name), {
+        label: m.lookup_create_relation(),
+        fields: (prefix, text) => (
+          <NewRelationFields prefix={prefix} text={text()} invalid={invalid} />
+        ),
+      }),
     { name: 'edit-relations' },
   );
   const clergy = createMemo(
     (): Lookup =>
-      lookupOf(
-        (options()?.clergy ?? []).map((c) => ({
-          value: c.id,
-          label: localName(c.name),
-          spellings: c.spellings,
-        })),
-        {
-          label: m.lookup_create_clergy(),
-          fields: (prefix, text) => (
-            <NewClergyFields prefix={prefix} text={text()} invalid={invalid} />
-          ),
-        },
-      ),
+      lookupRows(options()?.clergy, (c) => localName(c.name), {
+        label: m.lookup_create_clergy(),
+        fields: (prefix, text) => (
+          <NewClergyFields prefix={prefix} text={text()} invalid={invalid} />
+        ),
+      }),
     { name: 'edit-clergy' },
-  );
-  // A save lands on the records list with a toast.
-  const toast = useToast();
-  useFormDone(saveRecord, isThisForm, () =>
-    toast(props.id ? m.record_saved() : m.record_created()),
   );
   // The sources of the record's type, and the language of the one picked
   // first (a new record's names are labelled by it).

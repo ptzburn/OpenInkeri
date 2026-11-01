@@ -2,20 +2,17 @@ import { Show, createMemo } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
-import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
-import { localName, namesOf, parishInUse, placeLabel } from '~/lib/format';
+import { localName, namesOf, parishInUse } from '~/lib/format';
 import {
   DeleteSection,
   FormActions,
+  NamePair,
   TextArea,
-  TextInput,
   postedName,
-  useFormDone,
-  useFormErrors,
+  useEditForm,
 } from '~/components/form-fields';
-import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
-import { NewPlaceFields } from '~/components/new-row-fields';
-import { useToast } from '~/components/toaster';
+import { type Lookup, LookupField, namedRow } from '~/components/lookup-field';
+import { placeLookup } from '~/components/new-row-fields';
 import { type ParishEditData, deleteParish, getParishEdit, saveParish } from '~/data/parishes';
 import { getPlaceOptions } from '~/data/places';
 import { m } from '~/paraglide/messages.js';
@@ -51,36 +48,21 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
   const places = createMemo((): Promise<QueryData<typeof getPlaceOptions>> => getPlaceOptions(), {
     name: 'parish-places',
   });
-  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
-  // This form's refused saves (the latest shown, its fields marked).
-  const { error, invalid } = useFormErrors(saveParish, isThisForm);
+  // This form's refused saves (the latest shown, its fields marked), and a
+  // save landing on the parishes list with a toast naming the parish as
+  // saved (a rename shows the new name).
+  const { error, invalid } = useEditForm(
+    saveParish,
+    () => props.id,
+    (form) => {
+      const name = postedName(form);
+      return props.id ? m.parish_saved({ name }) : m.parish_created({ name });
+    },
+  );
   // The church's choices: every locality, with its parish when it isn't its
   // namesake; a new one can be added here, in this parish.
-  const churchLookup = createMemo(
-    (): Lookup =>
-      lookupOf(
-        (places() ?? []).map((p) => ({
-          value: p.id,
-          label: placeLabel(p),
-          spellings: p.spellings,
-        })),
-        {
-          label: m.lookup_create_place(),
-          fields: (prefix, text) => (
-            <NewPlaceFields prefix={prefix} text={text()} invalid={invalid} />
-          ),
-        },
-      ),
-    { name: 'parish-church-lookup' },
-  );
-  const churchName = (id: number | null) =>
-    localName((places() ?? []).find((p) => p.id === id)?.name ?? null) || null;
-  // A save lands on the parishes list with a toast, naming the parish as
-  // saved (a rename shows the new name).
-  const toast = useToast();
-  useFormDone(saveParish, isThisForm, (form) => {
-    const name = postedName(form);
-    toast(props.id ? m.parish_saved({ name }) : m.parish_created({ name }));
+  const churchLookup = createMemo((): Lookup => placeLookup(places(), invalid), {
+    name: 'parish-church-lookup',
   });
 
   return (
@@ -94,31 +76,13 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
             <input type="hidden" name="version" value={p.version} />
 
             <div class="grid gap-x-4 sm:grid-cols-2">
-              <TextInput
-                name="nameRu"
-                label={m.form_name_ru()}
-                value={p.nameRu}
-                pattern={CYRILLIC_NAME_PATTERN}
-                hint={m.form_name_ru_hint()}
-                required
-                maxlength={FIELD_MAX.line}
-                invalid={invalid('nameRu')}
-              />
-              <TextInput
-                name="nameFi"
-                label={m.form_name_fi()}
-                value={p.nameFi}
-                pattern={LATIN_NAME_PATTERN}
-                hint={m.form_name_fi_hint()}
-                maxlength={FIELD_MAX.line}
-                invalid={invalid('nameFi')}
-              />
+              <NamePair nameRu={p.nameRu} nameFi={p.nameFi} invalid={invalid} />
               <div class="sm:col-span-2">
                 <LookupField
                   textName="churchText"
                   idName="churchPlaceId"
                   label={m.parish_church()}
-                  text={churchName(p.churchPlaceId)}
+                  text={namedRow(places(), p.churchPlaceId)}
                   id={p.churchPlaceId}
                   lookup={churchLookup()}
                   invalid={invalid}

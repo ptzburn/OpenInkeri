@@ -4,6 +4,7 @@ import ChevronIcon from '~icons/ri/arrow-down-s-line';
 
 import { type Fault, FieldError, ariaInvalid } from '~/components/form-fields';
 import { FIELD_MAX } from '~/lib/field-limits';
+import { type Names, localName } from '~/lib/format';
 import { foldForSearch } from '~/lib/search-text';
 import { type SpellingIndex, rowsSpelled, spellingIndex } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
@@ -47,6 +48,21 @@ export const lookupOf = (options: LookupOption[], create?: LookupCreate): Lookup
   index: spellingIndex(options.map((o) => ({ id: o.value, spellings: o.spellings }))),
   create,
 });
+
+/** A lookup over rows as the option queries list them (an id and spellings), each labelled by `label`; none while they load. */
+export const lookupRows = <R extends { id: number; spellings: string[] }>(
+  rows: R[] | undefined,
+  label: (row: R) => string,
+  create?: LookupCreate,
+): Lookup =>
+  lookupOf(
+    (rows ?? []).map((row) => ({ value: row.id, label: label(row), spellings: row.spellings })),
+    create,
+  );
+
+/** The name, in the reader's language, of the row with the id among the rows: a lookup field's text as loaded; null when none has it. */
+export const namedRow = (rows: { id: number; name: Names }[] | undefined, id: number | null) =>
+  localName(rows?.find((row) => row.id === id)?.name ?? null) || null;
 
 /** A row the dropdown offers, with the spelling of it the text matched (its first name when nothing is typed). */
 interface Match {
