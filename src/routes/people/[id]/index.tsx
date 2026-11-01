@@ -10,7 +10,7 @@ import EditIcon from '~icons/ri/pencil-line';
 import type { QueryData } from '~/lib/query-data';
 import { personaRoleLabels, recordKindLabels, sexLabels } from '~/components/labels';
 import { useFormErrors } from '~/components/form-fields';
-import { getCurrentUser } from '~/data/session';
+import { useCanEdit } from '~/components/list-page';
 import {
   type PersonMention,
   type PersonSuggestion,
@@ -50,8 +50,7 @@ export default function Person(props: RouteProps<'/people/:id/'>) {
     },
     { name: 'person' },
   );
-  const me = createMemo(() => getCurrentUser(), { name: 'person-me' });
-  const canEdit = () => !!me()?.isAdmin;
+  const canEdit = useCanEdit('person-me');
 
   return (
     <main class="flex min-w-0 flex-1 flex-col gap-6 p-4 lg:p-8">

@@ -1,8 +1,5 @@
-import { Title } from '@solidjs/meta';
-import { useIsRouting } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
+import { For, Show, createMemo } from 'solid-js';
 import AddIcon from '~icons/ri/add-line';
 
 import type { QueryData } from '~/lib/query-data';
@@ -10,7 +7,14 @@ import { localName } from '~/lib/format';
 import { type SourceLanguage, sourceLanguages } from '~/lib/record-kinds';
 import { recordKindLabels, sourceLanguageLabels } from '~/components/labels';
 import EditLinkCell from '~/components/edit-link-cell';
-import { getCurrentUser } from '~/data/session';
+import ListPage, {
+  ActionsHeader,
+  AddLink,
+  ListBody,
+  TableBox,
+  useCanEdit,
+  useListBusy,
+} from '~/components/list-page';
 import { type SourceRow, getSources } from '~/data/sources';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -26,66 +30,46 @@ export default function Sources() {
   const list = createMemo((): Promise<QueryData<typeof getSources>> => getSources(), {
     name: 'sources-list',
   });
-  // The list dims while it reloads (after a save) and while a link from
-  // it is opening the next page, so a click shows at once.
-  const isRouting = useIsRouting();
-  const busy = () => isRouting() || isPending(list);
-  // Admins add and edit sources; the server functions check the role
-  // again, so this only decides what is offered.
-  const me = createMemo(() => getCurrentUser(), { name: 'sources-me' });
-  const canEdit = () => !!me()?.isAdmin;
+  const busy = useListBusy(list);
+  const canEdit = useCanEdit('sources-me');
 
   return (
-    <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
-      <Title>{`${m.sources_title()} - ${env.VITE_APP_NAME}`}</Title>
-      <header class="flex flex-wrap items-center gap-2">
-        <h1 class="text-2xl font-bold">{m.sources_title()}</h1>
+    <ListPage
+      title={m.sources_title()}
+      aside={
         <Show when={canEdit()}>
-          <a href={paths.sources.new()} class="btn ml-auto btn-sm btn-primary">
-            <AddIcon class="size-4" aria-hidden="true" />
-            {m.sources_add()}
-          </a>
+          <AddLink href={paths.sources.new()} label={m.sources_add()} />
         </Show>
-      </header>
-      <div class="transition-opacity" style={{ opacity: busy() ? 0.5 : 1 }}>
-        <Show
-          when={list()?.length}
-          fallback={<p class="py-6 text-center text-base-content/60">{m.sources_empty()}</p>}
-        >
-          <div class="overflow-x-auto rounded-box border border-base-300">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>{m.sources_col_title()}</th>
-                  <th>{m.sources_col_kind()}</th>
-                  <th>{m.sources_col_parish()}</th>
-                  <th>{m.sources_col_years()}</th>
-                  <th>{m.sources_col_language()}</th>
-                  <th class="text-right">{m.sources_col_records()}</th>
-                  <th>{m.form_note()}</th>
-                  <Show when={canEdit()}>
-                    <th colspan={2}>
-                      <span class="sr-only">{m.records_col_actions()}</span>
-                    </th>
-                  </Show>
-                </tr>
-              </thead>
-              <tbody>
-                <For each={list() ?? []} keyed={(source) => source.id}>
-                  {(source) => (
-                    <SourceTableRow
-                      source={source()}
-                      canEdit={canEdit()}
-                      editHref={canEdit() ? paths.sources(source().id).edit() : undefined}
-                    />
-                  )}
-                </For>
-              </tbody>
-            </table>
-          </div>
-        </Show>
-      </div>
-    </main>
+      }
+    >
+      <ListBody busy={busy()} count={list()?.length} empty={m.sources_empty()}>
+        <TableBox>
+          <thead>
+            <tr>
+              <th>{m.sources_col_title()}</th>
+              <th>{m.sources_col_kind()}</th>
+              <th>{m.sources_col_parish()}</th>
+              <th>{m.sources_col_years()}</th>
+              <th>{m.sources_col_language()}</th>
+              <th class="text-right">{m.sources_col_records()}</th>
+              <th>{m.form_note()}</th>
+              <ActionsHeader when={canEdit()} span={2} />
+            </tr>
+          </thead>
+          <tbody>
+            <For each={list() ?? []} keyed={(source) => source.id}>
+              {(source) => (
+                <SourceTableRow
+                  source={source()}
+                  canEdit={canEdit()}
+                  editHref={canEdit() ? paths.sources(source().id).edit() : undefined}
+                />
+              )}
+            </For>
+          </tbody>
+        </TableBox>
+      </ListBody>
+    </ListPage>
   );
 }
 

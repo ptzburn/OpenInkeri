@@ -1,10 +1,7 @@
-import { Title } from '@solidjs/meta';
 import { useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createMemo, isPending } from 'solid-js';
+import { For, Show, createMemo } from 'solid-js';
 import { dynamic } from '@solidjs/web';
-import { env } from 'virtual:env/client';
-import AddIcon from '~icons/ri/add-line';
 import TwinsIcon from '~icons/ri/group-line';
 import TripletsIcon from '~icons/ri/team-line';
 import UnwedIcon from '~icons/ri/link-unlink';
@@ -12,9 +9,17 @@ import UnwedIcon from '~icons/ri/link-unlink';
 import type { QueryData } from '~/lib/query-data';
 import { recordKindLabels } from '~/components/labels';
 import EditLinkCell from '~/components/edit-link-cell';
+import ListPage, {
+  ActionsHeader,
+  AddLink,
+  CountBadge,
+  ListBody,
+  TableBox,
+  useCanEdit,
+  useListBusy,
+} from '~/components/list-page';
 import Pagination from '~/components/pagination';
 import SearchBox from '~/components/search-box';
-import { getCurrentUser } from '~/data/session';
 import { formatPartialDate, localName, localTerm } from '~/lib/format';
 import { type RecordKind, isRecordKind, recordKinds } from '~/lib/record-kinds';
 import { type RecordRow, getRecords } from '~/data/records';
@@ -53,10 +58,8 @@ export default function Records() {
       getRecords(kind(), search.q ?? '', pageNumber(search.page), idParam(search.source)),
     { name: 'records-list' },
   );
-  // Admins edit records on their edit page; the server functions check the
-  // role again, so this only decides what is offered.
-  const me = createMemo(() => getCurrentUser(), { name: 'records-me' });
-  const canEdit = () => !!me()?.isAdmin;
+  const busy = useListBusy(list);
+  const canEdit = useCanEdit('records-me');
 
   // A search goes in the URL in place of the current entry, from page 1.
   const searchFor = (value: string) =>
@@ -82,20 +85,19 @@ export default function Records() {
   });
 
   return (
-    <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
-      <Title>{`${m.records_title()} - ${env.VITE_APP_NAME}`}</Title>
-      <header class="flex flex-wrap items-center gap-2">
-        <h1 class="text-2xl font-bold">{m.records_title()}</h1>
-        <span class="badge badge-sm">{list()?.total}</span>
-        {/* A new record of the open tab's type; the list's place rides
-            along for Cancel. */}
-        <Show when={canEdit()}>
-          <a href={paths.records.new(listPlace())} class="btn ml-auto btn-sm btn-primary">
-            <AddIcon class="size-4" aria-hidden="true" />
-            {m.records_add()}
-          </a>
-        </Show>
-      </header>
+    <ListPage
+      title={m.records_title()}
+      aside={
+        <>
+          <CountBadge count={list()?.total} />
+          {/* A new record of the open tab's type; the list's place rides
+              along for Cancel. */}
+          <Show when={canEdit()}>
+            <AddLink href={paths.records.new(listPlace())} label={m.records_add()} />
+          </Show>
+        </>
+      }
+    >
       {/* Every tab links to /records, so the current one is marked by kind. */}
       <nav aria-label={m.records_kinds_label()} class="tabs tabs-border overflow-x-auto">
         <For each={recordKinds}>
@@ -139,56 +141,47 @@ export default function Records() {
           </div>
         )}
       </Show>
-      <div class="transition-opacity" style={{ opacity: isPending(list) ? 0.5 : 1 }}>
-        <Show
-          when={list()?.records.length}
-          fallback={
-            <p class="py-6 text-center text-base-content/60">
-              {!list()?.counts[kind()]
-                ? m.records_kind_empty()
-                : search.q
-                  ? m.records_no_match({ search: search.q })
-                  : m.records_empty()}
-            </p>
-          }
-        >
-          <div class="overflow-x-auto rounded-box border border-base-300">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <For each={columns[kind()]}>{(label) => <th>{label()}</th>}</For>
-                  <Show when={canEdit()}>
-                    <th>
-                      <span class="sr-only">{m.records_col_actions()}</span>
-                    </th>
-                  </Show>
-                </tr>
-              </thead>
-              <tbody>
-                {/* Keyed by id: a row already shown keeps its DOM across pages
-                    and searches. */}
-                <For each={list()?.records ?? []} keyed={(row) => row.id}>
-                  {(row) => (
-                    <RecordTableRow
-                      kind={kind()}
-                      row={row()}
-                      // The link carries the list's place, to return to it.
-                      editHref={canEdit() ? paths.records(row().id).edit(listPlace()) : undefined}
-                    />
-                  )}
-                </For>
-              </tbody>
-            </table>
-          </div>
-          <Pagination
-            page={list()?.page ?? 1}
-            pages={list()?.pages ?? 1}
-            link={pageLink}
-            label={m.records_pagination_label()}
-          />
-        </Show>
-      </div>
-    </main>
+      <ListBody
+        busy={busy()}
+        count={list()?.records.length}
+        empty={
+          !list()?.counts[kind()]
+            ? m.records_kind_empty()
+            : search.q
+              ? m.records_no_match({ search: search.q })
+              : m.records_empty()
+        }
+      >
+        <TableBox>
+          <thead>
+            <tr>
+              <For each={columns[kind()]}>{(label) => <th>{label()}</th>}</For>
+              <ActionsHeader when={canEdit()} />
+            </tr>
+          </thead>
+          <tbody>
+            {/* Keyed by id: a row already shown keeps its DOM across pages
+                and searches. */}
+            <For each={list()?.records ?? []} keyed={(row) => row.id}>
+              {(row) => (
+                <RecordTableRow
+                  kind={kind()}
+                  row={row()}
+                  // The link carries the list's place, to return to it.
+                  editHref={canEdit() ? paths.records(row().id).edit(listPlace()) : undefined}
+                />
+              )}
+            </For>
+          </tbody>
+        </TableBox>
+        <Pagination
+          page={list()?.page ?? 1}
+          pages={list()?.pages ?? 1}
+          link={pageLink}
+          label={m.records_pagination_label()}
+        />
+      </ListBody>
+    </ListPage>
   );
 }
 
