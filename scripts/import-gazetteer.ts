@@ -13,7 +13,9 @@
 //
 // --osm and --wikidata read answers saved from the services (the JSON that
 // Overpass and the SPARQL endpoint return) instead of asking them; --no-osm
-// leaves OpenStreetMap out where Overpass can't be reached. The SQL replaces
+// leaves OpenStreetMap out where Overpass can't be reached, and --overpass
+// asks another Overpass server (overpass.openstreetmap.fr, say) where the
+// main one can't be. The SQL replaces
 // the whole table: nothing references its rows (a locality added from one
 // copies its values), so apply it whenever the sources have moved on, to the
 // local database first, then with --remote.
@@ -27,10 +29,10 @@ import { type Row, inserts } from './import-common.ts';
 
 const USER_AGENT = 'Open Inkeri genealogy import (https://openinkeri.hokkanen.io)';
 
-// Leningrad Oblast and Saint Petersburg, as Overpass areas (their relation
-// ids + 3600000000), and the box around them for Wikidata.
+// The box around Ingria, Leningrad Oblast and Saint Petersburg with the
+// edges of Finland, Estonia and the Novgorod land, asked of both services
+// (a box, not Overpass areas: not every Overpass server keeps those).
 const OVERPASS = 'https://overpass-api.de/api/interpreter';
-const AREAS = ['3600176095', '3600337422'];
 const BOX = { south: 58.4, west: 27.7, north: 61.4, east: 35.7 };
 const SPARQL = 'https://query.wikidata.org/sparql';
 
@@ -46,6 +48,7 @@ const { values: args } = parseArgs({
     osm: { type: 'string' },
     wikidata: { type: 'string' },
     'no-osm': { type: 'boolean', default: false },
+    overpass: { type: 'string', default: OVERPASS },
   },
 });
 if (!args.out) {
@@ -95,14 +98,16 @@ interface OsmElement {
   tags?: Record<string, string>;
 }
 
-const PLACES = gazetteerKinds.filter((k) => k !== 'settlement').join('|');
-const overpassQuery = `[out:json][timeout:300];(${AREAS.map(
-  (area) => `nwr["place"~"^(${PLACES})$"](area:${area});`,
-).join('')});out center tags;`;
+// Allotments (садоводства, by the thousand) are no settlement a record names.
+const SKIPPED: readonly GazetteerKind[] = ['settlement', 'allotments'];
+const PLACES = gazetteerKinds.filter((k) => !SKIPPED.includes(k)).join('|');
+const overpassQuery = `[out:json][timeout:600][bbox:${BOX.south},${BOX.west},${BOX.north},${BOX.east}];nwr["place"~"^(${PLACES})$"];out center tags;`;
 
 async function fetchOsm(): Promise<OsmElement[]> {
-  console.error('Asking Overpass for the places of Leningrad Oblast and Saint Petersburg...');
-  const response = await fetch(OVERPASS, {
+  console.error(
+    `Asking ${args.overpass} for the places of Leningrad Oblast and Saint Petersburg...`,
+  );
+  const response = await fetch(args.overpass!, {
     method: 'POST',
     headers: { 'User-Agent': USER_AGENT, 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `data=${encodeURIComponent(overpassQuery)}`,
@@ -138,6 +143,7 @@ function osmEntries(elements: OsmElement[]): Entry[] {
     const lat = element.lat ?? element.center?.lat;
     const lon = element.lon ?? element.center?.lon;
     if (!name || lat === undefined || lon === undefined) continue;
+    if (SKIPPED.includes(tags.place as GazetteerKind)) continue;
     entries.push({
       source: 'osm',
       sourceId: `${element.type}/${element.id}`,
