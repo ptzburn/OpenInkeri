@@ -3,6 +3,7 @@
 // edit form edits). Each map is a Record over the list's type, so an option
 // added without its label fails the type check here.
 import type { AuthProvider } from '~/lib/auth-providers';
+import type { GazetteerKind } from '~/lib/gazetteer';
 import type { CoordinateStatus, PlaceKind } from '~/lib/place-kinds';
 import type {
   BaptismLocation,
@@ -82,6 +83,20 @@ export const coordinateStatusLabels: Labels<CoordinateStatus> = {
   verified: m.place_status_verified,
   approximate: m.place_status_approximate,
   unknown: m.place_status_unknown,
+};
+
+// What a settlement the locality search found is (OpenStreetMap's place=*).
+export const gazetteerKindLabels: Labels<GazetteerKind> = {
+  city: m.gazetteer_kind_city,
+  town: m.gazetteer_kind_town,
+  village: m.gazetteer_kind_village,
+  hamlet: m.gazetteer_kind_hamlet,
+  farm: m.gazetteer_kind_farm,
+  isolated_dwelling: m.gazetteer_kind_isolated_dwelling,
+  neighbourhood: m.gazetteer_kind_neighbourhood,
+  locality: m.gazetteer_kind_locality,
+  allotments: m.gazetteer_kind_allotments,
+  settlement: m.gazetteer_kind_settlement,
 };
 
 // Brand names, the same in every language.

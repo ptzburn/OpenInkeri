@@ -60,9 +60,9 @@ import {
   deleteCreated,
   insertPlace,
   newParish,
+  parishNamed,
   parseNewRow,
 } from '~/server/linked-rows';
-import { rowsSpelled, spellingIndex } from '~/lib/spellings';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -231,6 +231,41 @@ export const getPlaceEdit = query(async (id: number): Promise<PlaceEditData | nu
   return { ...rest, spellings: aliases.map((a) => a.name), ...uses };
 }, 'place-edit');
 
+/** A located place as the locality form's map shows it, with the parish whose church stands there, when one does. */
+export interface PlaceMarker {
+  id: number;
+  name: Names;
+  latitude: number;
+  longitude: number;
+  church: { id: number; name: Names } | null;
+}
+
+/** Every place with coordinates, and which of them are parish churches: the locality form's map shows them around the one being edited. */
+export const getPlaceMarkers = query(async (): Promise<PlaceMarker[]> => {
+  'use server';
+  adminOnly();
+  const [places, parishes] = await Promise.all([
+    db.query.place.findMany({
+      columns: { id: true, nameRu: true, nameFi: true, latitude: true, longitude: true },
+      where: { latitude: { isNotNull: true as const }, longitude: { isNotNull: true as const } },
+    }),
+    db.query.parish.findMany({
+      columns: { id: true, nameRu: true, nameFi: true, churchPlaceId: true },
+      where: { churchPlaceId: { isNotNull: true as const } },
+    }),
+  ]);
+  const churchOf = new Map(
+    parishes.map((p) => [p.churchPlaceId!, { id: p.id, name: { ru: p.nameRu, fi: p.nameFi } }]),
+  );
+  return places.map((p) => ({
+    id: p.id,
+    name: { ru: p.nameRu, fi: p.nameFi },
+    latitude: p.latitude!,
+    longitude: p.longitude!,
+    church: churchOf.get(p.id) ?? null,
+  }));
+}, 'place-markers');
+
 /** Every place, by both names, with its parish: a form's choices of locality. */
 export const getPlaceOptions = query(async (): Promise<PlaceOption[]> => {
   'use server';
@@ -334,21 +369,7 @@ export const savePlace = action(async (formData: FormData) => {
   ) {
     throw refuse({ message: m.form_invalid(), fields: { parishId: '' } }, 400);
   }
-  if (!parishId && input.parishText) {
-    const parishes = await db.query.parish.findMany({
-      columns: { id: true, nameRu: true, nameFi: true },
-    });
-    const named = rowsSpelled(
-      spellingIndex(
-        parishes.map((p) => ({
-          id: p.id,
-          spellings: p.nameFi ? [p.nameRu, p.nameFi] : [p.nameRu],
-        })),
-      ),
-      input.parishText,
-    );
-    if (named.length === 1) parishId = named[0];
-  }
+  if (!parishId && input.parishText) parishId = await parishNamed(input.parishText);
   const now = new Date();
   const createdRows: Created[] = [];
   if (!parishId && input.parishText && input.parishCreate) {
@@ -361,18 +382,18 @@ export const savePlace = action(async (formData: FormData) => {
     parishId = created.id;
   }
 
-  const coordinateStatus: CoordinateStatus = !input.coordinates
-    ? 'unknown'
-    : input.coordinateStatus === 'unknown'
-      ? 'approximate'
-      : input.coordinateStatus;
+  // "Not located" unsets the coordinates (the form does that as the status
+  // is chosen; this covers a form posted before JavaScript loaded), and no
+  // coordinates means not located.
+  const coordinates = input.coordinateStatus === 'unknown' ? null : input.coordinates;
+  const coordinateStatus: CoordinateStatus = coordinates ? input.coordinateStatus : 'unknown';
   const fields = {
     kind: input.kind,
     nameRu: input.nameRu,
     nameFi: input.nameFi,
     parishId,
-    latitude: input.coordinates?.lat ?? null,
-    longitude: input.coordinates?.lng ?? null,
+    latitude: coordinates?.lat ?? null,
+    longitude: coordinates?.lng ?? null,
     coordinateStatus,
     note: input.note,
   };

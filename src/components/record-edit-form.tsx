@@ -11,6 +11,7 @@ import {
   TextArea,
   TextInput,
   useFormDone,
+  saveBarClass,
   useFormErrors,
 } from '~/components/form-fields';
 import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
@@ -203,7 +204,7 @@ export default function RecordEditForm(props: {
           fields: (prefix, text) => (
             <NewPlaceFields
               prefix={prefix}
-              text={text}
+              text={text()}
               kind={prefix.startsWith('estate') ? 'manor' : 'village'}
               parishes={options()?.parishes ?? []}
               parishId={sourceParishId()}
@@ -225,7 +226,7 @@ export default function RecordEditForm(props: {
         {
           label: m.lookup_create_relation(),
           fields: (prefix, text) => (
-            <NewRelationFields prefix={prefix} text={text} invalid={invalid} />
+            <NewRelationFields prefix={prefix} text={text()} invalid={invalid} />
           ),
         },
       ),
@@ -242,7 +243,7 @@ export default function RecordEditForm(props: {
         {
           label: m.lookup_create_clergy(),
           fields: (prefix, text) => (
-            <NewClergyFields prefix={prefix} text={text} invalid={invalid} />
+            <NewClergyFields prefix={prefix} text={text()} invalid={invalid} />
           ),
         },
       ),
@@ -548,10 +549,9 @@ export default function RecordEditForm(props: {
               cancelHref={props.cancelHref}
               saveAndNext={!r.id}
               primary={inSource() ? 'next' : 'save'}
-              class="sticky bottom-0 -mx-4 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8"
+              class={saveBarClass(!r.id)}
             />
           </form>
-          {/* What the lookups' inputs suggest. */}
           <Show when={r.id}>
             <DeleteSection
               action={deleteRecord}

@@ -17,11 +17,7 @@ export default function NewParish() {
   const allowed = createMemo(() => requireAdmin(), { name: 'parish-new-admin' });
 
   return (
-    <EditPage
-      title={m.parish_new_title()}
-      backHref={paths.places.parishes()}
-      backLabel={m.parish_edit_back()}
-    >
+    <EditPage title={m.parish_new_title()}>
       <Show when={allowed()}>
         <ParishEditForm cancelHref={paths.places.parishes()} />
       </Show>

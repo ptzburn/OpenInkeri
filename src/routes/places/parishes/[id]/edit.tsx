@@ -24,11 +24,7 @@ export const route = defineFileRoute('/places/parishes/:id/edit', {
 
 export default function EditParish(props: RouteProps<'/places/parishes/:id/edit'>) {
   return (
-    <EditPage
-      title={m.parish_edit_title()}
-      backHref={paths.places.parishes()}
-      backLabel={m.parish_edit_back()}
-    >
+    <EditPage title={m.parish_edit_title()}>
       <Show when={idParam(props.params.id)} fallback={<p>{m.parish_edit_missing()}</p>}>
         {(id) => <ParishEditForm id={id()} cancelHref={paths.places.parishes()} />}
       </Show>

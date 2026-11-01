@@ -1,4 +1,4 @@
-import { For, Loading, Show, createMemo, createSignal } from 'solid-js';
+import { For, Loading, Show, createMemo, createSignal, onSettled } from 'solid-js';
 
 import { getPeople } from '~/data/people';
 import type { QueryData } from '~/lib/query-data';
@@ -18,6 +18,8 @@ export default function PersonLinkField(props: { prefix: string }) {
   const name = () => `${props.prefix}.personId`;
   const [search, setSearch] = createSignal('', { name: 'person-link-search' });
   let typing: ReturnType<typeof setTimeout> | undefined;
+  // A search still waiting when the field goes is dropped with it.
+  onSettled(() => () => clearTimeout(typing));
   const found = createMemo(
     (): Promise<QueryData<typeof getPeople>> | null => {
       const q = search().trim();

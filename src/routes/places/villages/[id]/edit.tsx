@@ -5,7 +5,7 @@ import { Show } from 'solid-js';
 import EditPage from '~/components/edit-page';
 import PlaceEditForm from '~/components/place-edit-form';
 import { getParishOptions } from '~/data/parishes';
-import { getPlaceEdit } from '~/data/places';
+import { getPlaceEdit, getPlaceMarkers } from '~/data/places';
 import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -20,6 +20,7 @@ export const route = defineFileRoute('/places/villages/:id/edit', {
     if (id) {
       void getPlaceEdit(id);
       void getParishOptions();
+      void getPlaceMarkers();
     }
   },
 });
@@ -29,7 +30,7 @@ export default function EditVillage(props: RouteProps<'/places/villages/:id/edit
   const listHref = () => paths.places.villages({ q: search.q, parish: search.parish });
 
   return (
-    <EditPage title={m.place_edit_title()} backHref={listHref()} backLabel={m.place_edit_back()}>
+    <EditPage title={m.place_edit_title()}>
       <Show when={idParam(props.params.id)} fallback={<p>{m.place_edit_missing()}</p>}>
         {(id) => (
           <PlaceEditForm

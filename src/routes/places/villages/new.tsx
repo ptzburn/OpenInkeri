@@ -4,6 +4,7 @@ import { defineFileRoute } from '@solidjs/router/fs';
 import EditPage from '~/components/edit-page';
 import PlaceEditForm from '~/components/place-edit-form';
 import { getParishOptions } from '~/data/parishes';
+import { getPlaceMarkers } from '~/data/places';
 import { stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -13,7 +14,10 @@ import { paths } from '~/router';
 // page; a new village starts in the parish the list was narrowed to.
 export const route = defineFileRoute('/places/villages/new', {
   search: stringParams('q', 'parish'),
-  preload: () => void getParishOptions(),
+  preload: () => {
+    void getParishOptions();
+    void getPlaceMarkers();
+  },
 });
 
 export default function NewVillage() {
@@ -21,7 +25,7 @@ export default function NewVillage() {
   const listHref = () => paths.places.villages({ q: search.q, parish: search.parish });
 
   return (
-    <EditPage title={m.place_new_title()} backHref={listHref()} backLabel={m.place_edit_back()}>
+    <EditPage title={m.place_new_title()}>
       <PlaceEditForm returnTo={{ q: search.q, parish: search.parish }} cancelHref={listHref()} />
     </EditPage>
   );

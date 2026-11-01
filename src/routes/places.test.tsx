@@ -70,6 +70,31 @@ vi.mock('~/data/session', () => ({
   getCurrentUser: vi.fn(async () => me.current),
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
 }));
+// The locality search: one settlement, found by either name, nearest to parish 5's church.
+vi.mock('~/data/gazetteer', () => ({
+  getGazetteerHits: vi.fn(async (q: string) =>
+    /^(губ|kup)/i.test(q)
+      ? [
+          {
+            source: 'osm',
+            sourceId: 'way/251708753',
+            kind: 'village',
+            name: 'Губаницы',
+            nameRu: 'Губаницы',
+            nameFi: 'Kupanitsa',
+            names: ['Губаницы', 'Kupanitsa', 'Gubanitsi'],
+            latitude: 59.4880048,
+            longitude: 29.5348549,
+            detail: null,
+            parish: { id: 5, name: { ru: 'Губаницы', fi: 'Hevaa' }, km: 0.4 },
+            existing: null,
+            near: null,
+          },
+        ]
+      : [],
+  ),
+  getMapHits: vi.fn(async () => []),
+}));
 const { parishes } = vi.hoisted(() => ({
   parishes: {
     saved: [] as FormData[],
@@ -120,6 +145,7 @@ vi.mock('~/data/places', async () => {
   const { redirect } = await import('@solidjs/web');
   return {
     getPlaces: vi.fn(async () => places.list()),
+    getPlaceMarkers: vi.fn(async () => []),
     // The church's choices: Горки in parish 5, Кикерино in another parish.
     getPlaceOptions: vi.fn(async () => [
       {
@@ -334,15 +360,20 @@ describe('editing a village', () => {
   });
 
   test('a refused save stays, says why and marks the fields', async () => {
-    places.failWith = { message: 'Check the marked fields.', fields: { coordinates: '' } };
+    places.failWith = {
+      message: 'Check the marked fields.',
+      fields: { nameFi: '', coordinates: 'Not on Earth.' },
+    };
     const form = await openGorki();
     fireEvent.submit(form);
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Check the marked fields.');
     expect(window.location.pathname).toBe('/places/villages/1/edit');
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
-    expect(field('coordinates')).toHaveAttribute('aria-invalid', 'true');
+    expect(field('nameFi')).toHaveAttribute('aria-invalid', 'true');
     expect(field('nameRu')).not.toHaveAttribute('aria-invalid');
+    // The coordinates have no field to mark: their reason shows under the map.
+    expect(screen.getByText('Not on Earth.')).toBeInTheDocument();
   });
 
   test('a locality that records and birthplaces link to says so and cannot be deleted', async () => {
@@ -389,6 +420,8 @@ describe('editing a village', () => {
     await screen.findByRole('heading', { level: 1, name: 'New locality' });
     await waitFor(() => expect(field('nameRu')).toHaveValue(''));
     expect(field('kind')).toHaveValue('village');
+    // Spellings come with records: nothing to edit on a new locality.
+    expect(field('spellings')).toBeNull();
     fireEvent.input(field('nameRu'), { target: { value: 'Серебетта' } });
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
 
@@ -397,6 +430,46 @@ describe('editing a village', () => {
     expect(places.saved[0].get('nameRu')).toBe('Серебетта');
     // No Finnish name, so English shows the Russian one.
     expect(await screen.findByRole('status')).toHaveTextContent('Locality Серебетта added.');
+  });
+
+  test('a settlement picked in the search fills the names, type, coordinates and parish', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/villages/new');
+    await waitFor(() => expect(field('nameRu')).toHaveValue(''));
+    const search = screen.getByRole('combobox', { name: 'Find the locality' });
+    fireEvent.input(search, { target: { value: 'kupa' } });
+    const option = await screen.findByRole('option', { name: /Губаницы/ });
+    expect(option).toHaveTextContent('Kupanitsa');
+    expect(option).toHaveTextContent('Village · Hevaa (0.4 km)');
+    fireEvent.click(within(option).getByRole('button'));
+
+    await waitFor(() => expect(field('nameRu')).toHaveValue('Губаницы'));
+    expect(field('nameFi')).toHaveValue('Kupanitsa');
+    expect(field('kind')).toHaveValue('village');
+    expect(field('coordinates')).toHaveValue('59.4880048, 29.5348549');
+    expect(field('coordinateStatus')).toHaveValue('approximate');
+    expect(field('parishId')).toHaveValue('5');
+    expect(field('parishText')).toHaveValue('Hevaa');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    // The pick is posted like anything typed.
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    await waitFor(() => expect(places.saved).toHaveLength(1));
+    expect(places.saved[0].get('nameFi')).toBe('Kupanitsa');
+    expect(places.saved[0].get('coordinates')).toBe('59.4880048, 29.5348549');
+    expect(places.saved[0].get('parishId')).toBe('5');
+  });
+
+  test('choosing "Not located" unsets the coordinates', async () => {
+    await openGorki();
+    expect(field('coordinates')).toHaveValue('59.613487, 30.22519');
+    expect(screen.getByText('59.613487, 30.22519')).toBeInTheDocument();
+    fireEvent.change(field('coordinateStatus'), { target: { value: 'unknown' } });
+    await waitFor(() => expect(field('coordinates')).toHaveValue(''));
+    expect(screen.getByText('Not located yet.')).toBeInTheDocument();
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    await waitFor(() => expect(places.saved).toHaveLength(1));
+    expect(places.saved[0].get('coordinates')).toBe('');
+    expect(places.saved[0].get('coordinateStatus')).toBe('unknown');
   });
 });
 

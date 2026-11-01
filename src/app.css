@@ -7,6 +7,25 @@
     dark;
 }
 
+/* From lg up the sidebar folds to its icons: App marks the drawer
+   data-sidebar="collapsed" or "expanded" (src/data/sidebar.ts keeps the
+   choice), and these variants style what is inside it either way. Below lg
+   the sidebar is a drawer over the page, never folded, so neither applies. */
+@custom-variant sidebar-collapsed {
+  @media (width >= 64rem) {
+    &:where([data-sidebar='collapsed'] *) {
+      @slot;
+    }
+  }
+}
+@custom-variant sidebar-expanded {
+  @media (width >= 64rem) {
+    &:where([data-sidebar='expanded'] *) {
+      @slot;
+    }
+  }
+}
+
 /* While a form's action runs, the router marks the form aria-busy: dim its
    buttons and ignore clicks, so a second submit can't start. */
 form[aria-busy] button {

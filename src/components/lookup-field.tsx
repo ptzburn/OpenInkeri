@@ -25,7 +25,12 @@ export interface LookupOption {
 export interface LookupCreate {
   /** Said over the fields: "Add as a new locality". */
   label: string;
-  fields: (prefix: string, text: string) => JSX.Element;
+  /**
+   * The value as written comes as an accessor: read it in JSX (`text={text()}`),
+   * so a keystroke updates the prefilled value and keeps the fields, with
+   * what was typed in them, as they are.
+   */
+  fields: (prefix: string, text: () => string) => JSX.Element;
 }
 
 /** The rows of one kind, for every field that links to them. */
@@ -121,6 +126,7 @@ export function LookupField(props: {
   // A value no spelling contains, where a row can be added: its fields show.
   // Not before: while rows match what is typed so far, the dropdown has them.
   const unknown = () => !!props.lookup.create && !!text().trim() && !found().length && !linked();
+  const typedText = () => text().trim();
   // Open with rows to show: the field can be open with none (a text that
   // matches nothing), and then the chevron or the arrow key browse instead
   // of closing.
@@ -314,7 +320,7 @@ export function LookupField(props: {
           <div class="mt-2">
             <input type="hidden" name={createName(props.textName)} value="on" />
             <p class="text-sm text-base-content/70">{create().label}</p>
-            {create().fields(newPrefix(props.textName), text().trim())}
+            {create().fields(newPrefix(props.textName), typedText)}
           </div>
         )}
       </Show>

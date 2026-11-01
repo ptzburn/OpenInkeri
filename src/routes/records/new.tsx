@@ -37,7 +37,7 @@ export default function NewRecord() {
   const listHref = () => paths.records(listPlace());
 
   return (
-    <EditPage title={m.record_new_title()} backHref={listHref()} backLabel={m.record_edit_back()}>
+    <EditPage title={m.record_new_title()}>
       <Show when={allowed()}>
         <RecordEditForm
           kind={isRecordKind(search.kind) ? search.kind : 'baptisms'}

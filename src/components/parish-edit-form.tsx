@@ -67,7 +67,7 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
         {
           label: m.lookup_create_place(),
           fields: (prefix, text) => (
-            <NewPlaceFields prefix={prefix} text={text} invalid={invalid} />
+            <NewPlaceFields prefix={prefix} text={text()} invalid={invalid} />
           ),
         },
       ),

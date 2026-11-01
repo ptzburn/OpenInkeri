@@ -29,11 +29,7 @@ export default function EditPerson(props: RouteProps<'/people/:id/edit'>) {
       }
     >
       {(id) => (
-        <EditPage
-          title={m.person_edit()}
-          backHref={paths.people(id())()}
-          backLabel={m.person_edit_back()}
-        >
+        <EditPage title={m.person_edit()}>
           <PersonEditForm id={id()} cancelHref={paths.people(id())()} />
         </EditPage>
       )}

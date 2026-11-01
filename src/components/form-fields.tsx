@@ -88,7 +88,8 @@ export function postedName(form: FormData): string {
  * back) and Save; with `saveAndNext`, also Save and add next, which posts
  * `next=on`. The form must have the `group` class: while a save is in
  * flight the router marks it aria-busy, which shows the spinner and stops
- * further clicks.
+ * further clicks. A form that pins it to the window's bottom passes
+ * `saveBarClass(...)`.
  */
 export function FormActions(props: {
   error?: FormError;
@@ -147,6 +148,18 @@ export function FormActions(props: {
     </div>
   );
 }
+
+/**
+ * FormActions pinned to the window's bottom while the form scrolls, over the
+ * page's padding, as tall as the sidebar's account corner (min-h-18) so the
+ * line over each runs level. Where nothing follows the form (`last`: a new
+ * row, with no Delete section) it reaches the page's bottom edge too.
+ */
+export const saveBarClass = (last: boolean) =>
+  [
+    'sticky bottom-0 z-10 -mx-4 min-h-18 justify-center border-t border-base-300 bg-base-100 px-4 lg:-mx-8 lg:px-8',
+    last ? '-mb-4 lg:-mb-8' : '',
+  ].join(' ');
 
 /**
  * Why a field's value is wrong, right after its control (which has daisyUI's
@@ -243,6 +256,8 @@ export function Select(props: {
   options: Option[];
   none?: string;
   invalid: Fault;
+  /** Told the value chosen, for a form that follows it (the coordinates' status). */
+  onChange?: (value: string) => void;
 }) {
   const current = () => String(props.value ?? '');
   return (
@@ -252,6 +267,7 @@ export function Select(props: {
         name={props.name}
         class="validator select w-full"
         aria-invalid={ariaInvalid(props.invalid)}
+        onChange={(event) => props.onChange?.(event.currentTarget.value)}
       >
         <Show when={props.none}>
           {(label) => (
@@ -273,18 +289,20 @@ export function Select(props: {
   );
 }
 
-/**
- * An edit page's Delete section, for an action whose form posts `id`,
- * `version` and a ticked `confirm` box (a box instead of a confirm dialog,
- * so it works before JavaScript loads too; the server checks it again).
- * While something still depends on the row, `inUse` says what, and the box
- * and button are disabled (the server refuses too, in case something was
- * linked since the page loaded). A delete that went through shows `deleted`
- * as a toast on the page its action redirects to.
- */
 /** Whether this browser runs invoker commands (commandfor/command) itself. */
 const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype;
 
+/**
+ * An edit page's Delete section, for an action whose form posts `id`,
+ * `version` and `confirm=on`. Its button opens a native modal dialog
+ * (daisyUI's modal) through invoker commands, where Cancel, Escape and the
+ * backdrop close it and the dialog's form posts the delete; the server
+ * checks the confirmation again. While something still depends on the row,
+ * `inUse` says what, and the button is disabled (the server refuses too, in
+ * case something was linked since the page loaded). A refused delete closes
+ * the dialog and says why in the section. A delete that went through shows
+ * `deleted` as a toast on the page its action redirects to.
+ */
 export function DeleteSection<U>(props: {
   action: Action<[FormData], U>;
   id: number;

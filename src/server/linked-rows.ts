@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { type PlaceKind, placeKinds } from '~/lib/place-kinds';
+import { rowsSpelled, spellingIndex } from '~/lib/spellings';
 import { db } from '~/server/database';
 import { changeLog, clergy, parish, place, placeAlias, term } from '~/server/database/schema';
 import { finnishName, line, optionalId, parseForm, russianName } from '~/server/forms';
@@ -89,6 +90,42 @@ const logCreate = (entity: string, entityId: number, after: object, by: By) =>
 const names = (...values: (string | null | undefined)[]) => [
   ...new Set(values.filter((s): s is string => !!s)),
 ];
+
+// The one row a value as written names, by the rows' names (and a
+// locality's spellings). The lookup field links by this rule as the admin
+// types; the saves apply it to a value posted without a link (before
+// JavaScript loaded). A spelling several rows share links none: the admin
+// chooses.
+const theOne = (rows: { id: number; spellings: string[] }[], text: string): number | null => {
+  const named = rowsSpelled(spellingIndex(rows), text);
+  return named.length === 1 ? named[0] : null;
+};
+
+/** The parish `text` names by either of its names, or null when none or several do. */
+export async function parishNamed(text: string): Promise<number | null> {
+  const parishes = await db.query.parish.findMany({
+    columns: { id: true, nameRu: true, nameFi: true },
+  });
+  return theOne(
+    parishes.map((p) => ({ id: p.id, spellings: names(p.nameRu, p.nameFi) })),
+    text,
+  );
+}
+
+/** The locality `text` names by its names or a spelling records use for it, or null when none or several do. */
+export async function placeNamed(text: string): Promise<number | null> {
+  const places = await db.query.place.findMany({
+    columns: { id: true, nameRu: true, nameFi: true },
+    with: { aliases: { columns: { name: true } } },
+  });
+  return theOne(
+    places.map((p) => ({
+      id: p.id,
+      spellings: names(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
+    })),
+    text,
+  );
+}
 
 /** Inserts a place and returns its id; the caller logs it (see createPlace). */
 export async function insertPlace(

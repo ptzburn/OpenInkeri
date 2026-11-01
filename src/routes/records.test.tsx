@@ -875,11 +875,11 @@ describe('editing a baptism', () => {
     expect(field('date').nextElementSibling).toHaveTextContent('Check this value.');
   });
 
-  test('Cancel and the back link return to the list unsaved', async () => {
+  test('Cancel returns to the list as it was, unsaved; there is no other way back', async () => {
     await openMaria();
     const back = `/records?q=${encodeURIComponent('мария')}`;
     expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute('href', back);
-    expect(screen.getByRole('link', { name: 'Back to records' })).toHaveAttribute('href', back);
+    expect(screen.queryByRole('link', { name: 'Back to records' })).toBeNull();
     expect(editing.saved).toEqual([]);
   });
 
