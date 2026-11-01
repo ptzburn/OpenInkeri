@@ -10,7 +10,6 @@ import {
   NamePair,
   Select,
   TextArea,
-  panelBarClass,
   postedName,
   useEditForm,
 } from '~/components/form-fields';
@@ -226,7 +225,7 @@ export default function PlaceEditForm(props: {
               />
               <section
                 class={[
-                  'flex flex-col overflow-hidden max-lg:pointer-events-auto',
+                  'group flex flex-col overflow-hidden max-lg:pointer-events-auto',
                   'max-lg:absolute max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-1 max-lg:rounded-t-box max-lg:border-t max-lg:border-base-300 max-lg:bg-base-100/90 max-lg:shadow-xl max-lg:backdrop-blur-md max-lg:transition-[height] max-lg:duration-300 max-lg:ease-out',
                   open() ? 'max-lg:h-[88%]' : 'max-lg:h-1/3',
                   'lg:min-h-0 lg:flex-1',
@@ -245,9 +244,14 @@ export default function PlaceEditForm(props: {
                 >
                   <span class="h-1.5 w-10 rounded-full bg-base-content/30" aria-hidden="true" />
                 </button>
-                <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pt-4">
+                <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-4">
                   {/* While a save is in flight the router marks the form aria-busy. */}
-                  <form method="post" action={savePlace} class="group flex flex-1 flex-col gap-4">
+                  <form
+                    id="place-form"
+                    method="post"
+                    action={savePlace}
+                    class="group flex flex-col gap-4"
+                  >
                     <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
                     <input type="hidden" name="returnParish" value={props.returnTo.parish ?? ''} />
                     <input type="hidden" name="id" value={p.id || ''} />
@@ -384,35 +388,38 @@ export default function PlaceEditForm(props: {
                         class="sm:col-span-2"
                       />
                     </div>
-
-                    <FormActions
-                      error={error()}
-                      cancelHref={props.cancelHref}
-                      class={panelBarClass}
-                    />
                   </form>
                   <Show when={p.id}>
-                    <div class="mb-4">
-                      <DeleteSection
-                        action={deletePlace}
-                        id={p.id}
-                        version={p.version}
-                        title={m.place_delete()}
-                        text={m.place_delete_text()}
-                        inUse={placeInUse(p)}
-                        deleted={m.place_deleted({ name: localName(namesOf(p)) })}
-                      >
-                        {/* Back to the list as it was, like a save. */}
-                        <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
-                        <input
-                          type="hidden"
-                          name="returnParish"
-                          value={props.returnTo.parish ?? ''}
-                        />
-                      </DeleteSection>
-                    </div>
+                    <DeleteSection
+                      action={deletePlace}
+                      id={p.id}
+                      version={p.version}
+                      title={m.place_delete()}
+                      text={m.place_delete_text()}
+                      inUse={placeInUse(p)}
+                      deleted={m.place_deleted({ name: localName(namesOf(p)) })}
+                    >
+                      {/* Back to the list as it was, like a save. */}
+                      <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
+                      <input
+                        type="hidden"
+                        name="returnParish"
+                        value={props.returnTo.parish ?? ''}
+                      />
+                    </DeleteSection>
                   </Show>
                 </div>
+                {/* The panel's footer, fixed under the scrolling body: as tall
+                    as the sidebar's account corner (min-h-18) so the line over
+                    each runs level, and as see-through as the panel. Its
+                    buttons submit the form above by its id, and follow its
+                    busy state through the section, their shared group. */}
+                <FormActions
+                  form="place-form"
+                  error={error()}
+                  cancelHref={props.cancelHref}
+                  class="min-h-18 justify-center border-t border-base-300 bg-base-100/90 px-4 backdrop-blur-md"
+                />
               </section>
             </div>
           </div>
