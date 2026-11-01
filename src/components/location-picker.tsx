@@ -44,6 +44,8 @@ const styleFor = () =>
 export default function LocationPicker(props: {
   value: string;
   onPick: (lat: number, lng: number) => void;
+  /** The map's height (h-72 unless said otherwise); MapLibre follows the box as it resizes. */
+  class?: string;
 }) {
   let container: HTMLDivElement | undefined;
   const [map, setMap] = createSignal<MapLibreMap | undefined>(undefined, { name: 'map' });
@@ -118,7 +120,10 @@ export default function LocationPicker(props: {
     <div class="flex flex-col gap-1">
       <div
         ref={(el) => (container = el)}
-        class="h-72 w-full overflow-hidden rounded-box border border-base-300 bg-base-200"
+        class={[
+          'w-full overflow-hidden rounded-box border border-base-300 bg-base-200',
+          props.class ?? 'h-72',
+        ]}
       >
         <Show when={unsupported()}>
           <p class="grid h-full place-items-center p-4 text-center text-sm text-base-content/60">
