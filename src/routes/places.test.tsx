@@ -143,6 +143,7 @@ vi.mock('~/data/places', async () => {
   const { redirect } = await import('@solidjs/web');
   return {
     getPlaces: vi.fn(async () => places.list()),
+    getPlaceMarkers: vi.fn(async () => []),
     // The church's choices: Горки in parish 5, Кикерино in another parish.
     getPlaceOptions: vi.fn(async () => [
       {

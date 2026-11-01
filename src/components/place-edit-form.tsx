@@ -30,7 +30,13 @@ import {
   placeKinds,
 } from '~/lib/place-kinds';
 import { getParishOptions } from '~/data/parishes';
-import { type PlaceEditData, deletePlace, getPlaceEdit, savePlace } from '~/data/places';
+import {
+  type PlaceEditData,
+  deletePlace,
+  getPlaceEdit,
+  getPlaceMarkers,
+  savePlace,
+} from '~/data/places';
 import { m } from '~/paraglide/messages.js';
 
 // What a new place's form starts from.
@@ -85,6 +91,10 @@ export default function PlaceEditForm(props: {
       name: 'parish-options',
     },
   );
+  // The localities already located, for the map to show around this one.
+  const markers = createMemo((): Promise<QueryData<typeof getPlaceMarkers>> => getPlaceMarkers(), {
+    name: 'place-markers',
+  });
   const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
   // This form's refused saves (the latest shown, its fields marked).
   const { error, invalid } = useFormErrors(savePlace, isThisForm);
@@ -148,6 +158,13 @@ export default function PlaceEditForm(props: {
           setCoordinateStatus('approximate');
           if (hit.parish) setParishId(hit.parish.id);
         };
+        // The other localities on the map, and the church of the parish
+        // chosen, where the map starts while this one has no coordinates.
+        const neighbours = () => (markers() ?? []).filter((n) => n.id !== p.id);
+        const church = () => {
+          const found = (markers() ?? []).find((n) => n.church?.id === parishId());
+          return found ? { lat: found.latitude, lng: found.longitude } : null;
+        };
         return (
           <>
             {/* While a save is in flight the router marks the form aria-busy. */}
@@ -168,6 +185,8 @@ export default function PlaceEditForm(props: {
                     class="h-[50vh] min-h-72 lg:h-[calc(100dvh-18rem)] lg:min-h-96"
                     value={coordinates()}
                     onPick={(lat, lng) => setCoordinates(formatCoordinates(lat, lng))}
+                    markers={neighbours()}
+                    focus={church()}
                   />
                   <div class="grid gap-x-4 sm:grid-cols-2">
                     <TextInput
