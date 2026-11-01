@@ -21,6 +21,21 @@ export default function EditPage(props: { title: string; children: JSX.Element }
   );
 }
 
+/**
+ * A page that is a map with the form as a panel over it (the locality
+ * pages): the tab title and, from lg up, a box as tall as the viewport under
+ * the header (navbar: min-h-16) that the content fills, edge to edge; below
+ * lg the content flows as a page. The heading is the panel's, in the content.
+ */
+export function MapPage(props: { title: string; children: JSX.Element }) {
+  return (
+    <main class="relative flex min-w-0 flex-1 flex-col lg:h-[calc(100dvh-4rem)] lg:flex-none lg:overflow-hidden">
+      <Title>{`${props.title} - ${env.VITE_APP_NAME}`}</Title>
+      {props.children}
+    </main>
+  );
+}
+
 /** A link back from a page with no Cancel: the link page, a row that isn't there. */
 export function BackLink(props: { href: string; label: string }) {
   return (

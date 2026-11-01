@@ -181,6 +181,15 @@ export const saveBarClass = (last: boolean) =>
   ].join(' ');
 
 /**
+ * FormActions pinned to the bottom of a panel that scrolls inside itself
+ * (a MapPage's form; below lg, the window's bottom), over the panel's px-4
+ * padding, and pushed to the bottom of a form shorter than the panel. The
+ * panel has no bottom padding: a sticky box stops at its scroller's padding.
+ */
+export const panelBarClass =
+  'sticky bottom-0 z-10 -mx-4 mt-auto min-h-18 justify-center border-t border-base-300 bg-base-100 px-4';
+
+/**
  * Why a field's value is wrong, right after its control (which has daisyUI's
  * `validator` class). It shows while the control is invalid: to the browser
  * (`required`, `pattern`), once the admin has left it or tried to save, or to

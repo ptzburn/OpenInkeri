@@ -99,7 +99,7 @@ export default function LocationPicker(props: {
   onPick: (lat: number, lng: number) => void;
   markers?: PlaceMarker[];
   focus?: Point | null;
-  /** The map's height (h-72 unless said otherwise); MapLibre follows the box as it resizes. */
+  /** The box's classes, its height above all (h-72 unless said otherwise); MapLibre follows the box as it resizes. */
   class?: string;
 }) {
   let container: HTMLDivElement | undefined;
@@ -195,21 +195,15 @@ export default function LocationPicker(props: {
   );
 
   return (
-    <div class="flex flex-col gap-1">
-      <div
-        ref={(el) => (container = el)}
-        class={[
-          'w-full overflow-hidden rounded-box border border-base-300 bg-base-200',
-          props.class ?? 'h-72',
-        ]}
-      >
-        <Show when={unsupported()}>
-          <p class="grid h-full place-items-center p-4 text-center text-sm text-base-content/60">
-            {m.map_webgl_unsupported()}
-          </p>
-        </Show>
-      </div>
-      <p class="label text-xs">{m.place_edit_map_hint()}</p>
+    <div
+      ref={(el) => (container = el)}
+      class={['w-full overflow-hidden bg-base-200', props.class ?? 'h-72']}
+    >
+      <Show when={unsupported()}>
+        <p class="grid h-full place-items-center p-4 text-center text-sm text-base-content/60">
+          {m.map_webgl_unsupported()}
+        </p>
+      </Show>
     </div>
   );
 }

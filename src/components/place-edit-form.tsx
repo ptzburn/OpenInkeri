@@ -9,8 +9,8 @@ import {
   NamePair,
   Select,
   TextArea,
+  panelBarClass,
   postedName,
-  saveBarClass,
   useEditForm,
 } from '~/components/form-fields';
 import { placeKindLabels } from '~/components/labels';
@@ -64,9 +64,15 @@ const blank: PlaceEditData = {
  * parish the list was narrowed to. A save is confirmed with a toast; one the
  * server refuses keeps the form as typed, says why and marks the fields at fault.
  * An existing place's form is followed by its Delete section.
+ *
+ * The map is the page and the form a panel over it (MapPage): the heading,
+ * the search, the coordinates the map sets, the fields, and Cancel and Save
+ * pinned at the bottom.
  */
 export default function PlaceEditForm(props: {
   id?: number;
+  /** The page's heading, at the top of the panel. */
+  title: string;
   returnTo: { q?: string; parish?: string };
   cancelHref: string;
 }) {
@@ -155,152 +161,172 @@ export default function PlaceEditForm(props: {
           return found ? { lat: found.latitude, lng: found.longitude } : null;
         };
         return (
-          <>
-            {/* While a save is in flight the router marks the form aria-busy. */}
-            <form method="post" action={savePlace} class="group flex max-w-7xl flex-col gap-6">
-              <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
-              <input type="hidden" name="returnParish" value={props.returnTo.parish ?? ''} />
-              <input type="hidden" name="id" value={p.id || ''} />
-              <input type="hidden" name="version" value={p.version} />
-
-              {/* From lg up, two panes: the search and the fields on the
-                  left, the map on the right, pinned under the header while
-                  the fields scroll, with the coordinates it sets beneath it.
-                  Below lg the map follows the search, above the fields. */}
-              <div class="grid gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] lg:items-start">
-                <PlaceSearch onPick={fill} />
-                <div class="flex flex-col gap-2 lg:sticky lg:top-24 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-start">
-                  <LocationPicker
-                    class="h-[50vh] min-h-72 lg:h-[calc(100dvh-18rem)] lg:min-h-96"
-                    value={coordinates()}
-                    onPick={(lat, lng) => {
-                      setCoordinates(formatCoordinates(lat, lng));
-                      // Placed by hand: approximate until checked (again).
-                      setCoordinateStatus('approximate');
-                    }}
-                    markers={neighbours()}
-                    focus={church()}
-                  />
+          // The map is the page: from lg up it fills the box under the
+          // header, with the form a panel over its left side, scrolling
+          // inside itself, Cancel and Save at its bottom; below lg the map
+          // is a band on top and the panel the page beneath it.
+          <div class="flex flex-col lg:absolute lg:inset-0">
+            <LocationPicker
+              class="h-[50vh] min-h-72 lg:absolute lg:inset-0 lg:h-full lg:min-h-0"
+              value={coordinates()}
+              onPick={(lat, lng) => {
+                setCoordinates(formatCoordinates(lat, lng));
+                // Placed by hand: approximate until checked (again).
+                setCoordinateStatus('approximate');
+              }}
+              markers={neighbours()}
+              focus={church()}
+            />
+            <section
+              class="flex flex-col bg-base-100 lg:absolute lg:top-4 lg:bottom-4 lg:left-4 lg:z-1 lg:w-md lg:overflow-hidden lg:rounded-box lg:border lg:border-base-300 lg:shadow-xl"
+              aria-labelledby="place-form-title"
+            >
+              <h1
+                id="place-form-title"
+                class="border-b border-base-300 px-4 py-3 text-2xl font-bold"
+              >
+                {props.title}
+              </h1>
+              <div class="flex flex-1 flex-col gap-6 px-4 pt-4 lg:min-h-0 lg:overflow-y-auto">
+                {/* While a save is in flight the router marks the form aria-busy. */}
+                <form method="post" action={savePlace} class="group flex flex-1 flex-col gap-4">
+                  <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
+                  <input type="hidden" name="returnParish" value={props.returnTo.parish ?? ''} />
+                  <input type="hidden" name="id" value={p.id || ''} />
+                  <input type="hidden" name="version" value={p.version} />
                   {/* The coordinates the map or the search set, and their
-                      status, posted hidden: nobody types them. Under the map
-                      they read back, with a box to tick once the spot is
-                      checked against sources, and a link that removes the
-                      marker: without coordinates the place counts as not
-                      located (the server does the same). */}
+                      status, posted hidden: nobody types them. */}
                   <input type="hidden" name="coordinates" value={coordinates()} />
                   <input type="hidden" name="coordinateStatus" value={coordinateStatus()} />
-                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                    <Show
-                      when={parseCoordinates(coordinates())}
-                      fallback={
-                        <span class="text-base-content/60">{m.place_edit_coordinates_none()}</span>
-                      }
-                    >
-                      <span class="tabular-nums">{coordinates()}</span>
-                      <label class="label cursor-pointer gap-2">
-                        <input
-                          type="checkbox"
-                          class="checkbox checkbox-sm"
-                          checked={coordinateStatus() === 'verified'}
-                          onChange={(event) =>
-                            setCoordinateStatus(
-                              event.currentTarget.checked ? 'verified' : 'approximate',
-                            )
-                          }
-                        />
-                        {m.place_edit_verified()}
-                      </label>
-                      <button
-                        type="button"
-                        class="link link-hover text-base-content/60 sm:ml-auto"
-                        onClick={() => {
-                          setCoordinates('');
-                          setCoordinateStatus('unknown');
-                        }}
+
+                  <PlaceSearch onPick={fill} />
+
+                  {/* The coordinates read back, with a box to tick once the
+                      spot is checked against sources, and a link that removes
+                      the marker: without coordinates the place counts as not
+                      located (the server does the same). */}
+                  <div class="flex flex-col gap-1 text-sm">
+                    <p class="text-xs text-base-content/60">{m.place_edit_map_hint()}</p>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      <Show
+                        when={parseCoordinates(coordinates())}
+                        fallback={
+                          <span class="text-base-content/60">
+                            {m.place_edit_coordinates_none()}
+                          </span>
+                        }
                       >
-                        {m.place_edit_remove_marker()}
-                      </button>
+                        <span class="tabular-nums">{coordinates()}</span>
+                        <label class="label cursor-pointer gap-2">
+                          <input
+                            type="checkbox"
+                            class="checkbox checkbox-sm"
+                            checked={coordinateStatus() === 'verified'}
+                            onChange={(event) =>
+                              setCoordinateStatus(
+                                event.currentTarget.checked ? 'verified' : 'approximate',
+                              )
+                            }
+                          />
+                          {m.place_edit_verified()}
+                        </label>
+                        <button
+                          type="button"
+                          class="link link-hover text-base-content/60 sm:ml-auto"
+                          onClick={() => {
+                            setCoordinates('');
+                            setCoordinateStatus('unknown');
+                          }}
+                        >
+                          {m.place_edit_remove_marker()}
+                        </button>
+                      </Show>
+                    </div>
+                    <Show when={invalid('coordinates') !== undefined}>
+                      <p class="text-error">{invalid('coordinates') || m.form_field_invalid()}</p>
                     </Show>
                   </div>
-                  <Show when={invalid('coordinates') !== undefined}>
-                    <p class="text-sm text-error">
-                      {invalid('coordinates') || m.form_field_invalid()}
-                    </p>
-                  </Show>
-                </div>
-                <div class="grid content-start gap-x-4 sm:grid-cols-2 lg:col-start-1">
-                  <NamePair
-                    nameRu={nameRu()}
-                    nameFi={nameFi()}
-                    invalid={invalid}
-                    onInput={(field, value) =>
-                      field === 'nameRu' ? setNameRu(value) : setNameFi(value)
-                    }
-                  />
-                  <Select
-                    name="kind"
-                    label={m.place_edit_kind()}
-                    value={kind()}
-                    options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
-                    invalid={invalid('kind')}
-                    onChange={(value) => setKind(value as PlaceKind)}
-                  />
-                  <LookupField
-                    textName="parishText"
-                    idName="parishId"
-                    label={m.place_edit_parish()}
-                    text={namedRow(parishes(), parishId())}
-                    id={parishId()}
-                    lookup={parishChoices()}
-                    invalid={invalid}
-                  />
-                  {/* The spellings the sources use come with the records
-                      that name the locality: a new one has none to edit. */}
-                  <Show when={p.id}>
+
+                  <div class="grid content-start gap-x-4 sm:grid-cols-2">
+                    <NamePair
+                      nameRu={nameRu()}
+                      nameFi={nameFi()}
+                      invalid={invalid}
+                      onInput={(field, value) =>
+                        field === 'nameRu' ? setNameRu(value) : setNameFi(value)
+                      }
+                    />
+                    <Select
+                      name="kind"
+                      label={m.place_edit_kind()}
+                      value={kind()}
+                      options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
+                      invalid={invalid('kind')}
+                      onChange={(value) => setKind(value as PlaceKind)}
+                    />
+                    <LookupField
+                      textName="parishText"
+                      idName="parishId"
+                      label={m.place_edit_parish()}
+                      text={namedRow(parishes(), parishId())}
+                      id={parishId()}
+                      lookup={parishChoices()}
+                      invalid={invalid}
+                    />
+                    {/* The spellings the sources use come with the records
+                        that name the locality: a new one has none to edit. */}
+                    <Show when={p.id}>
+                      <TextArea
+                        name="spellings"
+                        label={m.place_edit_spellings()}
+                        value={p.spellings.join('\n')}
+                        rows={5}
+                        hint={m.place_edit_spellings_hint()}
+                        invalid={invalid('spellings')}
+                        class="sm:col-span-2"
+                      />
+                    </Show>
                     <TextArea
-                      name="spellings"
-                      label={m.place_edit_spellings()}
-                      value={p.spellings.join('\n')}
-                      rows={5}
-                      hint={m.place_edit_spellings_hint()}
-                      invalid={invalid('spellings')}
+                      name="note"
+                      label={m.form_note()}
+                      value={p.note}
+                      rows={4}
+                      maxlength={FIELD_MAX.text}
+                      invalid={invalid('note')}
                       class="sm:col-span-2"
                     />
-                  </Show>
-                  <TextArea
-                    name="note"
-                    label={m.form_note()}
-                    value={p.note}
-                    rows={4}
-                    maxlength={FIELD_MAX.text}
-                    invalid={invalid('note')}
-                    class="sm:col-span-2"
-                  />
-                </div>
-              </div>
+                  </div>
 
-              <FormActions
-                error={error()}
-                cancelHref={props.cancelHref}
-                class={saveBarClass(!p.id)}
-              />
-            </form>
-            <Show when={p.id}>
-              <DeleteSection
-                action={deletePlace}
-                id={p.id}
-                version={p.version}
-                title={m.place_delete()}
-                text={m.place_delete_text()}
-                inUse={placeInUse(p)}
-                deleted={m.place_deleted({ name: localName(namesOf(p)) })}
-              >
-                {/* Back to the list as it was, like a save. */}
-                <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
-                <input type="hidden" name="returnParish" value={props.returnTo.parish ?? ''} />
-              </DeleteSection>
-            </Show>
-          </>
+                  <FormActions
+                    error={error()}
+                    cancelHref={props.cancelHref}
+                    class={panelBarClass}
+                  />
+                </form>
+                <Show when={p.id}>
+                  <div class="mb-4">
+                    <DeleteSection
+                      action={deletePlace}
+                      id={p.id}
+                      version={p.version}
+                      title={m.place_delete()}
+                      text={m.place_delete_text()}
+                      inUse={placeInUse(p)}
+                      deleted={m.place_deleted({ name: localName(namesOf(p)) })}
+                    >
+                      {/* Back to the list as it was, like a save. */}
+                      <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
+                      <input
+                        type="hidden"
+                        name="returnParish"
+                        value={props.returnTo.parish ?? ''}
+                      />
+                    </DeleteSection>
+                  </div>
+                </Show>
+              </div>
+            </section>
+          </div>
         );
       }}
     </Show>

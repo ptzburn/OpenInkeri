@@ -2,7 +2,7 @@ import { type RouteProps, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { Show } from 'solid-js';
 
-import EditPage from '~/components/edit-page';
+import { MapPage } from '~/components/edit-page';
 import PlaceEditForm from '~/components/place-edit-form';
 import { getParishOptions } from '~/data/parishes';
 import { getPlaceEdit, getPlaceMarkers } from '~/data/places';
@@ -30,16 +30,17 @@ export default function EditVillage(props: RouteProps<'/places/villages/:id/edit
   const listHref = () => paths.places.villages({ q: search.q, parish: search.parish });
 
   return (
-    <EditPage title={m.place_edit_title()}>
+    <MapPage title={m.place_edit_title()}>
       <Show when={idParam(props.params.id)} fallback={<p>{m.place_edit_missing()}</p>}>
         {(id) => (
           <PlaceEditForm
+            title={m.place_edit_title()}
             id={id()}
             returnTo={{ q: search.q, parish: search.parish }}
             cancelHref={listHref()}
           />
         )}
       </Show>
-    </EditPage>
+    </MapPage>
   );
 }
