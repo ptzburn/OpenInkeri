@@ -135,10 +135,11 @@ export default function PlaceEditForm(props: {
     // Keyed: each place (and each fresh read of it) gets a fresh form.
     <Show when={place()} keyed fallback={<p>{m.place_edit_missing()}</p>}>
       {(p) => {
-        // What the fields show: as loaded, until a settlement picked in the
-        // search fills them. The coordinates are shared with the map, which
-        // sets them too; what the admin types in the other fields stays in
-        // the inputs.
+        // What the fields show: as loaded, then as typed (the inputs report
+        // back, so a hit whose value equals the loaded one still lands: a
+        // write equal to the signal's value changes nothing), until a
+        // settlement picked in the search fills them. The coordinates are
+        // shared with the map, which sets them too.
         const [nameRu, setNameRu] = createSignal(p.nameRu, { name: 'place-name-ru' });
         const [nameFi, setNameFi] = createSignal(p.nameFi, { name: 'place-name-fi' });
         const [kind, setKind] = createSignal<PlaceKind>(p.kind, { name: 'place-kind' });
@@ -251,6 +252,7 @@ export default function PlaceEditForm(props: {
                     required
                     maxlength={FIELD_MAX.line}
                     invalid={invalid('nameRu')}
+                    onInput={(value) => setNameRu(value)}
                   />
                   <TextInput
                     name="nameFi"
@@ -260,6 +262,7 @@ export default function PlaceEditForm(props: {
                     hint={m.form_name_fi_hint()}
                     maxlength={FIELD_MAX.line}
                     invalid={invalid('nameFi')}
+                    onInput={(value) => setNameFi(value)}
                   />
                   <Select
                     name="kind"
@@ -267,6 +270,7 @@ export default function PlaceEditForm(props: {
                     value={kind()}
                     options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
                     invalid={invalid('kind')}
+                    onChange={(value) => setKind(value as PlaceKind)}
                   />
                   <LookupField
                     textName="parishText"

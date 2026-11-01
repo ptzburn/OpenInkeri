@@ -109,8 +109,9 @@ export default function LocationPicker(props: {
   // The dots' data as last given, for a style (re)load to draw.
   let places = placesData([]);
   const coordinates = () => parseCoordinates(props.value) ?? null;
-  // The map reports to one handler for its life: read it once.
-  const onPick = untrack(() => props.onPick);
+  // What the map chose, to the handler as it is when the map fires (its
+  // events are no tracking scope: the read is untracked, each time).
+  const pick = (lat: number, lng: number) => untrack(() => props.onPick(lat, lng));
 
   onSettled(() => {
     if (!container) return;
@@ -144,11 +145,11 @@ export default function LocationPicker(props: {
       // The dots go on with each style, the theme switch's included.
       const withPlaces = created;
       withPlaces.on('style.load', () => addPlaces(withPlaces, places));
-      created.on('click', (event) => onPick(round(event.lngLat.lat), round(event.lngLat.lng)));
+      created.on('click', (event) => pick(round(event.lngLat.lat), round(event.lngLat.lng)));
       const pin = new Marker({ draggable: true });
       pin.on('dragend', () => {
         const { lat, lng } = pin.getLngLat();
-        onPick(round(lat), round(lng));
+        pick(round(lat), round(lng));
       });
       marker = pin;
       document.addEventListener('change', restyle);

@@ -63,15 +63,17 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
   const pending = () => isPending(() => hits());
   const mapPending = () => isPending(() => mapHits());
   const shown = () => open() && term().length >= 2;
-  // Every row the list shows, for the keys; a map search that failed shows
-  // its error in the list and has no rows.
-  const listed = (): GazetteerHit[] => {
+  // Every row the list shows, for the keys. A search that failed shows its
+  // error in the list (the Errored boundaries below) and has no rows; read
+  // here, in an event handler, the failure throws and is caught.
+  const rows = (hits: () => GazetteerHit[]): GazetteerHit[] => {
     try {
-      return [...found(), ...foundOnMap()];
+      return hits();
     } catch {
-      return found();
+      return [];
     }
   };
+  const listed = (): GazetteerHit[] => [...rows(found), ...rows(foundOnMap)];
 
   const typed = (value: string) => {
     setText(value);
@@ -154,16 +156,16 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
   );
 
   // One row, at its place in the list (which moves as the map's rows follow).
-  const Option = (props: { hit: GazetteerHit; index: number }) => (
+  const Option = (option: { hit: GazetteerHit; index: number }) => (
     <li
-      id={optionId(props.index)}
+      id={optionId(option.index)}
       role="option"
-      aria-selected={active() === props.index ? 'true' : 'false'}
+      aria-selected={active() === option.index ? 'true' : 'false'}
     >
       <button
         type="button"
-        class={{ 'menu-active': active() === props.index }}
-        onClick={() => pick(props.hit)}
+        class={{ 'menu-active': active() === option.index }}
+        onClick={() => pick(option.hit)}
       >
         {/* One cell of the menu's grid, so the lines stack: its names (the
             name, the Finnish one, and the spelling matched when it is
@@ -171,20 +173,20 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
             or by the map; and whether it is in the database already. */}
         <span class="flex flex-col items-start gap-0.5">
           <span class="flex flex-wrap items-baseline gap-x-2">
-            <span class="font-medium">{props.hit.name}</span>
-            <Show when={props.hit.nameFi && props.hit.nameFi !== props.hit.name}>
-              <span class="opacity-70">{props.hit.nameFi}</span>
+            <span class="font-medium">{option.hit.name}</span>
+            <Show when={option.hit.nameFi && option.hit.nameFi !== option.hit.name}>
+              <span class="opacity-70">{option.hit.nameFi}</span>
             </Show>
-            <Show when={spelledApart(props.hit)}>
+            <Show when={spelledApart(option.hit)}>
               {(spelling) => <span class="opacity-70 italic">{spelling()}</span>}
             </Show>
           </span>
           <span class="text-xs opacity-70">
-            {gazetteerKindLabels[props.hit.kind]()}
+            {gazetteerKindLabels[option.hit.kind]()}
             <Show
-              when={props.hit.parish}
+              when={option.hit.parish}
               fallback={
-                <Show when={props.hit.near}>
+                <Show when={option.hit.near}>
                   {(near) => (
                     <>
                       {' · '}
@@ -207,9 +209,9 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
                 </>
               )}
             </Show>
-            <Show when={props.hit.detail}>{(detail) => <>{` · ${detail()}`}</>}</Show>
+            <Show when={option.hit.detail}>{(detail) => <>{` · ${detail()}`}</>}</Show>
           </span>
-          <Show when={props.hit.existing}>
+          <Show when={option.hit.existing}>
             {(existing) => (
               <span class="text-xs font-medium text-warning">
                 {m.place_search_existing({ name: localName(existing().name) })}
@@ -260,51 +262,61 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
             ]}
             onMouseDown={(e) => e.preventDefault()}
           >
-            <ul
-              id={listId}
-              role="listbox"
-              aria-label={m.place_search_label()}
-              class="menu max-h-80 w-full flex-nowrap overflow-y-auto menu-sm"
+            {/* A gazetteer search that fails says so here, in place of the
+                list, and the page stays; the next keystroke asks again. */}
+            <Errored
+              fallback={
+                <p role="alert" class="p-3 text-sm text-error">
+                  {m.place_search_failed()}
+                </p>
+              }
             >
-              <For each={found()}>{(hit, index) => <Option hit={hit} index={index()} />}</For>
-              {/* The whole map's hits follow the gazetteer's; a map search
-                  that fails says so here and leaves them. */}
-              <Show when={mapSearch()}>
-                <Errored
-                  fallback={
-                    <li class="menu-disabled">
-                      <p role="alert" class="text-error">
-                        {m.place_search_map_failed()}
-                      </p>
-                    </li>
-                  }
-                >
-                  <For each={foundOnMap()}>
-                    {(hit, index) => <Option hit={hit} index={found().length + index()} />}
-                  </For>
-                  <Show when={!mapPending() && !foundOnMap().length}>
-                    <li class="menu-disabled">
-                      <p>{m.place_search_map_none()}</p>
-                    </li>
-                  </Show>
-                </Errored>
-              </Show>
-            </ul>
-            <div class="flex flex-col gap-2 border-t border-base-300 p-3 text-sm">
-              <Show when={!pending() && !found().length}>
-                <p class="text-base-content/60">{m.place_search_none()}</p>
-              </Show>
-              <Show when={!pending() && mapSearch() === null}>
-                <button
-                  type="button"
-                  class="btn self-start btn-sm"
-                  onClick={() => setMapSearch(term())}
-                >
-                  {m.place_search_map()}
-                </button>
-              </Show>
-              <p class="text-xs text-base-content/50">{m.place_search_attribution()}</p>
-            </div>
+              <ul
+                id={listId}
+                role="listbox"
+                aria-label={m.place_search_label()}
+                class="menu max-h-80 w-full flex-nowrap overflow-y-auto menu-sm"
+              >
+                <For each={found()}>{(hit, index) => <Option hit={hit} index={index()} />}</For>
+                {/* The whole map's hits follow the gazetteer's; a map search
+                    that fails says so here and leaves them. */}
+                <Show when={mapSearch()}>
+                  <Errored
+                    fallback={
+                      <li class="menu-disabled">
+                        <p role="alert" class="text-error">
+                          {m.place_search_map_failed()}
+                        </p>
+                      </li>
+                    }
+                  >
+                    <For each={foundOnMap()}>
+                      {(hit, index) => <Option hit={hit} index={found().length + index()} />}
+                    </For>
+                    <Show when={!mapPending() && !foundOnMap().length}>
+                      <li class="menu-disabled">
+                        <p>{m.place_search_map_none()}</p>
+                      </li>
+                    </Show>
+                  </Errored>
+                </Show>
+              </ul>
+              <div class="flex flex-col gap-2 border-t border-base-300 p-3 text-sm">
+                <Show when={!pending() && !found().length}>
+                  <p class="text-base-content/60">{m.place_search_none()}</p>
+                </Show>
+                <Show when={!pending() && mapSearch() === null}>
+                  <button
+                    type="button"
+                    class="btn self-start btn-sm"
+                    onClick={() => setMapSearch(term())}
+                  >
+                    {m.place_search_map()}
+                  </button>
+                </Show>
+                <p class="text-xs text-base-content/50">{m.place_search_attribution()}</p>
+              </div>
+            </Errored>
           </div>
         </Show>
       </div>

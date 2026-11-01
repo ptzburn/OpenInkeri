@@ -181,12 +181,26 @@ interface NominatimResult {
 }
 
 // Nominatim allows one request a second for the whole application: requests
-// from this Worker queue behind each other.
+// from this Worker queue behind each other, a second apart; the first after
+// a pause goes at once.
 let nominatimTurn = Promise.resolve();
+let nominatimAskedAt = 0;
 const NOMINATIM_GAP = 1100;
 
 function nominatimSlot(): Promise<void> {
-  const turn = nominatimTurn.then(() => new Promise<void>((r) => setTimeout(r, NOMINATIM_GAP)));
+  const turn = nominatimTurn.then(
+    () =>
+      new Promise<void>((r) => {
+        const wait = nominatimAskedAt + NOMINATIM_GAP - Date.now();
+        setTimeout(
+          () => {
+            nominatimAskedAt = Date.now();
+            r();
+          },
+          Math.max(wait, 0),
+        );
+      }),
+  );
   nominatimTurn = turn;
   return turn;
 }

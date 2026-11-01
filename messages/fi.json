@@ -286,6 +286,7 @@
   "place_search_none": "Paikannimistössä ei ole tällaista asutusta.",
   "place_search_map": "Hae koko kartalta",
   "place_search_map_none": "Kartalta ei löytynyt mitään.",
+  "place_search_failed": "Haku ei vastannut. Yritä hetken päästä uudelleen.",
   "place_search_map_failed": "Karttahaku ei vastannut. Yritä hetken päästä uudelleen.",
   "place_search_near": "{parish} ({km} km)",
   "place_search_near_place": "lähellä: {place} ({km} km)",

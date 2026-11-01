@@ -460,6 +460,22 @@ describe('editing a village', () => {
     expect(places.saved[0].get('parishId')).toBe('5');
   });
 
+  test('a settlement picked fills the fields the admin had changed by hand too', async () => {
+    // The hit's kind is the loaded one (village): the signal's value hasn't
+    // moved, only the select had, and the pick must still land on it.
+    await openGorki();
+    expect(field('kind')).toHaveValue('village');
+    fireEvent.change(field('kind'), { target: { value: 'manor' } });
+    fireEvent.input(field('nameRu'), { target: { value: 'Горкиии' } });
+    const search = screen.getByRole('combobox', { name: 'Find the locality' });
+    fireEvent.input(search, { target: { value: 'kupa' } });
+    const option = await screen.findByRole('option', { name: /Губаницы/ });
+    fireEvent.click(within(option).getByRole('button'));
+    await waitFor(() => expect(field('nameFi')).toHaveValue('Kupanitsa'));
+    expect(field('nameRu')).toHaveValue('Губаницы');
+    expect(field('kind')).toHaveValue('village');
+  });
+
   test('choosing "Not located" unsets the coordinates', async () => {
     await openGorki();
     expect(field('coordinates')).toHaveValue('59.613487, 30.22519');

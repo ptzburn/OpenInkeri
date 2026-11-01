@@ -286,6 +286,7 @@
   "place_search_none": "No such settlement in the gazetteer.",
   "place_search_map": "Search the whole map",
   "place_search_map_none": "Nothing found on the map.",
+  "place_search_failed": "The search did not answer. Try again in a moment.",
   "place_search_map_failed": "The map search did not answer. Try again in a moment.",
   "place_search_near": "{parish} ({km} km)",
   "place_search_near_place": "near {place} ({km} km)",
