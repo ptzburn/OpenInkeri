@@ -1,5 +1,5 @@
 import { Loading, flush } from 'solid-js';
-import { captureArtifact } from '@solidjs/diagnostics';
+import { captureArtifact } from '~/testing/capture';
 import '@solidjs/diagnostics/vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
