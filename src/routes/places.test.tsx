@@ -689,7 +689,8 @@ describe('/places/parishes', () => {
     // church (the locality being added may well be it).
     fireEvent.input(field('parishText'), { target: { value: 'Туутари' } });
     await waitFor(() => expect(field('parishId')).toHaveValue(''));
-    expect(screen.getByText('Add as a new parish')).toBeInTheDocument();
+    // Nothing says a parish is being added: its other name is just asked for.
+    expect(screen.queryByText('Add as a new parish')).toBeNull();
     expect(field('parishNew.nameRu')).toHaveValue('Туутари');
     fireEvent.input(field('parishNew.nameFi'), { target: { value: 'Tuutari' } });
     expect(

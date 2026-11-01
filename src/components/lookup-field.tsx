@@ -25,8 +25,8 @@ export interface LookupOption {
  * linked-rows.ts).
  */
 export interface LookupCreate {
-  /** Said over the fields: "Add as a new locality". */
-  label: string;
+  /** Said over the fields: "Add as a new locality"; none where the fields speak for themselves. */
+  label?: string;
   /**
    * The value as written comes as an accessor: read it in JSX (`text={text()}`),
    * so a keystroke updates the prefilled value and keeps the fields, with
@@ -96,6 +96,8 @@ export function LookupField(props: {
   id: number | null | undefined;
   lookup: Lookup;
   invalid: (field: string) => Fault;
+  /** The wrapper's classes, e.g. a grid column span. */
+  class?: string;
 }) {
   // The form is keyed by its record, so these start from it once.
   const [text, setText] = createSignal(() => props.text ?? '', { name: 'lookup-text' });
@@ -175,7 +177,7 @@ export function LookupField(props: {
   let input: HTMLInputElement | undefined;
 
   return (
-    <div class="fieldset">
+    <div class={['fieldset', props.class]}>
       <label for={box.ids.input()} class="fieldset-legend">
         {props.label}
       </label>
@@ -282,7 +284,9 @@ export function LookupField(props: {
         {(create) => (
           <div class="mt-2">
             <input type="hidden" name={createName(props.textName)} value="on" />
-            <p class="text-sm text-base-content/70">{create().label}</p>
+            <Show when={create().label}>
+              {(label) => <p class="text-sm text-base-content/70">{label()}</p>}
+            </Show>
             {create().fields(newPrefix(props.textName), typedText)}
           </div>
         )}

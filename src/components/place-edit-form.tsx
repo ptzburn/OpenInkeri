@@ -111,9 +111,10 @@ export default function PlaceEditForm(props: {
     },
   );
   // The parishes to link to, by either name; a new one can be added here,
-  // without a church: this form is adding a locality already.
+  // without a church (this form is adding a locality already) and without
+  // a word about it: its other name's field just appears under the parish.
   const parishChoices = createMemo(
-    (): Lookup => parishLookup(parishes(), invalid, { church: false }),
+    (): Lookup => parishLookup(parishes(), invalid, { church: false, plain: true }),
     { name: 'place-parish-lookup' },
   );
 
@@ -297,6 +298,7 @@ export default function PlaceEditForm(props: {
                         id={parishId()}
                         lookup={parishChoices()}
                         invalid={invalid}
+                        class="sm:col-span-2"
                       />
                       {/* The spellings the sources use come with the records
                         that name the locality: a new one has none to edit. */}
