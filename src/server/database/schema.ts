@@ -14,6 +14,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 
+import { gazetteerKinds } from '../../lib/gazetteer';
 import { coordinateStatuses, placeKinds } from '../../lib/place-kinds';
 import { baptismLocations, recordKinds, recordStatuses, sexes } from '../../lib/record-kinds';
 import { user } from './auth-schema';
@@ -95,6 +96,35 @@ export const placeAlias = snakeCase.table(
   (t) => [
     uniqueIndex('place_alias_place_name_idx').on(t.placeId, t.name),
     index('place_alias_name_idx').on(t.name),
+  ],
+);
+
+// The settlements of Ingria and around it, as OpenStreetMap and Wikidata
+// know them, for the locality form's search (~/lib/gazetteer).
+// scripts/import-gazetteer.ts replaces the whole table; nothing references
+// its rows (a locality added from one copies its values), so that is safe.
+export const gazetteer = snakeCase.table(
+  'gazetteer',
+  {
+    id: integer().primaryKey(),
+    source: text({ enum: ['osm', 'wikidata'] }).notNull(),
+    // "way/251708753", "Q14620709".
+    sourceId: text().notNull(),
+    kind: text({ enum: gazetteerKinds }).notNull(),
+    name: text().notNull(),
+    nameRu: text(),
+    nameFi: text(),
+    // Every name it goes by, as a JSON array, the name first.
+    names: text().notNull(),
+    // The names folded for searching (~/lib/search-text), joined by ' | '.
+    searchText: text().notNull(),
+    latitude: real().notNull(),
+    longitude: real().notNull(),
+    importedAt: integer({ mode: 'timestamp_ms' }).default(now).notNull(),
+  },
+  (t) => [
+    uniqueIndex('gazetteer_source_idx').on(t.source, t.sourceId),
+    index('gazetteer_name_idx').on(t.name),
   ],
 );
 

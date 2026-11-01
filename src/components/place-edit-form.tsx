@@ -20,8 +20,15 @@ import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
 import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
 import LocationPicker from '~/components/location-picker';
 import { NewParishFields } from '~/components/new-row-fields';
+import PlaceSearch from '~/components/place-search';
 import { COORDINATES_PATTERN, formatCoordinates, mapLink } from '~/lib/coordinates';
-import { coordinateStatuses, placeKinds } from '~/lib/place-kinds';
+import { type GazetteerHit, placeKindOf } from '~/lib/gazetteer';
+import {
+  type CoordinateStatus,
+  type PlaceKind,
+  coordinateStatuses,
+  placeKinds,
+} from '~/lib/place-kinds';
 import { getParishOptions } from '~/data/parishes';
 import { type PlaceEditData, deletePlace, getPlaceEdit, savePlace } from '~/data/places';
 import { m } from '~/paraglide/messages.js';
@@ -47,6 +54,9 @@ const blank: PlaceEditData = {
 /**
  * The admin's form for one place, or for a new one without `id`: its names,
  * kind, parish, coordinates, note and the spellings the sources use for it.
+ * A search over the gazetteer (PlaceSearch) comes first: a settlement picked
+ * there fills the names, kind, coordinates and the nearest parish, all still
+ * editable.
  * The parish is typed by name and linked to the one it names; one not known
  * yet can be added in its field (LookupField), without a church: the parish
  * page sets that later. It posts to the savePlace action (and works before
@@ -110,11 +120,34 @@ export default function PlaceEditForm(props: {
     // Keyed: each place (and each fresh read of it) gets a fresh form.
     <Show when={place()} keyed fallback={<p>{m.place_edit_missing()}</p>}>
       {(p) => {
-        // The coordinates as typed or picked on the map: the field and the map share them.
+        // What the fields show: as loaded, until a settlement picked in the
+        // search fills them. The coordinates are shared with the map, which
+        // sets them too; what the admin types in the other fields stays in
+        // the inputs.
+        const [nameRu, setNameRu] = createSignal(p.nameRu, { name: 'place-name-ru' });
+        const [nameFi, setNameFi] = createSignal(p.nameFi, { name: 'place-name-fi' });
+        const [kind, setKind] = createSignal<PlaceKind>(p.kind, { name: 'place-kind' });
+        const [parishId, setParishId] = createSignal(p.parishId, { name: 'place-parish-id' });
         const [coordinates, setCoordinates] = createSignal(
-          () => formatCoordinates(p.latitude, p.longitude),
+          formatCoordinates(p.latitude, p.longitude),
           { name: 'place-coordinates' },
         );
+        const [coordinateStatus, setCoordinateStatus] = createSignal<CoordinateStatus>(
+          p.coordinateStatus,
+          { name: 'place-coordinate-status' },
+        );
+        // A settlement from the gazetteer: its names, what it is, where it
+        // stands (approximate: a map's centre, until checked) and the
+        // parish whose church is nearest.
+        const fill = (hit: GazetteerHit) => {
+          if (hit.nameRu) setNameRu(hit.nameRu);
+          if (hit.nameFi) setNameFi(hit.nameFi);
+          const placeKind = placeKindOf(hit.kind);
+          if (placeKind) setKind(placeKind);
+          setCoordinates(formatCoordinates(hit.latitude, hit.longitude));
+          setCoordinateStatus('approximate');
+          if (hit.parish) setParishId(hit.parish.id);
+        };
         return (
           <>
             {/* While a save is in flight the router marks the form aria-busy. */}
@@ -125,10 +158,13 @@ export default function PlaceEditForm(props: {
               <input type="hidden" name="version" value={p.version} />
 
               <div class="grid gap-x-4 sm:grid-cols-2">
+                <div class="sm:col-span-2">
+                  <PlaceSearch onPick={fill} />
+                </div>
                 <TextInput
                   name="nameRu"
                   label={m.form_name_ru()}
-                  value={p.nameRu}
+                  value={nameRu()}
                   pattern={CYRILLIC_NAME_PATTERN}
                   hint={m.form_name_ru_hint()}
                   required
@@ -138,7 +174,7 @@ export default function PlaceEditForm(props: {
                 <TextInput
                   name="nameFi"
                   label={m.form_name_fi()}
-                  value={p.nameFi}
+                  value={nameFi()}
                   pattern={LATIN_NAME_PATTERN}
                   hint={m.form_name_fi_hint()}
                   maxlength={FIELD_MAX.line}
@@ -147,7 +183,7 @@ export default function PlaceEditForm(props: {
                 <Select
                   name="kind"
                   label={m.place_edit_kind()}
-                  value={p.kind}
+                  value={kind()}
                   options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
                   invalid={invalid('kind')}
                 />
@@ -155,8 +191,8 @@ export default function PlaceEditForm(props: {
                   textName="parishText"
                   idName="parishId"
                   label={m.place_edit_parish()}
-                  text={parishName(p.parishId)}
-                  id={p.parishId}
+                  text={parishName(parishId())}
+                  id={parishId()}
                   lookup={parishLookup()}
                   invalid={invalid}
                 />
@@ -173,7 +209,7 @@ export default function PlaceEditForm(props: {
                 <Select
                   name="coordinateStatus"
                   label={m.place_edit_coordinate_status()}
-                  value={p.coordinateStatus}
+                  value={coordinateStatus()}
                   options={coordinateStatuses.map((s) => ({
                     value: s,
                     label: coordinateStatusLabels[s](),

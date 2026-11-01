@@ -70,6 +70,29 @@ vi.mock('~/data/session', () => ({
   getCurrentUser: vi.fn(async () => me.current),
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
 }));
+// The locality search: one settlement, found by either name, nearest to parish 5's church.
+vi.mock('~/data/gazetteer', () => ({
+  getGazetteerHits: vi.fn(async (q: string) =>
+    /^(губ|kup)/i.test(q)
+      ? [
+          {
+            source: 'osm',
+            sourceId: 'way/251708753',
+            kind: 'village',
+            name: 'Губаницы',
+            nameRu: 'Губаницы',
+            nameFi: 'Kupanitsa',
+            names: ['Губаницы', 'Kupanitsa', 'Gubanitsi'],
+            latitude: 59.4880048,
+            longitude: 29.5348549,
+            detail: null,
+            parish: { id: 5, name: { ru: 'Губаницы', fi: 'Hevaa' }, km: 0.4 },
+          },
+        ]
+      : [],
+  ),
+  getMapHits: vi.fn(async () => []),
+}));
 const { parishes } = vi.hoisted(() => ({
   parishes: {
     saved: [] as FormData[],
@@ -397,6 +420,37 @@ describe('editing a village', () => {
     expect(places.saved[0].get('nameRu')).toBe('Серебетта');
     // No Finnish name, so English shows the Russian one.
     expect(await screen.findByRole('status')).toHaveTextContent('Locality Серебетта added.');
+  });
+
+  test('a settlement picked in the search fills the names, type, coordinates and parish', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/villages/new');
+    await waitFor(() => expect(field('nameRu')).toHaveValue(''));
+    const search = screen.getByRole('combobox', { name: 'Find the locality' });
+    fireEvent.input(search, { target: { value: 'kupa' } });
+    const option = await screen.findByRole('option', { name: /Губаницы/ });
+    expect(option).toHaveTextContent('Kupanitsa');
+    expect(option).toHaveTextContent('Village · 0.4 km from the church of Hevaa · OpenStreetMap');
+    fireEvent.click(within(option).getByRole('button'));
+
+    await waitFor(() => expect(field('nameRu')).toHaveValue('Губаницы'));
+    expect(field('nameFi')).toHaveValue('Kupanitsa');
+    expect(field('kind')).toHaveValue('village');
+    expect(field('coordinates')).toHaveValue('59.4880048, 29.5348549');
+    expect(field('coordinateStatus')).toHaveValue('approximate');
+    expect(field('parishId')).toHaveValue('5');
+    expect(field('parishText')).toHaveValue('Hevaa');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(screen.getByRole('link', { name: 'Open Губаницы on OpenStreetMap' })).toHaveAttribute(
+      'href',
+      'https://www.openstreetmap.org/way/251708753',
+    );
+    // The pick is posted like anything typed.
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    await waitFor(() => expect(places.saved).toHaveLength(1));
+    expect(places.saved[0].get('nameFi')).toBe('Kupanitsa');
+    expect(places.saved[0].get('coordinates')).toBe('59.4880048, 29.5348549');
+    expect(places.saved[0].get('parishId')).toBe('5');
   });
 });
 
