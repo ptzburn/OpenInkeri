@@ -42,8 +42,12 @@ export interface GazetteerHit {
   longitude: number;
   /** Where it is, when the source says (Nominatim's display name); the gazetteer has the parish instead. */
   detail: string | null;
-  /** The nearest parish church among ours, and how far. */
+  /** The nearest parish church among ours, and how far, when one is within reach. */
   parish: { id: number; name: { ru: string; fi: string | null }; km: number } | null;
+  /** A locality in the database that this is (one of its names, within a kilometre): adding it would double it. */
+  existing: { id: number; name: { ru: string; fi: string | null } } | null;
+  /** The nearest locality in the database, and how far, when one is within reach: where the hit is, in our terms. */
+  near: { name: { ru: string; fi: string | null }; km: number } | null;
 }
 
 /** The kind of locality a settlement becomes when it is added from a hit; null leaves the form's choice. */
@@ -64,13 +68,6 @@ export function placeKindOf(kind: GazetteerKind): PlaceKind | null {
     default:
       return null;
   }
-}
-
-/** The hit's page at its source, to check it. */
-export function gazetteerUrl(hit: Pick<GazetteerHit, 'source' | 'sourceId'>): string {
-  return hit.source === 'wikidata'
-    ? `https://www.wikidata.org/wiki/${hit.sourceId}`
-    : `https://www.openstreetmap.org/${hit.sourceId}`;
 }
 
 /** Distance between two points on the ground, in kilometres (haversine). */

@@ -87,6 +87,8 @@ vi.mock('~/data/gazetteer', () => ({
             longitude: 29.5348549,
             detail: null,
             parish: { id: 5, name: { ru: 'Губаницы', fi: 'Hevaa' }, km: 0.4 },
+            existing: null,
+            near: null,
           },
         ]
       : [],
@@ -436,7 +438,7 @@ describe('editing a village', () => {
     fireEvent.input(search, { target: { value: 'kupa' } });
     const option = await screen.findByRole('option', { name: /Губаницы/ });
     expect(option).toHaveTextContent('Kupanitsa');
-    expect(option).toHaveTextContent('Village · 0.4 km from the church of Hevaa · OpenStreetMap');
+    expect(option).toHaveTextContent('Village · Hevaa (0.4 km)');
     fireEvent.click(within(option).getByRole('button'));
 
     await waitFor(() => expect(field('nameRu')).toHaveValue('Губаницы'));
@@ -447,10 +449,6 @@ describe('editing a village', () => {
     expect(field('parishId')).toHaveValue('5');
     expect(field('parishText')).toHaveValue('Hevaa');
     expect(screen.queryByRole('listbox')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Open Губаницы on OpenStreetMap' })).toHaveAttribute(
-      'href',
-      'https://www.openstreetmap.org/way/251708753',
-    );
     // The pick is posted like anything typed.
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
     await waitFor(() => expect(places.saved).toHaveLength(1));

@@ -160,7 +160,7 @@ function osmEntries(elements: OsmElement[]): Entry[] {
 // What a settlement is on Wikidata (instance of), as the gazetteer's kinds.
 const WIKIDATA_KINDS: Record<string, GazetteerKind> = {
   Q532: 'village', // village
-  Q5084: 'hamlet', // hamlet (деревня)
+  Q5084: 'village', // hamlet: Russian деревня, a village by any other name
   Q350895: 'locality', // abandoned village
   Q3257686: 'locality', // locality
   Q2514025: 'settlement', // posyolok

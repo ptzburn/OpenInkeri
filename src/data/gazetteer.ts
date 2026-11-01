@@ -6,6 +6,7 @@ import { query } from '@solidjs/router';
 import { sql } from 'drizzle-orm';
 
 import { FIELD_MAX } from '~/lib/field-limits';
+import type { Names } from '~/lib/format';
 import { type GazetteerHit, type GazetteerKind, distanceKm, gazetteerKinds } from '~/lib/gazetteer';
 import { CYRILLIC_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import { foldForSearch } from '~/lib/search-text';
@@ -45,10 +46,65 @@ async function parishChurches() {
   );
 }
 
-/** The parish whose church is nearest the point, and how far, to a tenth of a kilometre. */
 // Beyond this a settlement is outside our parishes (Ingria's are some 15 km
-// apart): no parish is proposed for a hit in Finland or India.
+// apart): no parish is proposed for a hit in Finland or India, and no
+// locality of ours named as its neighbour.
 const PARISH_REACH_KM = 40;
+// Within this, a hit named like a locality of ours is that locality
+// (Wikidata's coordinates are often rounded a kilometre or two off).
+const SAME_PLACE_KM = 2.5;
+
+const tenth = (km: number) => Math.round(km * 10) / 10;
+
+interface Known extends Located {
+  id: number;
+  name: Names;
+}
+
+/** Our localities with coordinates. */
+async function knownPlaces(): Promise<Known[]> {
+  const places = await db.query.place.findMany({
+    columns: { id: true, nameRu: true, nameFi: true, latitude: true, longitude: true },
+    where: { latitude: { isNotNull: true as const }, longitude: { isNotNull: true as const } },
+  });
+  return places.map((p) => ({
+    id: p.id,
+    name: { ru: p.nameRu, fi: p.nameFi },
+    latitude: p.latitude!,
+    longitude: p.longitude!,
+  }));
+}
+
+/**
+ * Where a hit stands in our terms: the parish in reach, the locality of ours
+ * it is (named the same, within a kilometre) and the nearest one in reach.
+ */
+function placing(
+  at: Located,
+  names: string[],
+  churches: Known[],
+  places: Known[],
+): Pick<GazetteerHit, 'parish' | 'existing' | 'near'> {
+  const keys = new Set(names.map(foldForSearch));
+  let existing: (Known & { km: number }) | null = null;
+  let near: (Known & { km: number }) | null = null;
+  for (const place of places) {
+    const km = distanceKm(at, place);
+    if (km > PARISH_REACH_KM) continue;
+    if (!near || km < near.km) near = { ...place, km };
+    const same = [place.name.ru, place.name.fi].some((n) => n && keys.has(foldForSearch(n)));
+    if (km <= SAME_PLACE_KM && same && (!existing || km < existing.km)) {
+      existing = { ...place, km };
+    }
+  }
+  return {
+    parish: nearestParish(at, churches),
+    existing: existing && { id: existing.id, name: existing.name },
+    near: near && { name: near.name, km: tenth(near.km) },
+  };
+}
+
+/** The parish whose church is nearest the point, and how far, to a tenth of a kilometre. */
 
 function nearestParish(
   at: Located,
@@ -61,7 +117,7 @@ function nearestParish(
       best = { id: church.id, name: church.name, km };
     }
   }
-  return best && { ...best, km: Math.round(best.km * 10) / 10 };
+  return best && { ...best, km: tenth(best.km) };
 }
 
 // --- The gazetteer -----------------------------------------------------------------
@@ -104,13 +160,11 @@ export const getGazetteerHits = query(async (search: string): Promise<GazetteerH
     )
     .limit(GAZETTEER_HITS);
   if (!rows.length) return [];
-  const churches = await parishChurches();
-  return rows.map((row) => ({
-    ...row,
-    names: JSON.parse(row.names) as string[],
-    detail: null,
-    parish: nearestParish(row, churches),
-  }));
+  const [churches, places] = await Promise.all([parishChurches(), knownPlaces()]);
+  return rows.map((row) => {
+    const names = JSON.parse(row.names) as string[];
+    return { ...row, names, detail: null, ...placing(row, names, churches, places) };
+  });
 }, 'gazetteer-hits');
 
 // --- The whole map, through Nominatim ---------------------------------------------
@@ -162,7 +216,17 @@ async function fetchNominatim(url: string): Promise<NominatimResult[]> {
 // languages the records use, old and alternative names.
 const nameTags = /^(name|old_name|alt_name|official_name|loc_name)(:(ru|fi|en|sv|et|de))?$/;
 
-function hitOf(result: NominatimResult, churches: Awaited<ReturnType<typeof parishChurches>>) {
+// Where a result is, kept short: Nominatim's display name without the
+// place's own name and postcodes, its two nearest parts and the country.
+function whereOf(result: NominatimResult): string | null {
+  const parts = result.display_name
+    .split(', ')
+    .filter((part) => part !== result.name && !/^[\d-]+$/.test(part));
+  const shown = parts.length > 3 ? [...parts.slice(0, 2), parts[parts.length - 1]] : parts;
+  return shown.join(', ') || null;
+}
+
+function hitOf(result: NominatimResult, churches: Known[], places: Known[]) {
   const details = result.namedetails ?? {};
   const names = [
     ...new Set([
@@ -187,8 +251,8 @@ function hitOf(result: NominatimResult, churches: Awaited<ReturnType<typeof pari
     nameFi: details['name:fi'] ?? null,
     names,
     ...at,
-    detail: result.display_name,
-    parish: nearestParish(at, churches),
+    detail: whereOf(result),
+    ...placing(at, names, churches, places),
   };
   return hit;
 }
@@ -212,6 +276,10 @@ export const getMapHits = query(async (search: string): Promise<GazetteerHit[]> 
   url.searchParams.set('limit', String(GAZETTEER_HITS));
   // Where a hit is, in the reader's language first.
   url.searchParams.set('accept-language', [...new Set([getLocale(), 'ru', 'fi', 'en'])].join(','));
-  const [results, churches] = await Promise.all([fetchNominatim(url.href), parishChurches()]);
-  return results.filter((r) => r.name).map((r) => hitOf(r, churches));
+  const [results, churches, places] = await Promise.all([
+    fetchNominatim(url.href),
+    parishChurches(),
+    knownPlaces(),
+  ]);
+  return results.filter((r) => r.name).map((r) => hitOf(r, churches, places));
 }, 'map-hits');

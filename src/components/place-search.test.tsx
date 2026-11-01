@@ -29,6 +29,8 @@ const hits: GazetteerHit[] = [
     longitude: 29.535,
     detail: null,
     parish: { id: 5, name: { ru: 'Губаницы', fi: 'Hevaa' }, km: 0.4 },
+    existing: null,
+    near: null,
   },
   {
     source: 'wikidata',
@@ -42,6 +44,9 @@ const hits: GazetteerHit[] = [
     longitude: 29.63,
     detail: null,
     parish: null,
+    // No parish in reach: placed by the nearest locality of ours, and it is one already.
+    existing: { id: 1, name: { ru: 'Горки', fi: 'Gorkka' } },
+    near: { name: { ru: 'Волосово', fi: null }, km: 3.2 },
   },
 ];
 const mapHit: GazetteerHit = {
@@ -56,6 +61,8 @@ const mapHit: GazetteerHit = {
   longitude: 25,
   detail: 'Kupanitsa, Lappeenranta, Finland',
   parish: null,
+  existing: null,
+  near: null,
 };
 vi.mock('~/data/gazetteer', () => ({
   getGazetteerHits: vi.fn(async (q: string) =>
@@ -88,23 +95,33 @@ afterEach(() => {
 });
 
 describe('PlaceSearch', () => {
+  // Each capture is one interaction, as the budgets want: a search typed,
+  // then a pick with the keys.
   test('lists the settlements named like the text, with the spelling matched; the keys pick one', async () => {
     const { input, picked, options } = renderSearch();
-    const { artifact } = await captureArtifact(
+    expect(screen.queryByRole('listbox')).toBeNull();
+    // By the Finnish name: the hit shows both names and the nearest church.
+    fireEvent.input(input, { target: { value: 'kupa' } });
+    await screen.findByRole('listbox');
+    expect(options()).toEqual(['ГубаницыKupanitsaVillage · Hevaa (0.4 km)']);
+
+    // By a spelling that is neither name: it shows beside them; a hit that
+    // is a locality of ours already says so.
+    const typed = await captureArtifact(
       async () => {
-        expect(screen.queryByRole('listbox')).toBeNull();
-        // By the Finnish name: the hit shows both names and the nearest church.
-        fireEvent.input(input, { target: { value: 'kupa' } });
-        await screen.findByRole('listbox');
-        expect(options()).toEqual([
-          'ГубаницыKupanitsaVillage · 0.4 km from the church of Hevaa · OpenStreetMap',
-        ]);
-        // By a spelling that is neither name: it shows beside them.
         fireEvent.input(input, { target: { value: 'бедная' } });
         await waitFor(() =>
-          expect(options()).toEqual(['ГоркиБедная ГоркаSmall village · Wikidata']),
+          expect(options()).toEqual([
+            'ГоркиБедная ГоркаSmall village · near Волосово (3.2 km)Already added as Gorkka',
+          ]),
         );
+      },
+      { scenario: 'place-search-type' },
+    );
+    expect(typed.artifact).toHaveNoDiagnostics();
 
+    const picking = await captureArtifact(
+      async () => {
         fireEvent.keyDown(input, { key: 'ArrowDown' });
         flush();
         expect(input).toHaveAttribute('aria-activedescendant', 'place-search-option-0');
@@ -114,14 +131,10 @@ describe('PlaceSearch', () => {
         expect(picked.map((h) => h.sourceId)).toEqual(['Q14620978']);
         expect(input).toHaveValue('Горки');
         expect(screen.queryByRole('listbox')).toBeNull();
-        expect(screen.getByRole('link', { name: 'Open Горки on Wikidata' })).toHaveAttribute(
-          'href',
-          'https://www.wikidata.org/wiki/Q14620978',
-        );
       },
-      { scenario: 'place-search-type-and-pick' },
+      { scenario: 'place-search-pick' },
     );
-    expect(artifact).toHaveNoDiagnostics();
+    expect(picking.artifact).toHaveNoDiagnostics();
   });
 
   test('Enter never submits the form around it; Escape closes the list', async () => {
@@ -150,7 +163,7 @@ describe('PlaceSearch', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Search the whole map' }));
     await waitFor(() => expect(options()).toHaveLength(1));
     expect(gazetteer.mapAsked).toEqual(['nowhere']);
-    expect(options()[0]).toBe('KupanitsaVillage · OpenStreetMapKupanitsa, Lappeenranta, Finland');
+    expect(options()[0]).toBe('KupanitsaVillage · Kupanitsa, Lappeenranta, Finland');
     // Asked once: the button is gone until the text changes.
     expect(screen.queryByRole('button', { name: 'Search the whole map' })).toBeNull();
     fireEvent.click(within(screen.getByRole('option')).getByRole('button'));

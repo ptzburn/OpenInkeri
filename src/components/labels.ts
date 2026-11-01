@@ -3,7 +3,7 @@
 // edit form edits). Each map is a Record over the list's type, so an option
 // added without its label fails the type check here.
 import type { AuthProvider } from '~/lib/auth-providers';
-import type { GazetteerKind, GazetteerSource } from '~/lib/gazetteer';
+import type { GazetteerKind } from '~/lib/gazetteer';
 import type { CoordinateStatus, PlaceKind } from '~/lib/place-kinds';
 import type {
   BaptismLocation,
@@ -97,13 +97,6 @@ export const gazetteerKindLabels: Labels<GazetteerKind> = {
   locality: m.gazetteer_kind_locality,
   allotments: m.gazetteer_kind_allotments,
   settlement: m.gazetteer_kind_settlement,
-};
-
-// Where a hit comes from: brand names, the same in every language.
-export const gazetteerSourceLabels: Labels<GazetteerSource> = {
-  osm: () => 'OpenStreetMap',
-  wikidata: () => 'Wikidata',
-  nominatim: () => 'OpenStreetMap',
 };
 
 // Brand names, the same in every language.

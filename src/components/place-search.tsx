@@ -10,9 +10,9 @@ import {
 } from 'solid-js';
 import SearchIcon from '~icons/ri/search-line';
 
-import { gazetteerKindLabels, gazetteerSourceLabels } from '~/components/labels';
+import { gazetteerKindLabels } from '~/components/labels';
 import { getGazetteerHits, getMapHits } from '~/data/gazetteer';
-import { type GazetteerHit, gazetteerUrl } from '~/lib/gazetteer';
+import type { GazetteerHit } from '~/lib/gazetteer';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { localName } from '~/lib/format';
 import type { QueryData } from '~/lib/query-data';
@@ -41,10 +41,6 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
   const [open, setOpen] = createSignal(false, { name: 'place-search-open' });
   // The row the arrow keys are on, by its place in the list.
   const [active, setActive] = createSignal<number | null>(null, { name: 'place-search-active' });
-  // The hit last picked, linked to its source under the field.
-  const [picked, setPicked] = createSignal<GazetteerHit | null>(null, {
-    name: 'place-search-picked',
-  });
   let typing: ReturnType<typeof setTimeout> | undefined;
   onSettled(() => () => clearTimeout(typing));
 
@@ -87,7 +83,6 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
   };
   const pick = (hit: GazetteerHit) => {
     props.onPick(hit);
-    setPicked(hit);
     setText(hit.name);
     // No search for the name picked: its answer would hold this update
     // (the text, the list closing) until it arrived. Typing searches again.
@@ -167,37 +162,61 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
     >
       <button
         type="button"
-        class={['flex-col items-start gap-0', { 'menu-active': active() === props.index }]}
+        class={{ 'menu-active': active() === props.index }}
         onClick={() => pick(props.hit)}
       >
-        <span>
-          <span class="font-medium">{props.hit.name}</span>
-          <Show when={props.hit.nameFi && props.hit.nameFi !== props.hit.name}>
-            <span class="ml-2">{props.hit.nameFi}</span>
-          </Show>
-          <Show when={spelledApart(props.hit)}>
-            {(spelling) => <span class="ml-2 opacity-60">{spelling()}</span>}
-          </Show>
-        </span>
-        <span class="text-xs opacity-70">
-          {gazetteerKindLabels[props.hit.kind]()}
-          <Show when={props.hit.parish}>
-            {(parish) => (
-              <>
-                {' · '}
-                {m.place_search_near({
-                  km: String(parish().km),
-                  parish: localName(parish().name),
-                })}
-              </>
+        {/* One cell of the menu's grid, so the lines stack: its names (the
+            name, the Finnish one, and the spelling matched when it is
+            neither); what it is and where, by our parishes and localities
+            or by the map; and whether it is in the database already. */}
+        <span class="flex flex-col items-start gap-0.5">
+          <span class="flex flex-wrap items-baseline gap-x-2">
+            <span class="font-medium">{props.hit.name}</span>
+            <Show when={props.hit.nameFi && props.hit.nameFi !== props.hit.name}>
+              <span class="opacity-70">{props.hit.nameFi}</span>
+            </Show>
+            <Show when={spelledApart(props.hit)}>
+              {(spelling) => <span class="opacity-70 italic">{spelling()}</span>}
+            </Show>
+          </span>
+          <span class="text-xs opacity-70">
+            {gazetteerKindLabels[props.hit.kind]()}
+            <Show
+              when={props.hit.parish}
+              fallback={
+                <Show when={props.hit.near}>
+                  {(near) => (
+                    <>
+                      {' · '}
+                      {m.place_search_near_place({
+                        place: localName(near().name),
+                        km: String(near().km),
+                      })}
+                    </>
+                  )}
+                </Show>
+              }
+            >
+              {(parish) => (
+                <>
+                  {' · '}
+                  {m.place_search_near({
+                    parish: localName(parish().name),
+                    km: String(parish().km),
+                  })}
+                </>
+              )}
+            </Show>
+            <Show when={props.hit.detail}>{(detail) => <>{` · ${detail()}`}</>}</Show>
+          </span>
+          <Show when={props.hit.existing}>
+            {(existing) => (
+              <span class="text-xs font-medium text-warning">
+                {m.place_search_existing({ name: localName(existing().name) })}
+              </span>
             )}
           </Show>
-          {' · '}
-          {gazetteerSourceLabels[props.hit.source]()}
         </span>
-        <Show when={props.hit.detail}>
-          <span class="text-xs opacity-60">{props.hit.detail}</span>
-        </Show>
       </button>
     </li>
   );
@@ -289,23 +308,6 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
           </div>
         </Show>
       </div>
-      <p class="label whitespace-normal">{m.place_search_hint()}</p>
-      {/* The pick, at its source, to check it. */}
-      <Show when={picked()}>
-        {(hit) => (
-          <a
-            href={gazetteerUrl(hit())}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="link self-start text-sm"
-          >
-            {m.place_search_open({
-              name: hit().name,
-              source: gazetteerSourceLabels[hit().source](),
-            })}
-          </a>
-        )}
-      </Show>
     </div>
   );
 }
