@@ -1,12 +1,11 @@
-import { Loading, flush } from 'solid-js';
+import { flush } from 'solid-js';
 import { captureArtifact } from '~/testing/capture';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
+import { cleanup, fireEvent, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
-import { ToastProvider } from '~/components/toaster';
-import { Router } from '~/router';
+import { renderAt as renderPage } from '~/testing/render';
 
 // The records page through the real router, with getRecords answering from
 // a made-up baptism register of 120 entries, 50 a page, searched by child
@@ -391,18 +390,7 @@ vi.mock('~/data/records', async () => {
   };
 });
 
-function renderAt(url: string) {
-  window.history.replaceState(null, '', url);
-  return render(() => (
-    <Router>
-      {(props) => (
-        <ToastProvider>
-          <Loading fallback="Loading">{props.children}</Loading>
-        </ToastProvider>
-      )}
-    </Router>
-  ));
-}
+const renderAt = (url: string) => renderPage(url, { toasts: true });
 
 // The child column's names; English shows the Finnish form when there is one.
 const childNames = (container: HTMLElement) =>

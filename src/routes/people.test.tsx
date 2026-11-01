@@ -1,12 +1,11 @@
-import { Loading, flush } from 'solid-js';
+import { flush } from 'solid-js';
 import { captureArtifact } from '~/testing/capture';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
+import { cleanup, fireEvent, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
-import { ToastProvider } from '~/components/toaster';
-import { Router } from '~/router';
+import { renderAt as renderPage } from '~/testing/render';
 
 // The people pages through the real router, with their server functions
 // answering from made-up people: Maria, baptised in 1895, married to Juho
@@ -178,18 +177,7 @@ vi.mock('~/data/people', async () => {
   };
 });
 
-function renderAt(url: string) {
-  window.history.replaceState(null, '', url);
-  return render(() => (
-    <Router>
-      {(props) => (
-        <ToastProvider>
-          <Loading fallback="Loading">{props.children}</Loading>
-        </ToastProvider>
-      )}
-    </Router>
-  ));
-}
+const renderAt = (url: string) => renderPage(url, { toasts: true });
 
 afterEach(() => {
   cleanup();

@@ -1,10 +1,10 @@
-import { Loading, flush } from 'solid-js';
+import { flush } from 'solid-js';
 import { captureArtifact } from '~/testing/capture';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
+import { cleanup, fireEvent, screen, waitFor } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
-import { Router } from '~/router';
+import { renderAt } from '~/testing/render';
 
 // The users pages through the real router, with the server functions
 // replaced: getUsers answers from this list, filtered the way the server's
@@ -29,13 +29,6 @@ const { getUsers, gate } = vi.hoisted(() => {
 
 vi.mock('~/data/users', () => ({ getUsers, getUser: vi.fn() }));
 vi.mock('~/data/session', () => ({ getCurrentUser: vi.fn(async () => null) }));
-
-function renderAt(url: string) {
-  window.history.replaceState(null, '', url);
-  return render(() => (
-    <Router>{(props) => <Loading fallback="Loading">{props.children}</Loading>}</Router>
-  ));
-}
 
 const rowNames = (container: HTMLElement) =>
   [...container.querySelectorAll('nav .list-row .font-medium')].map((el) => el.textContent);

@@ -1,12 +1,12 @@
-import { Loading, flush } from 'solid-js';
+import { flush } from 'solid-js';
 import { captureArtifact } from '~/testing/capture';
 import { query } from '@solidjs/router';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
+import { cleanup, fireEvent, screen } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { AuthProvider } from '~/lib/auth-providers';
-import { Router } from '~/router';
+import { renderAt } from '~/testing/render';
 
 // The sign-in page through the real router, with the server functions
 // replaced by a router query over the offered providers.
@@ -30,12 +30,7 @@ afterEach(() => {
   query.clear();
 });
 
-function renderSignIn(search = '') {
-  window.history.replaceState(null, '', `/sign-in${search}`);
-  return render(() => (
-    <Router>{(props) => <Loading fallback="Loading">{props.children}</Loading>}</Router>
-  ));
-}
+const renderSignIn = (search = '') => renderAt(`/sign-in${search}`);
 
 describe('/sign-in', () => {
   test('offers a button for each configured provider, in order', async () => {
