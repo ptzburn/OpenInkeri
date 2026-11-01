@@ -111,7 +111,13 @@ export default function LocationPicker(props: {
   const coordinates = () => parseCoordinates(props.value) ?? null;
   // What the map chose, to the handler as it is when the map fires (its
   // events are no tracking scope: the read is untracked, each time).
-  const pick = (lat: number, lng: number) => untrack(() => props.onPick(lat, lng));
+  // The last point the map itself chose (a click, a drag): the view stays
+  // put for it, and goes to any other.
+  let picked: Point | null = null;
+  const pick = (lat: number, lng: number) => {
+    picked = { lat, lng };
+    untrack(() => props.onPick(lat, lng));
+  };
 
   onSettled(() => {
     if (!container) return;
@@ -162,9 +168,11 @@ export default function LocationPicker(props: {
     };
   });
 
-  // The marker follows the field: typed coordinates move it (and the view,
-  // when they are off it); none takes it off the map, and the view goes to
-  // the parish church instead, when one is known and out of view.
+  // The marker follows the field. Coordinates from outside (a settlement
+  // found in the search, the place as loaded) fly the view to them at the
+  // place zoom; the map's own picks leave the view where it is. None takes
+  // the marker off the map, and the view goes to the parish church instead,
+  // when one is known and out of view.
   createEffect(
     () => ({ map: map(), at: coordinates(), focus: props.focus ?? null }),
     ({ map, at, focus }) => {
@@ -180,7 +188,8 @@ export default function LocationPicker(props: {
         return;
       }
       marker.setLngLat([at.lng, at.lat]).addTo(map);
-      show(at, PLACE_ZOOM);
+      if (picked && picked.lat === at.lat && picked.lng === at.lng) return;
+      map.flyTo({ center: [at.lng, at.lat], zoom: PLACE_ZOOM });
     },
     { name: 'map-marker' },
   );
