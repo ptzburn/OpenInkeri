@@ -9,6 +9,7 @@ import { FIELD_MAX } from '~/lib/field-limits';
 import { type GazetteerHit, type GazetteerKind, distanceKm, gazetteerKinds } from '~/lib/gazetteer';
 import { CYRILLIC_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import { foldForSearch } from '~/lib/search-text';
+import { getLocale } from '~/paraglide/runtime.js';
 import { db } from '~/server/database';
 import { gazetteer } from '~/server/database/schema';
 import { adminOnly } from '~/server/guards';
@@ -45,6 +46,10 @@ async function parishChurches() {
 }
 
 /** The parish whose church is nearest the point, and how far, to a tenth of a kilometre. */
+// Beyond this a settlement is outside our parishes (Ingria's are some 15 km
+// apart): no parish is proposed for a hit in Finland or India.
+const PARISH_REACH_KM = 40;
+
 function nearestParish(
   at: Located,
   churches: Awaited<ReturnType<typeof parishChurches>>,
@@ -52,7 +57,9 @@ function nearestParish(
   let best: GazetteerHit['parish'] = null;
   for (const church of churches) {
     const km = distanceKm(at, church);
-    if (!best || km < best.km) best = { id: church.id, name: church.name, km };
+    if (km <= PARISH_REACH_KM && (!best || km < best.km)) {
+      best = { id: church.id, name: church.name, km };
+    }
   }
   return best && { ...best, km: Math.round(best.km * 10) / 10 };
 }
@@ -203,7 +210,8 @@ export const getMapHits = query(async (search: string): Promise<GazetteerHit[]> 
   url.searchParams.set('namedetails', '1');
   url.searchParams.set('featureType', 'settlement');
   url.searchParams.set('limit', String(GAZETTEER_HITS));
-  url.searchParams.set('accept-language', 'ru,fi,en');
+  // Where a hit is, in the reader's language first.
+  url.searchParams.set('accept-language', [...new Set([getLocale(), 'ru', 'fi', 'en'])].join(','));
   const [results, churches] = await Promise.all([fetchNominatim(url.href), parishChurches()]);
   return results.filter((r) => r.name).map((r) => hitOf(r, churches));
 }, 'map-hits');
