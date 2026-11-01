@@ -1,15 +1,7 @@
-import {
-  Errored,
-  For,
-  Show,
-  createEffect,
-  createMemo,
-  createSignal,
-  isPending,
-  onSettled,
-} from 'solid-js';
+import { Errored, For, Show, createMemo, createSignal, isPending, onSettled } from 'solid-js';
 import SearchIcon from '~icons/ri/search-line';
 
+import { createCombobox } from '~/components/combobox';
 import { gazetteerKindLabels } from '~/components/labels';
 import { getGazetteerHits, getMapHits } from '~/data/gazetteer';
 import type { GazetteerHit } from '~/lib/gazetteer';
@@ -38,9 +30,6 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
   const [mapSearch, setMapSearch] = createSignal<string | null>(null, {
     name: 'place-search-map',
   });
-  const [open, setOpen] = createSignal(false, { name: 'place-search-open' });
-  // The row the arrow keys are on, by its place in the list.
-  const [active, setActive] = createSignal<number | null>(null, { name: 'place-search-active' });
   let typing: ReturnType<typeof setTimeout> | undefined;
   onSettled(() => () => clearTimeout(typing));
 
@@ -62,7 +51,6 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
   const foundOnMap = () => mapHits() ?? [];
   const pending = () => isPending(() => hits());
   const mapPending = () => isPending(() => mapHits());
-  const shown = () => open() && term().length >= 2;
   // Every row the list shows, for the keys. A search that failed shows its
   // error in the list (the Errored boundaries below) and has no rows; read
   // here, in an event handler, the failure throws and is caught.
@@ -75,67 +63,32 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
   };
   const listed = (): GazetteerHit[] => [...rows(found), ...rows(foundOnMap)];
 
+  // The dropdown and the keys, over every row listed (each by its place in
+  // the list, which moves as the map's rows follow). Enter never reaches
+  // the form: the search isn't a field of it. A hit picked fills the form
+  // and becomes the text; no search for that name: its answer would hold
+  // this update (the text, the list closing) until it arrived. Typing
+  // searches again.
+  const box = createCombobox({
+    name: () => 'place-search',
+    rows: listed,
+    keyOf: (_hit, index) => index,
+    visible: () => term().length >= 2,
+    enterStays: true,
+    pick: (hit) => {
+      props.onPick(hit);
+      setText(hit.name);
+      setSearch('');
+    },
+  });
   const typed = (value: string) => {
     setText(value);
-    setOpen(true);
     setMapSearch(null);
-    setActive(null);
+    box.typed();
     clearTimeout(typing);
     typing = setTimeout(() => setSearch(value), 300);
   };
-  const pick = (hit: GazetteerHit) => {
-    props.onPick(hit);
-    setText(hit.name);
-    // No search for the name picked: its answer would hold this update
-    // (the text, the list closing) until it arrived. Typing searches again.
-    setSearch('');
-    setOpen(false);
-    setActive(null);
-  };
-  const close = () => {
-    setOpen(false);
-    setActive(null);
-  };
-  const move = (step: 1 | -1) => {
-    const rows = listed();
-    if (!rows.length) return;
-    const at = active();
-    const next = at === null ? (step === 1 ? 0 : rows.length - 1) : at + step;
-    setActive(Math.min(Math.max(next, 0), rows.length - 1));
-  };
-  const onKeyDown = (event: KeyboardEvent) => {
-    switch (event.key) {
-      case 'ArrowDown':
-        event.preventDefault();
-        setOpen(true);
-        move(1);
-        break;
-      case 'ArrowUp':
-        event.preventDefault();
-        move(-1);
-        break;
-      case 'Enter': {
-        // Never the form: the search isn't a field of it.
-        event.preventDefault();
-        const row = open() && active() !== null ? listed()[active()!] : undefined;
-        if (row) pick(row);
-        break;
-      }
-      case 'Escape':
-        if (open()) {
-          event.preventDefault();
-          close();
-        }
-        break;
-      case 'Tab':
-        close();
-        break;
-    }
-  };
 
-  const inputId = 'place-search-input';
-  const listId = 'place-search-list';
-  const optionId = (index: number) => `place-search-option-${index}`;
   // The spelling the search matched, when it is neither of the hit's names.
   const spelledApart = (hit: GazetteerHit) => {
     const key = foldForSearch(term());
@@ -144,28 +97,18 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
     if (shown.some((n) => foldForSearch(n).includes(key))) return undefined;
     return hit.names.find((n) => foldForSearch(n).includes(key));
   };
-  // The row the arrow keys reach stays in view.
-  createEffect(
-    () => active(),
-    (value) => {
-      if (value !== null) {
-        document.getElementById(optionId(value))?.scrollIntoView?.({ block: 'nearest' });
-      }
-    },
-    { name: 'place-search-scroll' },
-  );
 
-  // One row, at its place in the list (which moves as the map's rows follow).
+  // One row, at its place in the list.
   const Option = (option: { hit: GazetteerHit; index: number }) => (
     <li
-      id={optionId(option.index)}
+      id={box.ids.option(option.index)}
       role="option"
-      aria-selected={active() === option.index ? 'true' : 'false'}
+      aria-selected={box.isActive(option.index) ? 'true' : 'false'}
     >
       <button
         type="button"
-        class={{ 'menu-active': active() === option.index }}
-        onClick={() => pick(option.hit)}
+        class={{ 'menu-active': box.isActive(option.index) }}
+        onClick={() => box.pick(option.hit)}
       >
         {/* One cell of the menu's grid, so the lines stack: its names (the
             name, the Finnish one, and the spelling matched when it is
@@ -225,35 +168,37 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
 
   return (
     <div class="fieldset">
-      <label for={inputId} class="fieldset-legend">
+      <label for={box.ids.input()} class="fieldset-legend">
         {m.place_search_label()}
       </label>
       <div class="relative">
         <label class="input w-full">
           <SearchIcon class="size-4 opacity-50" aria-hidden="true" />
           <input
-            id={inputId}
+            id={box.ids.input()}
             type="search"
             value={text()}
             role="combobox"
-            aria-expanded={shown() ? 'true' : 'false'}
-            aria-controls={listId}
+            aria-expanded={box.shown() ? 'true' : 'false'}
+            aria-controls={box.ids.list()}
             aria-autocomplete="list"
-            aria-activedescendant={active() === null ? undefined : optionId(active()!)}
+            aria-activedescendant={
+              box.active() === null ? undefined : box.ids.option(box.active()!)
+            }
             autocomplete="off"
             maxlength={FIELD_MAX.search}
             placeholder={m.place_search_placeholder()}
             onInput={(e) => typed(e.currentTarget.value)}
-            onFocus={() => setOpen(true)}
-            onClick={() => setOpen(true)}
-            onBlur={close}
-            onKeyDown={onKeyDown}
+            onFocus={box.show}
+            onClick={box.show}
+            onBlur={box.close}
+            onKeyDown={box.onKeyDown}
           />
           <Show when={pending() || mapPending()}>
             <span class="loading loading-xs loading-spinner" aria-hidden="true" />
           </Show>
         </label>
-        <Show when={shown()}>
+        <Show when={box.shown()}>
           {/* Its mousedown keeps the focus (and so the dropdown) in the input. */}
           <div
             class={[
@@ -272,7 +217,7 @@ export default function PlaceSearch(props: { onPick: (hit: GazetteerHit) => void
               }
             >
               <ul
-                id={listId}
+                id={box.ids.list()}
                 role="listbox"
                 aria-label={m.place_search_label()}
                 class="menu max-h-80 w-full flex-nowrap overflow-y-auto menu-sm"
