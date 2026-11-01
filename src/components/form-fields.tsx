@@ -5,6 +5,7 @@ import type { JSX } from '@solidjs/web';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { localName } from '~/lib/format';
 import type { FormError } from '~/lib/form-error';
+import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
 import { useToast } from '~/components/toaster';
 import { m } from '~/paraglide/messages.js';
 
@@ -68,6 +69,24 @@ function useFormRefused<U>(
     const [form] = submission.input;
     if (submission.error && isThisForm(form)) refused(form);
   });
+}
+
+/**
+ * What an edit form shares: which of `action`'s submissions are its own (by
+ * the row id it posted; '' for a new row), its refused saves (`error`, and
+ * `invalid` by field) and a toast saying `saved` once a save goes through.
+ * Call it in the component body: the hooks need an owner.
+ */
+export function useEditForm<U>(
+  action: Action<[FormData], U>,
+  id: () => number | undefined,
+  saved: (form: FormData) => string,
+) {
+  const isThisForm = (form: FormData) => form.get('id') === (id() ? String(id()) : '');
+  const { error, invalid } = useFormErrors(action, isThisForm);
+  const toast = useToast();
+  useFormDone(action, isThisForm, (form) => toast(saved(form)));
+  return { isThisForm, error, invalid };
 }
 
 /**
@@ -211,6 +230,44 @@ export function TextInput(props: {
       <FieldError fault={props.invalid} error={props.error} />
       <Show when={props.hint}>{(hint) => <span class="label">{hint()}</span>}</Show>
     </label>
+  );
+}
+
+/**
+ * A parish's or locality's names: the Russian one, required and in Cyrillic,
+ * and the Finnish one, in Latin letters (~/lib/name-scripts). `onInput` is
+ * told what is typed in either, for a form that follows the values.
+ */
+export function NamePair(props: {
+  nameRu: string | null;
+  nameFi: string | null;
+  invalid: (field: string) => Fault;
+  onInput?: (field: 'nameRu' | 'nameFi', value: string) => void;
+}) {
+  return (
+    <>
+      <TextInput
+        name="nameRu"
+        label={m.form_name_ru()}
+        value={props.nameRu}
+        pattern={CYRILLIC_NAME_PATTERN}
+        hint={m.form_name_ru_hint()}
+        required
+        maxlength={FIELD_MAX.line}
+        invalid={props.invalid('nameRu')}
+        onInput={(value) => props.onInput?.('nameRu', value)}
+      />
+      <TextInput
+        name="nameFi"
+        label={m.form_name_fi()}
+        value={props.nameFi}
+        pattern={LATIN_NAME_PATTERN}
+        hint={m.form_name_fi_hint()}
+        maxlength={FIELD_MAX.line}
+        invalid={props.invalid('nameFi')}
+        onInput={(value) => props.onInput?.('nameFi', value)}
+      />
+    </>
   );
 }
 

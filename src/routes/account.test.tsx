@@ -1,12 +1,12 @@
-import { Loading, flush } from 'solid-js';
+import { flush } from 'solid-js';
 import { captureArtifact } from '~/testing/capture';
 import { query } from '@solidjs/router';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
+import { cleanup, fireEvent, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { AccountData } from '~/data/account';
-import { Router } from '~/router';
+import { renderAt } from '~/testing/render';
 
 // The account page through the real router, with the server functions
 // replaced by router queries and actions over this in-memory account, so an
@@ -66,12 +66,7 @@ afterEach(() => {
   query.clear();
 });
 
-function renderAccount() {
-  window.history.replaceState(null, '', '/account');
-  return render(() => (
-    <Router>{(props) => <Loading fallback="Loading">{props.children}</Loading>}</Router>
-  ));
-}
+const renderAccount = () => renderAt('/account');
 
 const devices = () => screen.getByRole('region', { name: 'Signed-in devices' });
 

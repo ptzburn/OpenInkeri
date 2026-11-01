@@ -1,15 +1,19 @@
-import { Title } from '@solidjs/meta';
-import { useIsRouting } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
-import AddIcon from '~icons/ri/add-line';
+import { For, Show, createMemo } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { finnishNamesShown } from '~/lib/format';
 import EditLinkCell from '~/components/edit-link-cell';
+import ListPage, {
+  ActionsHeader,
+  AddLink,
+  ListBody,
+  NameHeaders,
+  TableBox,
+  useCanEdit,
+  useListBusy,
+} from '~/components/list-page';
 import PlacesTabs from '~/components/places-tabs';
-import { getCurrentUser } from '~/data/session';
 import { type ParishRow, getParishes } from '~/data/parishes';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -25,66 +29,44 @@ export default function Parishes() {
   const list = createMemo((): Promise<QueryData<typeof getParishes>> => getParishes(), {
     name: 'parishes-list',
   });
-  // The list dims while it reloads (after a save) and while a link from
-  // it is opening the next page, so a click shows at once.
-  const isRouting = useIsRouting();
-  const busy = () => isRouting() || isPending(list);
-  // Admins add and edit parishes; the server functions check the role
-  // again, so this only decides what is offered.
-  const me = createMemo(() => getCurrentUser(), { name: 'parishes-me' });
-  const canEdit = () => !!me()?.isAdmin;
+  const busy = useListBusy(list);
+  const canEdit = useCanEdit('parishes-me');
 
   return (
-    <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
-      <Title>{`${m.parishes_title()} - ${env.VITE_APP_NAME}`}</Title>
-      <header class="flex flex-wrap items-center gap-2">
-        <h1 class="text-2xl font-bold">{m.places_title()}</h1>
+    <ListPage
+      title={m.parishes_title()}
+      heading={m.places_title()}
+      aside={
         <Show when={canEdit()}>
-          <a href={paths.places.parishes.new()} class="btn ml-auto btn-sm btn-primary">
-            <AddIcon class="size-4" aria-hidden="true" />
-            {m.parishes_add()}
-          </a>
+          <AddLink href={paths.places.parishes.new()} label={m.parishes_add()} />
         </Show>
-      </header>
+      }
+    >
       <PlacesTabs current="parishes" />
-      <div class="transition-opacity" style={{ opacity: busy() ? 0.5 : 1 }}>
-        <Show
-          when={list()?.length}
-          fallback={<p class="py-6 text-center text-base-content/60">{m.parishes_empty()}</p>}
-        >
-          <div class="overflow-x-auto rounded-box border border-base-300">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>{finnishNamesShown() ? m.villages_col_ru() : m.villages_col_name()}</th>
-                  <Show when={finnishNamesShown()}>
-                    <th>{m.villages_col_fi()}</th>
-                  </Show>
-                  <th class="text-right">{m.parishes_col_villages()}</th>
-                  <th class="text-right">{m.parishes_col_sources()}</th>
-                  <th>{m.form_note()}</th>
-                  <Show when={canEdit()}>
-                    <th>
-                      <span class="sr-only">{m.records_col_actions()}</span>
-                    </th>
-                  </Show>
-                </tr>
-              </thead>
-              <tbody>
-                <For each={list() ?? []} keyed={(parish) => parish.id}>
-                  {(parish) => (
-                    <ParishTableRow
-                      parish={parish()}
-                      editHref={canEdit() ? paths.places.parishes(parish().id).edit() : undefined}
-                    />
-                  )}
-                </For>
-              </tbody>
-            </table>
-          </div>
-        </Show>
-      </div>
-    </main>
+      <ListBody busy={busy()} count={list()?.length} empty={m.parishes_empty()}>
+        <TableBox>
+          <thead>
+            <tr>
+              <NameHeaders />
+              <th class="text-right">{m.parishes_col_villages()}</th>
+              <th class="text-right">{m.parishes_col_sources()}</th>
+              <th>{m.form_note()}</th>
+              <ActionsHeader when={canEdit()} />
+            </tr>
+          </thead>
+          <tbody>
+            <For each={list() ?? []} keyed={(parish) => parish.id}>
+              {(parish) => (
+                <ParishTableRow
+                  parish={parish()}
+                  editHref={canEdit() ? paths.places.parishes(parish().id).edit() : undefined}
+                />
+              )}
+            </For>
+          </tbody>
+        </TableBox>
+      </ListBody>
+    </ListPage>
   );
 }
 

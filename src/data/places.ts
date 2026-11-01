@@ -18,7 +18,7 @@ import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
 import { parseCoordinates } from '~/lib/coordinates';
-import { type Names, placeInUse } from '~/lib/format';
+import { type Names, byRussianName, namesOf, placeInUse } from '~/lib/format';
 import {
   type CoordinateStatus,
   type PlaceKind,
@@ -26,11 +26,11 @@ import {
   placeKinds,
 } from '~/lib/place-kinds';
 import { searchTextOf } from '~/lib/search-text';
+import { spellingsOf } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
 import {
-  changeLog,
   parish,
   persona,
   place,
@@ -40,12 +40,22 @@ import {
   recordHolding,
 } from '~/server/database/schema';
 import {
+  type Refusals,
+  deleteRow,
+  deletionForm,
+  logChange,
+  lookupRow,
+  parseDeletion,
+  rowForEdit,
+  writing,
+} from '~/server/edits';
+import {
   collapse,
-  fieldsAtFault,
   finnishName,
   line,
+  listParam,
   optionalId,
-  parseForm,
+  parseOrRefuse,
   refuse,
   rowId,
   russianName,
@@ -61,7 +71,6 @@ import {
   insertPlace,
   newParish,
   parishNamed,
-  parseNewRow,
 } from '~/server/linked-rows';
 
 // The read functions' results, spelled out: the pages' types feed the
@@ -152,11 +161,11 @@ export const getPlaces = query(async (): Promise<PlaceListData> => {
     places: places
       .map(({ parish, aliases, ...p }) => ({
         ...p,
-        parish: parish ? { ru: parish.nameRu, fi: parish.nameFi } : null,
+        parish: namesOf(parish),
         spellings: aliases.map((a) => a.name),
         records: counts.get(p.id) ?? 0,
       }))
-      .sort((a, b) => a.nameRu.localeCompare(b.nameRu, 'ru')),
+      .sort(byRussianName),
     unlinked: unlinked
       .filter((row): row is { text: string; records: number } => !!row.text)
       .sort((a, b) => b.records - a.records || a.text.localeCompare(b.text, 'ru')),
@@ -254,12 +263,10 @@ export const getPlaceMarkers = query(async (): Promise<PlaceMarker[]> => {
       where: { churchPlaceId: { isNotNull: true as const } },
     }),
   ]);
-  const churchOf = new Map(
-    parishes.map((p) => [p.churchPlaceId!, { id: p.id, name: { ru: p.nameRu, fi: p.nameFi } }]),
-  );
+  const churchOf = new Map(parishes.map((p) => [p.churchPlaceId!, { id: p.id, name: namesOf(p) }]));
   return places.map((p) => ({
     id: p.id,
-    name: { ru: p.nameRu, fi: p.nameFi },
+    name: namesOf(p),
     latitude: p.latitude!,
     longitude: p.longitude!,
     church: churchOf.get(p.id) ?? null,
@@ -280,12 +287,10 @@ export const getPlaceOptions = query(async (): Promise<PlaceOption[]> => {
   });
   return places.map((p) => ({
     id: p.id,
-    name: { ru: p.nameRu, fi: p.nameFi },
+    name: namesOf(p),
     parishId: p.parishId,
-    parish: p.parish ? { ru: p.parish.nameRu, fi: p.parish.nameFi } : null,
-    spellings: [
-      ...new Set([p.nameRu, ...(p.nameFi ? [p.nameFi] : []), ...p.aliases.map((a) => a.name)]),
-    ],
+    parish: namesOf(p.parish),
+    spellings: spellingsOf(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
   }));
 }, 'place-options');
 
@@ -295,8 +300,8 @@ export const getPlaceOptions = query(async (): Promise<PlaceOption[]> => {
 // or deleting. The redirect is built from these, never taken whole from the
 // request.
 const returnTo = {
-  returnQ: v.optional(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
-  returnParish: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,8}$|^$/))),
+  returnQ: listParam(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
+  returnParish: listParam(v.pipe(v.string(), v.regex(/^[1-9]\d{0,8}$/))),
 };
 
 /** The villages list as the form came from it. */
@@ -334,6 +339,8 @@ const form = v.object({
   ),
 });
 
+const placeRefusals: Refusals = { missing: m.place_edit_missing, conflict: m.place_edit_conflict };
+
 /**
  * Creates a place (no id in the form) or saves the edit page's form over
  * one, then redirects to the villages list (with the search and parish
@@ -350,34 +357,28 @@ export const savePlace = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
-  const parsed = parseForm(form, entries);
-  if (!parsed.success) {
-    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
-  }
-  const input = parsed.output;
-
-  const before = input.id ? await loadPlace(input.id) : null;
-  if (input.id && !before) throw refuse({ message: m.place_edit_missing() }, 404);
-  if (before && before.version !== input.version) {
-    throw refuse({ message: m.place_edit_conflict() }, 409);
-  }
-  // A parish deleted since the page loaded.
-  let parishId = input.parishId;
-  if (
-    parishId &&
-    !(await db.query.parish.findFirst({ where: { id: parishId }, columns: { id: true } }))
-  ) {
-    throw refuse({ message: m.form_invalid(), fields: { parishId: '' } }, 400);
-  }
-  if (!parishId && input.parishText) parishId = await parishNamed(input.parishText);
+  const input = parseOrRefuse(form, entries);
+  const before = input.id
+    ? await rowForEdit(loadPlace, input.id, input.version, placeRefusals)
+    : null;
+  // The parish: the one linked, the one the text names, or the one to add.
+  const linked = await lookupRow(
+    { text: input.parishText, id: input.parishId, create: input.parishCreate },
+    {
+      idName: 'parishId',
+      prefix: 'parishNew',
+      table: parish,
+      named: parishNamed,
+      columns: newParish,
+      entries,
+    },
+  );
+  let parishId = linked.id;
   const now = new Date();
+  const by = { userId: user.id, now };
   const createdRows: Created[] = [];
-  if (!parishId && input.parishText && input.parishCreate) {
-    const newRow = parseNewRow(newParish, 'parishNew', entries);
-    if (!newRow.success) {
-      throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(newRow.issues) }, 400);
-    }
-    const created = await createParish(newRow.output, { userId: user.id, now });
+  if (linked.add) {
+    const created = await createParish(linked.add, by);
     createdRows.push(created);
     parishId = created.id;
   }
@@ -401,14 +402,11 @@ export const savePlace = action(async (formData: FormData) => {
 
   // A new place gets its id first: its spellings and records point to it.
   // Were the insert to fail, a parish just created for it goes too.
-  let id: number;
-  try {
-    id = input.id ?? (await insertPlace(fields, { userId: user.id, now }));
-  } catch (error) {
-    console.error('Saving a place failed', error);
-    await deleteCreated(createdRows);
-    throw refuse({ message: m.form_failed() }, 500);
-  }
+  const id =
+    input.id ??
+    (await writing('Saving a place', () => insertPlace(fields, by), {
+      undo: () => deleteCreated(createdRows),
+    }));
 
   const statements = createdRows.flatMap((row) => row.statements);
   if (before) {
@@ -484,7 +482,7 @@ export const savePlace = action(async (formData: FormData) => {
   // A place's name as it will be: this place's is the one being saved.
   const nameOf = (placeId: number | null, current: string | undefined) =>
     placeId === id ? input.nameRu : (current ?? null);
-  const linked: number[] = [];
+  const linkedRecords: number[] = [];
   for (const r of touched) {
     const placeId = links(r.placeId, r.placeText) ? id : r.placeId;
     const residents = r.personas.filter((p) => links(p.residenceId, p.residenceText));
@@ -507,7 +505,7 @@ export const savePlace = action(async (formData: FormData) => {
       );
       continue;
     }
-    linked.push(r.id);
+    linkedRecords.push(r.id);
     statements.push(
       db
         .update(record)
@@ -528,62 +526,59 @@ export const savePlace = action(async (formData: FormData) => {
       );
     }
     statements.push(
-      db.insert(changeLog).values({
-        userId: user.id,
-        entity: 'record',
-        entityId: r.id,
-        action: 'update',
-        before: {
+      logChange(
+        by,
+        'record',
+        r.id,
+        'update',
+        {
           placeId: r.placeId,
           version: r.version,
           ...(residents.length && {
             residences: residents.map((p) => ({ id: p.id, residenceId: null })),
           }),
         },
-        after: {
+        {
           placeId,
           version: r.version + 1,
           ...(residents.length && {
             residences: residents.map((p) => ({ id: p.id, residenceId: id })),
           }),
         },
-      }),
+      ),
     );
   }
 
-  const after = { ...fields, spellings: input.spellings, linkedRecords: linked };
+  const after = { ...fields, spellings: input.spellings, linkedRecords: linkedRecords };
   statements.push(
-    db.insert(changeLog).values({
-      userId: user.id,
-      entity: 'place',
-      entityId: id,
-      action: before ? 'update' : 'create',
-      before: before
+    logChange(
+      by,
+      'place',
+      id,
+      before ? 'update' : 'create',
+      before
         ? { ...before, aliases: undefined, spellings: before.aliases.map((a) => a.name) }
         : null,
-      after: before ? { ...after, version: before.version + 1 } : after,
-    }),
+      before ? { ...after, version: before.version + 1 } : after,
+    ),
   );
 
-  try {
-    await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
-  } catch (error) {
-    console.error('Saving a place failed', error);
-    // A new place whose spellings couldn't be written goes again, and so
-    // does a parish created for it (after the place, which points to it).
-    if (!before) await db.delete(place).where(eq(place.id, id));
-    await deleteCreated(createdRows);
-    throw refuse({ message: m.form_failed() }, 500);
-  }
+  await writing(
+    'Saving a place',
+    () => db.batch(statements as unknown as Parameters<typeof db.batch>[0]),
+    {
+      // A new place whose spellings couldn't be written goes again, and so
+      // does a parish created for it (after the place, which points to it).
+      undo: async () => {
+        if (!before) await db.delete(place).where(eq(place.id, id));
+        await deleteCreated(createdRows);
+      },
+    },
+  );
   throw redirect(backToList(input));
 }, 'save-place');
 
-const deletion = v.object({
-  ...returnTo,
-  id: v.pipe(v.string(), v.transform(Number), rowId),
-  version,
-  confirm: v.literal('on'),
-});
+const deletion = deletionForm(returnTo);
 
 /**
  * Deletes the edit page's place, with its spellings, once confirmed in its
@@ -594,31 +589,18 @@ const deletion = v.object({
 export const deletePlace = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = v.safeParse(deletion, Object.fromEntries(formData));
-  if (!parsed.success) throw refuse({ message: m.place_delete_unconfirmed() }, 400);
-  const input = parsed.output;
-
-  const before = await loadPlace(input.id);
-  if (!before) throw refuse({ message: m.place_edit_missing() }, 404);
-  if (before.version !== input.version) throw refuse({ message: m.place_edit_conflict() }, 409);
+  const input = parseDeletion(deletion, formData, m.place_delete_unconfirmed);
+  const before = await rowForEdit(loadPlace, input.id, input.version, placeRefusals);
   const inUse = placeInUse(await countUses(input.id));
   if (inUse) throw refuse({ message: inUse }, 409);
-
-  try {
-    // The spellings go with the place (on delete cascade).
-    await db.batch([
-      db.delete(place).where(and(eq(place.id, input.id), eq(place.version, input.version))),
-      db.insert(changeLog).values({
-        userId: user.id,
-        entity: 'place',
-        entityId: input.id,
-        action: 'delete',
-        before: { ...before, aliases: undefined, spellings: before.aliases.map((a) => a.name) },
-      }),
-    ]);
-  } catch (error) {
-    console.error('Deleting a place failed', error);
-    throw refuse({ message: m.place_delete_failed() }, 500);
-  }
+  // The spellings go with the place (on delete cascade).
+  await deleteRow({
+    table: place,
+    entity: 'place',
+    row: before,
+    by: { userId: user.id },
+    logged: { ...before, aliases: undefined, spellings: before.aliases.map((a) => a.name) },
+    failed: m.place_delete_failed,
+  });
   throw redirect(backToList(input));
 }, 'delete-place');

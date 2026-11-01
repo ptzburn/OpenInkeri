@@ -6,7 +6,7 @@ import { query } from '@solidjs/router';
 import { sql } from 'drizzle-orm';
 
 import { FIELD_MAX } from '~/lib/field-limits';
-import type { Names } from '~/lib/format';
+import { type Names, namesOf } from '~/lib/format';
 import { type GazetteerHit, type GazetteerKind, distanceKm, gazetteerKinds } from '~/lib/gazetteer';
 import { CYRILLIC_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import { foldForSearch } from '~/lib/search-text';
@@ -37,7 +37,7 @@ async function parishChurches() {
       ? [
           {
             id: p.id,
-            name: { ru: p.nameRu, fi: p.nameFi },
+            name: namesOf(p),
             latitude: p.church.latitude!,
             longitude: p.church.longitude!,
           },
@@ -69,7 +69,7 @@ async function knownPlaces(): Promise<Known[]> {
   });
   return places.map((p) => ({
     id: p.id,
-    name: { ru: p.nameRu, fi: p.nameFi },
+    name: namesOf(p),
     latitude: p.latitude!,
     longitude: p.longitude!,
   }));
@@ -181,12 +181,26 @@ interface NominatimResult {
 }
 
 // Nominatim allows one request a second for the whole application: requests
-// from this Worker queue behind each other.
+// from this Worker queue behind each other, a second apart; the first after
+// a pause goes at once.
 let nominatimTurn = Promise.resolve();
+let nominatimAskedAt = 0;
 const NOMINATIM_GAP = 1100;
 
 function nominatimSlot(): Promise<void> {
-  const turn = nominatimTurn.then(() => new Promise<void>((r) => setTimeout(r, NOMINATIM_GAP)));
+  const turn = nominatimTurn.then(
+    () =>
+      new Promise<void>((r) => {
+        const wait = nominatimAskedAt + NOMINATIM_GAP - Date.now();
+        setTimeout(
+          () => {
+            nominatimAskedAt = Date.now();
+            r();
+          },
+          Math.max(wait, 0),
+        );
+      }),
+  );
   nominatimTurn = turn;
   return turn;
 }

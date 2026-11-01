@@ -1,5 +1,6 @@
-import { For, Loading, Show, createMemo, createSignal, onSettled } from 'solid-js';
+import { For, Loading, Show, createMemo, createSignal } from 'solid-js';
 
+import { createDebounced } from '~/components/debounce';
 import { getPeople } from '~/data/people';
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
@@ -17,9 +18,8 @@ import { m } from '~/paraglide/messages.js';
 export default function PersonLinkField(props: { prefix: string }) {
   const name = () => `${props.prefix}.personId`;
   const [search, setSearch] = createSignal('', { name: 'person-link-search' });
-  let typing: ReturnType<typeof setTimeout> | undefined;
-  // A search still waiting when the field goes is dropped with it.
-  onSettled(() => () => clearTimeout(typing));
+  // Once typing pauses.
+  const typing = createDebounced(setSearch);
   const found = createMemo(
     (): Promise<QueryData<typeof getPeople>> | null => {
       const q = search().trim();
@@ -46,11 +46,7 @@ export default function PersonLinkField(props: { prefix: string }) {
             aria-label={m.people_search_label()}
             placeholder={m.people_search_placeholder()}
             maxlength={FIELD_MAX.search}
-            onInput={(e) => {
-              const value = e.currentTarget.value;
-              clearTimeout(typing);
-              typing = setTimeout(() => setSearch(value), 300);
-            }}
+            onInput={(e) => typing.call(e.currentTarget.value)}
           />
         </label>
         <Show when={search().trim()}>

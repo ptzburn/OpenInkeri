@@ -11,7 +11,8 @@ import { type EditedRole, sexOfRole } from '~/lib/record-people';
 import { type Sex } from '~/lib/record-kinds';
 import { recordSearchText } from '~/lib/search-text';
 import { db } from '~/server/database';
-import { type PersonaRole, changeLog, person, persona } from '~/server/database/schema';
+import { type PersonaRole, person, persona } from '~/server/database/schema';
+import { logChange } from '~/server/edits';
 import { rowId } from '~/server/forms';
 
 /** Who a mention is linked to, as a form posts it: a person's id, or 'new' for a person made from the mention. */
@@ -72,12 +73,9 @@ export async function createPersonFrom(mention: MentionValues, by: By): Promise<
       updatedBy: by.userId,
     })
     .returning({ id: person.id });
-  await db.insert(changeLog).values({
-    userId: by.userId,
-    entity: 'person',
-    entityId: created.id,
-    action: 'create',
-    after: { ...values, fromPersonaId: mention.id },
+  await logChange(by, 'person', created.id, 'create', null, {
+    ...values,
+    fromPersonaId: mention.id,
   });
   return created.id;
 }
@@ -89,13 +87,16 @@ export function linkStatements(mentionId: number, personId: number, by: By) {
       .update(persona)
       .set({ personId, updatedAt: by.now, updatedBy: by.userId })
       .where(and(eq(persona.id, mentionId), isNull(persona.personId))),
-    db.insert(changeLog).values({
-      userId: by.userId,
-      entity: 'persona',
-      entityId: mentionId,
-      action: 'update',
-      before: { id: mentionId, personId: null },
-      after: { id: mentionId, personId },
-    }),
+    logChange(
+      by,
+      'persona',
+      mentionId,
+      'update',
+      { id: mentionId, personId: null },
+      {
+        id: mentionId,
+        personId,
+      },
+    ),
   ] as const;
 }

@@ -1,11 +1,11 @@
-import { Loading, flush } from 'solid-js';
+import { flush } from 'solid-js';
 import { captureArtifact } from '~/testing/capture';
 import { query } from '@solidjs/router';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@solidjs/testing-library';
+import { cleanup, fireEvent, screen, waitFor } from '@solidjs/testing-library';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vite-plus/test';
 
-import { Router } from '~/router';
+import { renderAt } from '~/testing/render';
 
 // One user's page through the real router, with the server functions
 // replaced by router queries and actions over this in-memory user, so an
@@ -83,12 +83,7 @@ afterEach(() => {
   query.clear();
 });
 
-function renderUser() {
-  window.history.replaceState(null, '', '/users/u2');
-  return render(() => (
-    <Router>{(props) => <Loading fallback="Loading">{props.children}</Loading>}</Router>
-  ));
-}
+const renderUser = () => renderAt('/users/u2');
 
 describe('/users/:id administration', () => {
   test('makes a user an admin, then takes it back', async () => {

@@ -1,9 +1,11 @@
 import type { JSX } from '@solidjs/web';
-import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
+import { For, Show, createMemo, createSignal } from 'solid-js';
 import ChevronIcon from '~icons/ri/arrow-down-s-line';
 
+import { createCombobox } from '~/components/combobox';
 import { type Fault, FieldError, ariaInvalid } from '~/components/form-fields';
 import { FIELD_MAX } from '~/lib/field-limits';
+import { type Names, localName } from '~/lib/format';
 import { foldForSearch } from '~/lib/search-text';
 import { type SpellingIndex, rowsSpelled, spellingIndex } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
@@ -48,6 +50,21 @@ export const lookupOf = (options: LookupOption[], create?: LookupCreate): Lookup
   create,
 });
 
+/** A lookup over rows as the option queries list them (an id and spellings), each labelled by `label`; none while they load. */
+export const lookupRows = <R extends { id: number; spellings: string[] }>(
+  rows: R[] | undefined,
+  label: (row: R) => string,
+  create?: LookupCreate,
+): Lookup =>
+  lookupOf(
+    (rows ?? []).map((row) => ({ value: row.id, label: label(row), spellings: row.spellings })),
+    create,
+  );
+
+/** The name, in the reader's language, of the row with the id among the rows: a lookup field's text as loaded; null when none has it. */
+export const namedRow = (rows: { id: number; name: Names }[] | undefined, id: number | null) =>
+  localName(rows?.find((row) => row.id === id)?.name ?? null) || null;
+
 /** A row the dropdown offers, with the spelling of it the text matched (its first name when nothing is typed). */
 interface Match {
   option: LookupOption;
@@ -83,9 +100,6 @@ export function LookupField(props: {
   // The form is keyed by its record, so these start from it once.
   const [text, setText] = createSignal(() => props.text ?? '', { name: 'lookup-text' });
   const [id, setId] = createSignal(() => props.id ?? null, { name: 'lookup-id' });
-  // The dropdown, and the row in it the arrow keys are on (by its value).
-  const [open, setOpen] = createSignal(false, { name: 'lookup-open' });
-  const [active, setActive] = createSignal<number | null>(null, { name: 'lookup-active' });
   // Opened to browse (the chevron, or the arrow key on a closed field): every
   // row, whatever is typed. Typing goes back to the rows matching the text.
   const [browsing, setBrowsing] = createSignal(false, { name: 'lookup-browsing' });
@@ -127,120 +141,67 @@ export function LookupField(props: {
   // Not before: while rows match what is typed so far, the dropdown has them.
   const unknown = () => !!props.lookup.create && !!text().trim() && !found().length && !linked();
   const typedText = () => text().trim();
-  // Open with rows to show: the field can be open with none (a text that
-  // matches nothing), and then the chevron or the arrow key browse instead
-  // of closing.
-  const shown = () => open() && matches().length > 0;
   // The spelling is worth showing when the row's name doesn't contain it.
   const spelledApart = (match: Match) =>
     !foldForSearch(match.option.label).includes(foldForSearch(match.spelling));
 
+  // The dropdown and the keys, over the matches (each by its row's value).
+  // It can be open with no rows to show (a text that matches nothing), and
+  // then the chevron or the arrow key browse instead of closing. A row
+  // picked from it: its matched spelling becomes the value.
+  const box = createCombobox({
+    name: () => props.textName,
+    rows: matches,
+    keyOf: (match) => match.option.value,
+    visible: () => matches().length > 0,
+    pick: (match) => {
+      setText(match.spelling);
+      setId(match.option.value);
+    },
+    closed: () => setBrowsing(false),
+    opened: () => setBrowsing(true),
+  });
   const typed = (value: string) => {
     setText(value);
-    setOpen(true);
     setBrowsing(false);
-    setActive(null);
+    box.typed();
     const rows = rowsSpelled(props.lookup.index, value);
     // A spelling of one row links to it; one of several keeps the choice
     // if it is among them; none (or nothing typed) unlinks.
     if (rows.length === 1) setId(rows[0]);
     else if (!rows.includes(id() ?? 0)) setId(null);
   };
-  // A row picked from the dropdown: its matched spelling becomes the value.
-  const pick = (match: Match) => {
-    setText(match.spelling);
-    setId(match.option.value);
-    setOpen(false);
-    setBrowsing(false);
-    setActive(null);
-  };
-  const move = (step: 1 | -1) => {
-    const rows = matches();
-    if (!rows.length) return;
-    const at = rows.findIndex((r) => r.option.value === active());
-    const next = at === -1 ? (step === 1 ? 0 : rows.length - 1) : at + step;
-    setActive(rows[Math.min(Math.max(next, 0), rows.length - 1)].option.value);
-  };
-  const onKeyDown = (event: KeyboardEvent) => {
-    switch (event.key) {
-      case 'ArrowDown':
-        event.preventDefault();
-        if (shown()) move(1);
-        else {
-          setBrowsing(true);
-          setOpen(true);
-        }
-        break;
-      case 'ArrowUp':
-        event.preventDefault();
-        if (open()) move(-1);
-        break;
-      case 'Enter': {
-        const row = open() ? matches().find((r) => r.option.value === active()) : undefined;
-        if (row) {
-          event.preventDefault();
-          pick(row);
-        }
-        break;
-      }
-      case 'Escape':
-        if (open()) {
-          event.preventDefault();
-          setOpen(false);
-          setBrowsing(false);
-          setActive(null);
-        }
-        break;
-      case 'Tab':
-        setOpen(false);
-        break;
-    }
-  };
 
   let input: HTMLInputElement | undefined;
-  const inputId = () => `${props.textName}-input`;
-  const listId = () => `${props.textName}-list`;
-  const optionId = (value: number) => `${props.textName}-option-${value}`;
-  // The row the arrow keys reach stays in view.
-  createEffect(
-    () => active(),
-    (value) => {
-      if (value !== null) {
-        document.getElementById(optionId(value))?.scrollIntoView?.({ block: 'nearest' });
-      }
-    },
-  );
 
   return (
     <div class="fieldset">
-      <label for={inputId()} class="fieldset-legend">
+      <label for={box.ids.input()} class="fieldset-legend">
         {props.label}
       </label>
       <div class="relative">
         <div class="input validator w-full pr-1">
           <input
             ref={(el) => (input = el)}
-            id={inputId()}
+            id={box.ids.input()}
             name={props.textName}
             value={text()}
             role="combobox"
-            aria-expanded={open() ? 'true' : 'false'}
-            aria-controls={listId()}
+            aria-expanded={box.open() ? 'true' : 'false'}
+            aria-controls={box.ids.list()}
             aria-autocomplete="list"
-            aria-activedescendant={active() === null ? undefined : optionId(active()!)}
+            aria-activedescendant={
+              box.active() === null ? undefined : box.ids.option(box.active()!)
+            }
             autocomplete="off"
             maxlength={FIELD_MAX.text}
             class="grow"
             aria-invalid={ariaInvalid(props.invalid(props.textName))}
             onInput={(e) => typed(e.currentTarget.value)}
-            onFocus={() => setOpen(true)}
-            onClick={() => setOpen(true)}
-            onBlur={() => {
-              setOpen(false);
-              setBrowsing(false);
-              setActive(null);
-            }}
-            onKeyDown={onKeyDown}
+            onFocus={box.show}
+            onClick={box.show}
+            onBlur={box.close}
+            onKeyDown={box.onKeyDown}
           />
           {/* Not a tab stop: the input is the control. Its mousedown keeps the
               focus (and so the dropdown) where it is. */}
@@ -248,23 +209,25 @@ export function LookupField(props: {
             type="button"
             tabindex="-1"
             aria-label={m.lookup_choices({ field: props.label })}
-            aria-expanded={open() ? 'true' : 'false'}
-            aria-controls={listId()}
+            aria-expanded={box.open() ? 'true' : 'false'}
+            aria-controls={box.ids.list()}
             class="btn btn-square btn-ghost btn-xs"
             onMouseDown={(e) => {
               e.preventDefault();
               input?.focus();
-              const close = shown();
-              setBrowsing(!close);
-              setOpen(!close);
+              if (box.shown()) box.close();
+              else {
+                setBrowsing(true);
+                box.show();
+              }
             }}
           >
             <ChevronIcon class="size-5" aria-hidden="true" />
           </button>
         </div>
-        <Show when={shown()}>
+        <Show when={box.shown()}>
           <ul
-            id={listId()}
+            id={box.ids.list()}
             role="listbox"
             aria-label={props.label}
             class="menu absolute top-full left-0 z-20 mt-1 max-h-64 w-full flex-nowrap overflow-y-auto rounded-box border border-base-300 bg-base-100 shadow-lg menu-sm"
@@ -273,13 +236,13 @@ export function LookupField(props: {
             <For each={matches()}>
               {(match) => (
                 <li
-                  id={optionId(match.option.value)}
+                  id={box.ids.option(match.option.value)}
                   role="option"
-                  aria-selected={active() === match.option.value ? 'true' : 'false'}
+                  aria-selected={box.isActive(match.option.value) ? 'true' : 'false'}
                 >
                   <span
-                    class={{ 'menu-active': active() === match.option.value }}
-                    onClick={() => pick(match)}
+                    class={{ 'menu-active': box.isActive(match.option.value) }}
+                    onClick={() => box.pick(match)}
                   >
                     {match.option.label}
                     <Show when={spelledApart(match)}>

@@ -14,6 +14,7 @@ const { gazetteer } = vi.hoisted(() => ({
   gazetteer: {
     mapAsked: [] as string[],
     mapFails: false,
+    fails: false,
   },
 }));
 const hits: GazetteerHit[] = [
@@ -65,9 +66,10 @@ const mapHit: GazetteerHit = {
   near: null,
 };
 vi.mock('~/data/gazetteer', () => ({
-  getGazetteerHits: vi.fn(async (q: string) =>
-    hits.filter((h) => h.names.some((n) => n.toLowerCase().includes(q.toLowerCase()))),
-  ),
+  getGazetteerHits: vi.fn(async (q: string) => {
+    if (gazetteer.fails) throw new Error('D1 answered 503');
+    return hits.filter((h) => h.names.some((n) => n.toLowerCase().includes(q.toLowerCase())));
+  }),
   getMapHits: vi.fn(async (q: string) => {
     gazetteer.mapAsked.push(q);
     if (gazetteer.mapFails) throw new Error('Nominatim answered 503');
@@ -92,6 +94,7 @@ afterEach(() => {
   cleanup();
   gazetteer.mapAsked = [];
   gazetteer.mapFails = false;
+  gazetteer.fails = false;
 });
 
 describe('PlaceSearch', () => {
@@ -168,6 +171,25 @@ describe('PlaceSearch', () => {
     expect(screen.queryByRole('button', { name: 'Search the whole map' })).toBeNull();
     fireEvent.click(within(screen.getByRole('option')).getByRole('button'));
     expect(picked.map((h) => h.source)).toEqual(['nominatim']);
+  });
+
+  test('a search that fails says so in the dropdown; the next keystroke searches again', async () => {
+    gazetteer.fails = true;
+    const { input, options } = renderSearch();
+    fireEvent.input(input, { target: { value: 'горк' } });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('The search did not answer.');
+    expect(screen.queryByRole('listbox')).toBeNull();
+    // The keys have no rows to move on, and don't throw.
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(input).toHaveValue('горк');
+
+    gazetteer.fails = false;
+    fireEvent.input(input, { target: { value: 'горки' } });
+    await screen.findByRole('listbox');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(options()).toHaveLength(1);
   });
 
   test('a map search that fails says so and keeps the gazetteer hits', async () => {

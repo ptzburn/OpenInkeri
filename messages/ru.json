@@ -288,6 +288,7 @@
   "place_search_none": "В справочнике такого населённого пункта нет.",
   "place_search_map": "Искать по всей карте",
   "place_search_map_none": "На карте ничего не найдено.",
+  "place_search_failed": "Поиск не ответил. Попробуйте ещё раз чуть позже.",
   "place_search_map_failed": "Поиск по карте не ответил. Попробуйте ещё раз чуть позже.",
   "place_search_near": "{parish} ({km} км)",
   "place_search_near_place": "рядом с {place} ({km} км)",

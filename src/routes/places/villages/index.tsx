@@ -1,18 +1,23 @@
-import { Title } from '@solidjs/meta';
-import { useIsRouting, useSearchParams } from '@solidjs/router';
+import { useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { For, Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
-import AddIcon from '~icons/ri/add-line';
+import { For, Show, createMemo } from 'solid-js';
 import CloseIcon from '~icons/ri/close-line';
 import MapIcon from '~icons/ri/map-pin-2-line';
 
 import type { QueryData } from '~/lib/query-data';
 import EditLinkCell from '~/components/edit-link-cell';
+import ListPage, {
+  ActionsHeader,
+  AddLink,
+  ListBody,
+  NameHeaders,
+  TableBox,
+  useCanEdit,
+  useListBusy,
+} from '~/components/list-page';
 import SearchBox from '~/components/search-box';
 import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
 import PlacesTabs from '~/components/places-tabs';
-import { getCurrentUser } from '~/data/session';
 import { finnishNamesShown, localName } from '~/lib/format';
 import { mapLink } from '~/lib/coordinates';
 import { type PlaceRow, getPlaces } from '~/data/places';
@@ -61,30 +66,22 @@ export default function Villages() {
   };
   // Where the edit pages return to: this list as it is now.
   const listPlace = () => ({ q: search.q, parish: search.parish });
-  // The list dims while it reloads (after a save) and while a link from
-  // it is opening the next page, so a click shows at once.
-  const isRouting = useIsRouting();
-  const busy = () => isRouting() || isPending(list);
-  // Admins add and edit villages; the server functions check the role
-  // again, so this only decides what is offered.
-  const me = createMemo(() => getCurrentUser(), { name: 'villages-me' });
-  const canEdit = () => !!me()?.isAdmin;
+  const busy = useListBusy(list);
+  const canEdit = useCanEdit('villages-me');
 
   // A search goes in the URL in place of the current entry.
   const searchFor = (value: string) => setSearch({ q: value || undefined }, { replace: true });
 
   return (
-    <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
-      <Title>{`${m.villages_title()} - ${env.VITE_APP_NAME}`}</Title>
-      <header class="flex flex-wrap items-center gap-2">
-        <h1 class="text-2xl font-bold">{m.places_title()}</h1>
+    <ListPage
+      title={m.villages_title()}
+      heading={m.places_title()}
+      aside={
         <Show when={canEdit()}>
-          <a href={paths.places.villages.new(listPlace())} class="btn ml-auto btn-sm btn-primary">
-            <AddIcon class="size-4" aria-hidden="true" />
-            {m.villages_add()}
-          </a>
+          <AddLink href={paths.places.villages.new(listPlace())} label={m.villages_add()} />
         </Show>
-      </header>
+      }
+    >
       <PlacesTabs current="villages" />
       {/* The search form carries the parish filter along. */}
       <SearchBox
@@ -116,51 +113,37 @@ export default function Villages() {
         <span class="badge badge-sm">{shown().length}</span>
       </SearchBox>
 
-      <div class="transition-opacity" style={{ opacity: busy() ? 0.5 : 1 }}>
-        <Show
-          when={shown().length}
-          fallback={
-            <p class="py-6 text-center text-base-content/60">
-              {search.q ? m.villages_no_match({ search: search.q }) : m.villages_empty()}
-            </p>
-          }
-        >
-          <div class="overflow-x-auto rounded-box border border-base-300">
-            <table class="table table-sm">
-              <thead>
-                <tr>
-                  <th>{finnishNamesShown() ? m.villages_col_ru() : m.villages_col_name()}</th>
-                  <Show when={finnishNamesShown()}>
-                    <th>{m.villages_col_fi()}</th>
-                  </Show>
-                  <th>{m.villages_col_kind()}</th>
-                  <th>{m.villages_col_parish()}</th>
-                  <th>{m.villages_col_spellings()}</th>
-                  <th class="text-right">{m.villages_col_records()}</th>
-                  <th>{m.villages_col_coordinates()}</th>
-                  <Show when={canEdit()}>
-                    <th>
-                      <span class="sr-only">{m.records_col_actions()}</span>
-                    </th>
-                  </Show>
-                </tr>
-              </thead>
-              <tbody>
-                <For each={shown()} keyed={(place) => place.id}>
-                  {(place) => (
-                    <PlaceTableRow
-                      place={place()}
-                      editHref={
-                        canEdit() ? paths.places.villages(place().id).edit(listPlace()) : undefined
-                      }
-                    />
-                  )}
-                </For>
-              </tbody>
-            </table>
-          </div>
-        </Show>
-      </div>
+      <ListBody
+        busy={busy()}
+        count={shown().length}
+        empty={search.q ? m.villages_no_match({ search: search.q }) : m.villages_empty()}
+      >
+        <TableBox>
+          <thead>
+            <tr>
+              <NameHeaders />
+              <th>{m.villages_col_kind()}</th>
+              <th>{m.villages_col_parish()}</th>
+              <th>{m.villages_col_spellings()}</th>
+              <th class="text-right">{m.villages_col_records()}</th>
+              <th>{m.villages_col_coordinates()}</th>
+              <ActionsHeader when={canEdit()} />
+            </tr>
+          </thead>
+          <tbody>
+            <For each={shown()} keyed={(place) => place.id}>
+              {(place) => (
+                <PlaceTableRow
+                  place={place()}
+                  editHref={
+                    canEdit() ? paths.places.villages(place().id).edit(listPlace()) : undefined
+                  }
+                />
+              )}
+            </For>
+          </tbody>
+        </TableBox>
+      </ListBody>
 
       {/* For admins: the spellings to add to a village, so their records link. */}
       <Show when={canEdit() && list()?.unlinked.length}>
@@ -187,7 +170,7 @@ export default function Villages() {
           </div>
         </details>
       </Show>
-    </main>
+    </ListPage>
   );
 }
 

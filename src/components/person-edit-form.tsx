@@ -8,13 +8,12 @@ import {
   Select,
   TextArea,
   TextInput,
-  useFormDone,
-  useFormErrors,
+  postedName,
+  useEditForm,
 } from '~/components/form-fields';
 import { sexLabels } from '~/components/labels';
-import { useToast } from '~/components/toaster';
 import { deletePerson, getPersonEdit, savePerson } from '~/data/people';
-import { PARTIAL_DATE_PATTERN, formatPartialDate, localName } from '~/lib/format';
+import { PARTIAL_DATE_PATTERN, formatPartialDate, localName, namesOf } from '~/lib/format';
 import { sexes } from '~/lib/record-kinds';
 import { m } from '~/paraglide/messages.js';
 
@@ -32,17 +31,13 @@ export default function PersonEditForm(props: { id: number; cancelHref: string }
     (): Promise<QueryData<typeof getPersonEdit>> => getPersonEdit(props.id),
     { name: 'person-edit' },
   );
-  const isThisForm = (form: FormData) => form.get('id') === String(props.id);
-  // This form's refused saves (the latest shown, its fields marked).
-  const { error, invalid } = useFormErrors(savePerson, isThisForm);
-  const toast = useToast();
-  useFormDone(savePerson, isThisForm, (form) => {
-    const posted = (field: string) => {
-      const value = form.get(field);
-      return (typeof value === 'string' && value.trim()) || null;
-    };
-    toast(m.person_saved({ name: localName({ ru: posted('nameRu'), fi: posted('nameFi') }) }));
-  });
+  // This form's refused saves (the latest shown, its fields marked), and a
+  // save landing on the person's page with a toast naming them as saved.
+  const { error, invalid } = useEditForm(
+    savePerson,
+    () => props.id,
+    (form) => m.person_saved({ name: postedName(form) }),
+  );
 
   return (
     // Keyed: each fresh read of the person gets a fresh form.
@@ -122,7 +117,7 @@ export default function PersonEditForm(props: { id: number; cancelHref: string }
             title={m.person_delete()}
             text={m.person_delete_text({ count: p.mentions })}
             inUse={undefined}
-            deleted={m.person_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
+            deleted={m.person_deleted({ name: localName(namesOf(p)) })}
           />
         </>
       )}

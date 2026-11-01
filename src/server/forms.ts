@@ -9,6 +9,7 @@ import { FIELD_MAX } from '~/lib/field-limits';
 import { parsePartialDate } from '~/lib/format';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import type { FormError } from '~/lib/form-error';
+import { m } from '~/paraglide/messages.js';
 
 /** Whitespace runs as one space, trimmed: for one-line values like names. */
 export const collapse = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -66,6 +67,18 @@ export const optionalId = v.pipe(
   v.nullable(rowId),
 );
 
+/**
+ * Where the list was (its search, page, filter), as a form posts it in a
+ * hidden field: '' for unset, which the form writes for a param the URL
+ * didn't have, reads as absent; anything else as `schema` reads it.
+ */
+export const listParam = <S extends v.GenericSchema<string>>(schema: S) =>
+  v.pipe(
+    v.optional(v.string(), ''),
+    v.transform((s) => s || undefined),
+    v.optional(schema),
+  );
+
 /** The version a form's row was loaded at (0 for a new row), for the conflict check. */
 export const version = v.pipe(
   v.optional(v.string(), '0'),
@@ -103,3 +116,17 @@ export function fieldsAtFault(issues: readonly v.BaseIssue<unknown>[]): Record<s
  * hand it to the action as its result, so the error never shows.
  */
 export const refuse = (error: FormError, status: number) => respond(error, { status });
+
+/** A refusal naming the fields a failed parseForm found at fault, each with its reason. */
+export const refuseFields = (issues: readonly v.BaseIssue<unknown>[]) =>
+  refuse({ message: m.form_invalid(), fields: fieldsAtFault(issues) }, 400);
+
+/** A form's values, parsed, or the refusal naming the fields at fault. */
+export function parseOrRefuse<S extends v.GenericSchema>(
+  schema: S,
+  input: unknown,
+): v.InferOutput<S> {
+  const parsed = parseForm(schema, input);
+  if (!parsed.success) throw refuseFields(parsed.issues);
+  return parsed.output;
+}

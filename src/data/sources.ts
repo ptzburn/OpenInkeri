@@ -9,16 +9,26 @@ import { redirect } from '@solidjs/web';
 import { and, count, eq } from 'drizzle-orm';
 import * as v from 'valibot';
 
+import { namesOf } from '~/lib/format';
 import { type RecordKind, recordKinds, sourceLanguages } from '~/lib/record-kinds';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
-import { changeLog, record, source } from '~/server/database/schema';
+import { parish, record, source } from '~/server/database/schema';
 import {
-  fieldsAtFault,
+  type Refusals,
+  deleteRow,
+  deletionForm,
+  logChange,
+  lookupRow,
+  parseDeletion,
+  rowForEdit,
+  writing,
+} from '~/server/edits';
+import {
   line,
   optionalId,
-  parseForm,
+  parseOrRefuse,
   refuse,
   requiredLine,
   rowId,
@@ -33,7 +43,6 @@ import {
   deleteCreated,
   newParish,
   parishNamed,
-  parseNewRow,
 } from '~/server/linked-rows';
 
 // The read functions' results, spelled out: the pages' types feed the
@@ -91,7 +100,7 @@ export const getSources = query(async (): Promise<SourceRow[]> => {
   return sources
     .map(({ parish, ...s }) => ({
       ...s,
-      parish: parish ? { ru: parish.nameRu, fi: parish.nameFi } : null,
+      parish: namesOf(parish),
       records: records.get(s.id) ?? 0,
     }))
     .sort(
@@ -172,6 +181,11 @@ const form = v.pipe(
   ),
 );
 
+const sourceRefusals: Refusals = {
+  missing: m.source_edit_missing,
+  conflict: m.source_edit_conflict,
+};
+
 /**
  * Creates a source (no id in the form) or saves the edit page's form over
  * one, then redirects to the sources list, or with Save and add records to
@@ -189,84 +203,68 @@ export const saveSource = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
-  const parsed = parseForm(form, entries);
-  if (!parsed.success) {
-    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
-  }
-  const { id, version, next, parishText, parishCreate, ...fields } = parsed.output;
-
-  const before = id ? await loadSource(id) : null;
-  if (id && !before) throw refuse({ message: m.source_edit_missing() }, 404);
-  if (before && before.version !== version) {
-    throw refuse({ message: m.source_edit_conflict() }, 409);
-  }
+  const { id, version, next, parishText, parishCreate, ...fields } = parseOrRefuse(form, entries);
+  const before = id ? await rowForEdit(loadSource, id, version, sourceRefusals) : null;
   if (before && before.kind !== fields.kind && (await countRecords(before.id))) {
     throw refuse({ message: m.form_invalid(), fields: { kind: m.source_kind_locked() } }, 409);
   }
-  // A parish deleted since the page loaded.
-  if (
-    fields.parishId &&
-    !(await db.query.parish.findFirst({ where: { id: fields.parishId }, columns: { id: true } }))
-  ) {
-    throw refuse({ message: m.form_invalid(), fields: { parishId: '' } }, 400);
-  }
-  if (!fields.parishId && parishText) fields.parishId = await parishNamed(parishText);
+  // The parish: the one linked, the one the text names, or the one to add.
+  const linked = await lookupRow(
+    { text: parishText, id: fields.parishId, create: parishCreate },
+    {
+      idName: 'parishId',
+      prefix: 'parishNew',
+      table: parish,
+      named: parishNamed,
+      columns: newParish,
+      entries,
+    },
+  );
+  fields.parishId = linked.id;
 
   const now = new Date();
+  const by = { userId: user.id, now };
   const stamp = { updatedAt: now, updatedBy: user.id };
   const added: Created[] = [];
-  if (!fields.parishId && parishText && parishCreate) {
-    const parish = parseNewRow(newParish, 'parishNew', entries);
-    if (!parish.success) {
-      throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parish.issues) }, 400);
-    }
-    const created = await createParish(parish.output, { userId: user.id, now });
+  if (linked.add) {
+    const created = await createParish(linked.add, by);
     added.push(created);
     fields.parishId = created.id;
   }
 
   let sourceId = before?.id;
-  try {
-    if (before) {
-      await db.batch([
-        db
-          .update(source)
-          .set({ ...fields, version: before.version + 1, ...stamp })
-          .where(and(eq(source.id, before.id), eq(source.version, before.version))),
-        db.insert(changeLog).values({
-          userId: user.id,
-          entity: 'source',
-          entityId: before.id,
-          action: 'update',
-          before,
-          after: { ...before, ...fields, version: before.version + 1 },
-        }),
-        ...added.flatMap((row) => row.statements),
-      ]);
-    } else {
-      // The change_log entry needs the new id, so it is written after the
-      // insert rather than in one batch with it.
-      const [created] = await db
-        .insert(source)
-        .values({ ...fields, createdBy: user.id, ...stamp })
-        .returning({ id: source.id });
-      sourceId = created.id;
-      await db.batch([
-        db.insert(changeLog).values({
-          userId: user.id,
-          entity: 'source',
-          entityId: created.id,
-          action: 'create',
-          after: fields,
-        }),
-        ...added.flatMap((row) => row.statements),
-      ]);
-    }
-  } catch (error) {
-    console.error('Saving a source failed', error);
-    await deleteCreated(added);
-    throw refuse({ message: m.form_failed() }, 500);
-  }
+  await writing(
+    'Saving a source',
+    async () => {
+      if (before) {
+        await db.batch([
+          db
+            .update(source)
+            .set({ ...fields, version: before.version + 1, ...stamp })
+            .where(and(eq(source.id, before.id), eq(source.version, before.version))),
+          logChange(by, 'source', before.id, 'update', before, {
+            ...before,
+            ...fields,
+            version: before.version + 1,
+          }),
+          ...added.flatMap((row) => row.statements),
+        ]);
+      } else {
+        // The change_log entry needs the new id, so it is written after the
+        // insert rather than in one batch with it.
+        const [created] = await db
+          .insert(source)
+          .values({ ...fields, createdBy: user.id, ...stamp })
+          .returning({ id: source.id });
+        sourceId = created.id;
+        await db.batch([
+          logChange(by, 'source', created.id, 'create', null, fields),
+          ...added.flatMap((row) => row.statements),
+        ]);
+      }
+    },
+    { undo: () => deleteCreated(added) },
+  );
   if (next) {
     throw redirect(
       paths.records.new({
@@ -278,11 +276,7 @@ export const saveSource = action(async (formData: FormData) => {
   throw redirect(paths.sources());
 }, 'save-source');
 
-const deletion = v.object({
-  id: v.pipe(v.string(), v.transform(Number), rowId),
-  version,
-  confirm: v.literal('on'),
-});
+const deletion = deletionForm();
 
 /**
  * Deletes the edit page's source, with its sections, once confirmed in its
@@ -292,31 +286,17 @@ const deletion = v.object({
 export const deleteSource = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = v.safeParse(deletion, Object.fromEntries(formData));
-  if (!parsed.success) throw refuse({ message: m.source_delete_unconfirmed() }, 400);
-  const { id, version } = parsed.output;
-
-  const before = await loadSource(id);
-  if (!before) throw refuse({ message: m.source_edit_missing() }, 404);
-  if (before.version !== version) throw refuse({ message: m.source_edit_conflict() }, 409);
+  const { id, version } = parseDeletion(deletion, formData, m.source_delete_unconfirmed);
+  const before = await rowForEdit(loadSource, id, version, sourceRefusals);
   const records = await countRecords(id);
   if (records) throw refuse({ message: m.source_delete_in_use({ count: records }) }, 409);
-
-  try {
-    // Its sections go with it (on delete cascade).
-    await db.batch([
-      db.delete(source).where(and(eq(source.id, id), eq(source.version, version))),
-      db.insert(changeLog).values({
-        userId: user.id,
-        entity: 'source',
-        entityId: id,
-        action: 'delete',
-        before,
-      }),
-    ]);
-  } catch (error) {
-    console.error('Deleting a source failed', error);
-    throw refuse({ message: m.source_delete_failed() }, 500);
-  }
+  // Its sections go with it (on delete cascade).
+  await deleteRow({
+    table: source,
+    entity: 'source',
+    row: before,
+    by: { userId: user.id },
+    failed: m.source_delete_failed,
+  });
   throw redirect(paths.sources());
 }, 'delete-source');

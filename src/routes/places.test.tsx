@@ -1,13 +1,12 @@
-import { Loading, flush } from 'solid-js';
+import { flush } from 'solid-js';
 import { expectNoSilentHolds } from '@solidjs/diagnostics';
 import { captureArtifact } from '~/testing/capture';
 import '@solidjs/diagnostics/vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@solidjs/testing-library';
+import { cleanup, fireEvent, screen, waitFor, within } from '@solidjs/testing-library';
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
-import { ToastProvider } from '~/components/toaster';
-import { Router } from '~/router';
+import { renderAt as renderPage } from '~/testing/render';
 
 // The places pages (villages and parishes) through the real router, with
 // their server functions answering from made-up places and parishes.
@@ -206,18 +205,7 @@ vi.mock('~/data/places', async () => {
   };
 });
 
-function renderAt(url: string) {
-  window.history.replaceState(null, '', url);
-  return render(() => (
-    <Router>
-      {(props) => (
-        <ToastProvider>
-          <Loading fallback="Loading">{props.children}</Loading>
-        </ToastProvider>
-      )}
-    </Router>
-  ));
-}
+const renderAt = (url: string) => renderPage(url, { toasts: true });
 
 const names = (container: HTMLElement) =>
   [...container.querySelectorAll('tbody tr .font-medium')].map((el) => el.textContent);
@@ -458,6 +446,22 @@ describe('editing a village', () => {
     expect(places.saved[0].get('nameFi')).toBe('Kupanitsa');
     expect(places.saved[0].get('coordinates')).toBe('59.4880048, 29.5348549');
     expect(places.saved[0].get('parishId')).toBe('5');
+  });
+
+  test('a settlement picked fills the fields the admin had changed by hand too', async () => {
+    // The hit's kind is the loaded one (village): the signal's value hasn't
+    // moved, only the select had, and the pick must still land on it.
+    await openGorki();
+    expect(field('kind')).toHaveValue('village');
+    fireEvent.change(field('kind'), { target: { value: 'manor' } });
+    fireEvent.input(field('nameRu'), { target: { value: 'Горкиии' } });
+    const search = screen.getByRole('combobox', { name: 'Find the locality' });
+    fireEvent.input(search, { target: { value: 'kupa' } });
+    const option = await screen.findByRole('option', { name: /Губаницы/ });
+    fireEvent.click(within(option).getByRole('button'));
+    await waitFor(() => expect(field('nameFi')).toHaveValue('Kupanitsa'));
+    expect(field('nameRu')).toHaveValue('Губаницы');
+    expect(field('kind')).toHaveValue('village');
   });
 
   test('choosing "Not located" unsets the coordinates', async () => {

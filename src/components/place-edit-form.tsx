@@ -2,24 +2,21 @@ import { Show, createMemo, createSignal } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
-import { localName, placeInUse } from '~/lib/format';
-import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
+import { localName, namesOf, placeInUse } from '~/lib/format';
 import {
   DeleteSection,
   FormActions,
+  NamePair,
   Select,
   TextArea,
-  TextInput,
   postedName,
-  useFormDone,
   saveBarClass,
-  useFormErrors,
+  useEditForm,
 } from '~/components/form-fields';
-import { useToast } from '~/components/toaster';
 import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
-import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
+import { type Lookup, LookupField, namedRow } from '~/components/lookup-field';
 import LocationPicker from '~/components/location-picker';
-import { NewParishFields } from '~/components/new-row-fields';
+import { parishLookup } from '~/components/new-row-fields';
 import PlaceSearch from '~/components/place-search';
 import { formatCoordinates, parseCoordinates } from '~/lib/coordinates';
 import { type GazetteerHit, placeKindOf } from '~/lib/gazetteer';
@@ -100,45 +97,33 @@ export default function PlaceEditForm(props: {
   const markers = createMemo((): Promise<QueryData<typeof getPlaceMarkers>> => getPlaceMarkers(), {
     name: 'place-markers',
   });
-  const isThisForm = (form: FormData) => form.get('id') === (props.id ? String(props.id) : '');
-  // This form's refused saves (the latest shown, its fields marked).
-  const { error, invalid } = useFormErrors(savePlace, isThisForm);
-  // The parishes to link to, by either name; a new one can be added here.
-  const parishLookup = createMemo(
-    (): Lookup =>
-      lookupOf(
-        (parishes() ?? []).map((p) => ({
-          value: p.id,
-          label: localName(p.name),
-          spellings: p.spellings,
-        })),
-        {
-          label: m.lookup_create_parish(),
-          fields: (prefix, text) => (
-            <NewParishFields prefix={prefix} text={text()} invalid={invalid} church={false} />
-          ),
-        },
-      ),
+  // This form's refused saves (the latest shown, its fields marked), and a
+  // save landing on the localities list with a toast naming the place as
+  // saved (a rename shows the new name).
+  const { error, invalid } = useEditForm(
+    savePlace,
+    () => props.id,
+    (form) => {
+      const name = postedName(form);
+      return props.id ? m.place_saved({ name }) : m.place_created({ name });
+    },
+  );
+  // The parishes to link to, by either name; a new one can be added here,
+  // without a church: this form is adding a locality already.
+  const parishChoices = createMemo(
+    (): Lookup => parishLookup(parishes(), invalid, { church: false }),
     { name: 'place-parish-lookup' },
   );
-  const parishName = (id: number | null) =>
-    localName((parishes() ?? []).find((p) => p.id === id)?.name ?? null) || null;
-  // A save lands on the localities list with a toast, naming the place as
-  // saved (a rename shows the new name).
-  const toast = useToast();
-  useFormDone(savePlace, isThisForm, (form) => {
-    const name = postedName(form);
-    toast(props.id ? m.place_saved({ name }) : m.place_created({ name }));
-  });
 
   return (
     // Keyed: each place (and each fresh read of it) gets a fresh form.
     <Show when={place()} keyed fallback={<p>{m.place_edit_missing()}</p>}>
       {(p) => {
-        // What the fields show: as loaded, until a settlement picked in the
-        // search fills them. The coordinates are shared with the map, which
-        // sets them too; what the admin types in the other fields stays in
-        // the inputs.
+        // What the fields show: as loaded, then as typed (the inputs report
+        // back, so a hit whose value equals the loaded one still lands: a
+        // write equal to the signal's value changes nothing), until a
+        // settlement picked in the search fills them. The coordinates are
+        // shared with the map, which sets them too.
         const [nameRu, setNameRu] = createSignal(p.nameRu, { name: 'place-name-ru' });
         const [nameFi, setNameFi] = createSignal(p.nameFi, { name: 'place-name-fi' });
         const [kind, setKind] = createSignal<PlaceKind>(p.kind, { name: 'place-kind' });
@@ -242,24 +227,13 @@ export default function PlaceEditForm(props: {
                   </div>
                 </div>
                 <div class="grid content-start gap-x-4 sm:grid-cols-2 lg:col-start-1">
-                  <TextInput
-                    name="nameRu"
-                    label={m.form_name_ru()}
-                    value={nameRu()}
-                    pattern={CYRILLIC_NAME_PATTERN}
-                    hint={m.form_name_ru_hint()}
-                    required
-                    maxlength={FIELD_MAX.line}
-                    invalid={invalid('nameRu')}
-                  />
-                  <TextInput
-                    name="nameFi"
-                    label={m.form_name_fi()}
-                    value={nameFi()}
-                    pattern={LATIN_NAME_PATTERN}
-                    hint={m.form_name_fi_hint()}
-                    maxlength={FIELD_MAX.line}
-                    invalid={invalid('nameFi')}
+                  <NamePair
+                    nameRu={nameRu()}
+                    nameFi={nameFi()}
+                    invalid={invalid}
+                    onInput={(field, value) =>
+                      field === 'nameRu' ? setNameRu(value) : setNameFi(value)
+                    }
                   />
                   <Select
                     name="kind"
@@ -267,14 +241,15 @@ export default function PlaceEditForm(props: {
                     value={kind()}
                     options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
                     invalid={invalid('kind')}
+                    onChange={(value) => setKind(value as PlaceKind)}
                   />
                   <LookupField
                     textName="parishText"
                     idName="parishId"
                     label={m.place_edit_parish()}
-                    text={parishName(parishId())}
+                    text={namedRow(parishes(), parishId())}
                     id={parishId()}
-                    lookup={parishLookup()}
+                    lookup={parishChoices()}
                     invalid={invalid}
                   />
                   {/* The spellings the sources use come with the records
@@ -316,7 +291,7 @@ export default function PlaceEditForm(props: {
                 title={m.place_delete()}
                 text={m.place_delete_text()}
                 inUse={placeInUse(p)}
-                deleted={m.place_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
+                deleted={m.place_deleted({ name: localName(namesOf(p)) })}
               >
                 {/* Back to the list as it was, like a save. */}
                 <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />

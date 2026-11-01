@@ -1,10 +1,9 @@
-import { Title } from '@solidjs/meta';
 import { useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
-import { Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
+import { createMemo } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
+import ListPage, { CountBadge, ListBody, useListBusy } from '~/components/list-page';
 import Pagination from '~/components/pagination';
 import PeopleTable from '~/components/people-table';
 import SearchBox from '~/components/search-box';
@@ -34,6 +33,7 @@ export default function People() {
     (): Promise<QueryData<typeof getPeople>> => getPeople(search.q ?? '', pageNumber(search.page)),
     { name: 'people-list' },
   );
+  const busy = useListBusy(list);
 
   // A search goes in the URL in place of the current entry, from page 1.
   const searchFor = (value: string) =>
@@ -42,12 +42,7 @@ export default function People() {
     paths.people({ q: search.q, page: page > 1 ? String(page) : undefined });
 
   return (
-    <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
-      <Title>{`${m.people_title()} - ${env.VITE_APP_NAME}`}</Title>
-      <header class="flex flex-wrap items-center gap-2">
-        <h1 class="text-2xl font-bold">{m.people_title()}</h1>
-        <span class="badge badge-sm">{list()?.total}</span>
-      </header>
+    <ListPage title={m.people_title()} aside={<CountBadge count={list()?.total} />}>
       <p class="max-w-3xl text-sm text-base-content/70">{m.people_intro()}</p>
       <SearchBox
         value={search.q}
@@ -57,24 +52,19 @@ export default function People() {
         placeholder={m.people_search_placeholder()}
         class="max-w-md"
       />
-      <div class="transition-opacity" style={{ opacity: isPending(list) ? 0.5 : 1 }}>
-        <Show
-          when={list()?.people.length}
-          fallback={
-            <p class="py-6 text-center text-base-content/60">
-              {search.q ? m.people_no_match({ search: search.q }) : m.people_empty()}
-            </p>
-          }
-        >
-          <PeopleTable people={list()?.people ?? []} />
-          <Pagination
-            page={list()?.page ?? 1}
-            pages={list()?.pages ?? 1}
-            link={pageLink}
-            label={m.people_pagination_label()}
-          />
-        </Show>
-      </div>
-    </main>
+      <ListBody
+        busy={busy()}
+        count={list()?.people.length}
+        empty={search.q ? m.people_no_match({ search: search.q }) : m.people_empty()}
+      >
+        <PeopleTable people={list()?.people ?? []} />
+        <Pagination
+          page={list()?.page ?? 1}
+          pages={list()?.pages ?? 1}
+          link={pageLink}
+          label={m.people_pagination_label()}
+        />
+      </ListBody>
+    </ListPage>
   );
 }
