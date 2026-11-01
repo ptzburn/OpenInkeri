@@ -30,7 +30,7 @@ export default function EditVillage(props: RouteProps<'/places/villages/:id/edit
   const listHref = () => paths.places.villages({ q: search.q, parish: search.parish });
 
   return (
-    <EditPage title={m.place_edit_title()} backHref={listHref()} backLabel={m.place_edit_back()}>
+    <EditPage title={m.place_edit_title()}>
       <Show when={idParam(props.params.id)} fallback={<p>{m.place_edit_missing()}</p>}>
         {(id) => (
           <PlaceEditForm

@@ -24,11 +24,7 @@ export const route = defineFileRoute('/sources/:id/edit', {
 
 export default function EditSource(props: RouteProps<'/sources/:id/edit'>) {
   return (
-    <EditPage
-      title={m.source_edit_title()}
-      backHref={paths.sources()}
-      backLabel={m.source_edit_back()}
-    >
+    <EditPage title={m.source_edit_title()}>
       <Show when={idParam(props.params.id)} fallback={<p>{m.source_edit_missing()}</p>}>
         {(id) => <SourceEditForm id={id()} cancelHref={paths.sources()} />}
       </Show>

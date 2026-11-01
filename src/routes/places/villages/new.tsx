@@ -25,7 +25,7 @@ export default function NewVillage() {
   const listHref = () => paths.places.villages({ q: search.q, parish: search.parish });
 
   return (
-    <EditPage title={m.place_new_title()} backHref={listHref()} backLabel={m.place_edit_back()}>
+    <EditPage title={m.place_new_title()}>
       <PlaceEditForm returnTo={{ q: search.q, parish: search.parish }} cancelHref={listHref()} />
     </EditPage>
   );

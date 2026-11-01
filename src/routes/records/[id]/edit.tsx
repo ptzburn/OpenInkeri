@@ -34,7 +34,7 @@ export default function EditRecord(props: RouteProps<'/records/:id/edit'>) {
   const listHref = () => paths.records(listPlace());
 
   return (
-    <EditPage title={m.record_edit_title()} backHref={listHref()} backLabel={m.record_edit_back()}>
+    <EditPage title={m.record_edit_title()}>
       <Show when={idParam(props.params.id)} fallback={<p>{m.record_edit_missing()}</p>}>
         {(id) => <RecordEditForm id={id()} returnTo={listPlace()} cancelHref={listHref()} />}
       </Show>

@@ -17,11 +17,7 @@ export default function NewSource() {
   const allowed = createMemo(() => requireAdmin(), { name: 'source-new-admin' });
 
   return (
-    <EditPage
-      title={m.source_new_title()}
-      backHref={paths.sources()}
-      backLabel={m.source_edit_back()}
-    >
+    <EditPage title={m.source_new_title()}>
       <Show when={allowed()}>
         <SourceEditForm cancelHref={paths.sources()} />
       </Show>
