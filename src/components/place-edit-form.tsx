@@ -289,15 +289,19 @@ export default function PlaceEditForm(props: {
                     lookup={parishLookup()}
                     invalid={invalid}
                   />
-                  <TextArea
-                    name="spellings"
-                    label={m.place_edit_spellings()}
-                    value={p.spellings.join('\n')}
-                    rows={5}
-                    hint={m.place_edit_spellings_hint()}
-                    invalid={invalid('spellings')}
-                    class="sm:col-span-2"
-                  />
+                  {/* The spellings the sources use come with the records
+                      that name the locality: a new one has none to edit. */}
+                  <Show when={p.id}>
+                    <TextArea
+                      name="spellings"
+                      label={m.place_edit_spellings()}
+                      value={p.spellings.join('\n')}
+                      rows={5}
+                      hint={m.place_edit_spellings_hint()}
+                      invalid={invalid('spellings')}
+                      class="sm:col-span-2"
+                    />
+                  </Show>
                   <TextArea
                     name="note"
                     label={m.form_note()}

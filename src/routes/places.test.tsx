@@ -420,6 +420,8 @@ describe('editing a village', () => {
     await screen.findByRole('heading', { level: 1, name: 'New locality' });
     await waitFor(() => expect(field('nameRu')).toHaveValue(''));
     expect(field('kind')).toHaveValue('village');
+    // Spellings come with records: nothing to edit on a new locality.
+    expect(field('spellings')).toBeNull();
     fireEvent.input(field('nameRu'), { target: { value: 'Серебетта' } });
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
 
