@@ -8,23 +8,32 @@ import { and, count, eq, isNotNull } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { type Names, byRussianName, namesOf, parishInUse } from '~/lib/format';
+import { spellingsOf } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
-import { changeLog, parish, place, source } from '~/server/database/schema';
+import { parish, place, source } from '~/server/database/schema';
 import {
-  fieldsAtFault,
+  type Refusals,
+  deleteRow,
+  deletionForm,
+  logChange,
+  lookupRow,
+  parseDeletion,
+  rowForEdit,
+  writing,
+} from '~/server/edits';
+import {
   finnishName,
   line,
   optionalId,
-  parseForm,
+  parseOrRefuse,
   refuse,
   rowId,
   russianName,
   text,
   version,
 } from '~/server/forms';
-import { spellingsOf } from '~/lib/spellings';
 import { adminOnly, signedIn } from '~/server/guards';
 import {
   type Created,
@@ -32,7 +41,6 @@ import {
   createPlace,
   deleteCreated,
   newPlace,
-  parseNewRow,
   placeNamed,
 } from '~/server/linked-rows';
 
@@ -158,6 +166,11 @@ const form = v.object({
   note: text,
 });
 
+const parishRefusals: Refusals = {
+  missing: m.parish_edit_missing,
+  conflict: m.parish_edit_conflict,
+};
+
 /**
  * Creates a parish (no id in the form) or saves the edit page's form over
  * one, then redirects to the parishes list. Refused, with the fields at
@@ -173,91 +186,68 @@ export const saveParish = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
-  const parsed = parseForm(form, entries);
-  if (!parsed.success) {
-    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
-  }
-  const { id, version, churchText, churchCreate, ...fields } = parsed.output;
-
-  const before = id ? await loadParish(id) : null;
-  if (id && !before) throw refuse({ message: m.parish_edit_missing() }, 404);
-  if (before && before.version !== version) {
-    throw refuse({ message: m.parish_edit_conflict() }, 409);
-  }
-
-  // A church in a locality deleted since the page loaded.
-  if (
-    fields.churchPlaceId &&
-    !(await db.query.place.findFirst({
-      where: { id: fields.churchPlaceId },
-      columns: { id: true },
-    }))
-  ) {
-    throw refuse({ message: m.form_invalid(), fields: { churchPlaceId: '' } }, 400);
-  }
-  if (!fields.churchPlaceId && churchText) {
-    fields.churchPlaceId = await placeNamed(churchText);
-  }
-  const church =
-    !fields.churchPlaceId && churchText && churchCreate
-      ? parseNewRow(newPlace, 'churchNew', entries)
-      : null;
-  if (church && !church.success) {
-    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(church.issues) }, 400);
-  }
+  const { id, version, churchText, churchCreate, ...fields } = parseOrRefuse(form, entries);
+  const before = id ? await rowForEdit(loadParish, id, version, parishRefusals) : null;
+  // The church's locality: the one linked, the one the text names, or the
+  // one to add, in this parish.
+  const church = await lookupRow(
+    { text: churchText, id: fields.churchPlaceId, create: churchCreate },
+    {
+      idName: 'churchPlaceId',
+      prefix: 'churchNew',
+      table: place,
+      named: placeNamed,
+      columns: newPlace,
+      entries,
+    },
+  );
+  fields.churchPlaceId = church.id;
 
   const now = new Date();
   const by = { userId: user.id, now };
   const stamp = { updatedAt: now, updatedBy: user.id };
   const added: Created[] = [];
   let parishId = before?.id;
-  try {
-    // A new parish gets its id first: its church's locality belongs to it.
-    if (!parishId) {
-      const [created] = await db
-        .insert(parish)
-        .values({ ...fields, createdBy: user.id, ...stamp })
-        .returning({ id: parish.id });
-      parishId = created.id;
-    }
-    if (church?.success) {
-      const village = await createPlace({ ...church.output, parishId }, by, churchText);
-      added.push(village);
-      fields.churchPlaceId = village.id;
-    }
-    const after = before ? { ...before, ...fields, version: before.version + 1 } : fields;
-    await db.batch([
-      before
-        ? db
-            .update(parish)
-            .set({ ...fields, version: before.version + 1, ...stamp })
-            .where(and(eq(parish.id, before.id), eq(parish.version, before.version)))
-        : db.update(parish).set(fields).where(eq(parish.id, parishId)),
-      db.insert(changeLog).values({
-        userId: user.id,
-        entity: 'parish',
-        entityId: parishId,
-        action: before ? 'update' : 'create',
-        before,
-        after,
-      }),
-      ...added.flatMap((row) => row.statements),
-    ]);
-  } catch (error) {
-    console.error('Saving a parish failed', error);
-    // A new parish whose church or log couldn't be written goes again.
-    if (!before && parishId) await db.delete(parish).where(eq(parish.id, parishId));
-    await deleteCreated(added);
-    throw refuse({ message: m.form_failed() }, 500);
-  }
+  await writing(
+    'Saving a parish',
+    async () => {
+      // A new parish gets its id first: its church's locality belongs to it.
+      if (!parishId) {
+        const [created] = await db
+          .insert(parish)
+          .values({ ...fields, createdBy: user.id, ...stamp })
+          .returning({ id: parish.id });
+        parishId = created.id;
+      }
+      if (church.add) {
+        const village = await createPlace({ ...church.add, parishId }, by, churchText);
+        added.push(village);
+        fields.churchPlaceId = village.id;
+      }
+      const after = before ? { ...before, ...fields, version: before.version + 1 } : fields;
+      await db.batch([
+        before
+          ? db
+              .update(parish)
+              .set({ ...fields, version: before.version + 1, ...stamp })
+              .where(and(eq(parish.id, before.id), eq(parish.version, before.version)))
+          : db.update(parish).set(fields).where(eq(parish.id, parishId)),
+        logChange(by, 'parish', parishId, before ? 'update' : 'create', before, after),
+        ...added.flatMap((row) => row.statements),
+      ]);
+    },
+    {
+      // A new parish whose church or log couldn't be written goes again.
+      undo: async () => {
+        if (!before && parishId) await db.delete(parish).where(eq(parish.id, parishId));
+        await deleteCreated(added);
+      },
+    },
+  );
   throw redirect(paths.places.parishes());
 }, 'save-parish');
 
-const deletion = v.object({
-  id: v.pipe(v.string(), v.transform(Number), rowId),
-  version,
-  confirm: v.literal('on'),
-});
+const deletion = deletionForm();
 
 /**
  * Deletes the edit page's parish once confirmed in its dialog, then
@@ -269,30 +259,16 @@ const deletion = v.object({
 export const deleteParish = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = v.safeParse(deletion, Object.fromEntries(formData));
-  if (!parsed.success) throw refuse({ message: m.parish_delete_unconfirmed() }, 400);
-  const { id, version } = parsed.output;
-
-  const before = await loadParish(id);
-  if (!before) throw refuse({ message: m.parish_edit_missing() }, 404);
-  if (before.version !== version) throw refuse({ message: m.parish_edit_conflict() }, 409);
+  const { id, version } = parseDeletion(deletion, formData, m.parish_delete_unconfirmed);
+  const before = await rowForEdit(loadParish, id, version, parishRefusals);
   const inUse = parishInUse(await countUses(id));
   if (inUse) throw refuse({ message: inUse }, 409);
-
-  try {
-    await db.batch([
-      db.delete(parish).where(and(eq(parish.id, id), eq(parish.version, version))),
-      db.insert(changeLog).values({
-        userId: user.id,
-        entity: 'parish',
-        entityId: id,
-        action: 'delete',
-        before,
-      }),
-    ]);
-  } catch (error) {
-    console.error('Deleting a parish failed', error);
-    throw refuse({ message: m.parish_delete_failed() }, 500);
-  }
+  await deleteRow({
+    table: parish,
+    entity: 'parish',
+    row: before,
+    by: { userId: user.id },
+    failed: m.parish_delete_failed,
+  });
   throw redirect(paths.places.parishes());
 }, 'delete-parish');

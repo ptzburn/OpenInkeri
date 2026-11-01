@@ -9,6 +9,7 @@ import { FIELD_MAX } from '~/lib/field-limits';
 import { parsePartialDate } from '~/lib/format';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import type { FormError } from '~/lib/form-error';
+import { m } from '~/paraglide/messages.js';
 
 /** Whitespace runs as one space, trimmed: for one-line values like names. */
 export const collapse = (s: string) => s.replace(/\s+/g, ' ').trim();
@@ -103,3 +104,17 @@ export function fieldsAtFault(issues: readonly v.BaseIssue<unknown>[]): Record<s
  * hand it to the action as its result, so the error never shows.
  */
 export const refuse = (error: FormError, status: number) => respond(error, { status });
+
+/** A refusal naming the fields a failed parseForm found at fault, each with its reason. */
+export const refuseFields = (issues: readonly v.BaseIssue<unknown>[]) =>
+  refuse({ message: m.form_invalid(), fields: fieldsAtFault(issues) }, 400);
+
+/** A form's values, parsed, or the refusal naming the fields at fault. */
+export function parseOrRefuse<S extends v.GenericSchema>(
+  schema: S,
+  input: unknown,
+): v.InferOutput<S> {
+  const parsed = parseForm(schema, input);
+  if (!parsed.success) throw refuseFields(parsed.issues);
+  return parsed.output;
+}

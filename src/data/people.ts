@@ -11,6 +11,7 @@ import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
+import { namesOf } from '~/lib/format';
 import { type Family, familyOf } from '~/lib/person-family';
 import {
   type MatchMention,
@@ -23,21 +24,20 @@ import { foldForSearch, recordSearchText } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
-import { type PersonaRole, changeLog, person, persona } from '~/server/database/schema';
+import { type PersonaRole, person, persona } from '~/server/database/schema';
 import {
-  fieldsAtFault,
-  line,
-  parseForm,
-  partialDate,
-  refuse,
-  rowId,
-  text,
-  version,
-} from '~/server/forms';
+  type Refusals,
+  deleteRow,
+  deletionForm,
+  logChange,
+  parseDeletion,
+  rowForEdit,
+  writing,
+} from '~/server/edits';
+import { line, parseOrRefuse, partialDate, refuse, rowId, text, version } from '~/server/forms';
 import { isAdmin } from '~/server/auth';
 import { adminOnly, signedIn } from '~/server/guards';
 import { createPersonFrom, linkStatements, linkTarget } from '~/server/link-person';
-import { namesOf } from '~/lib/format';
 
 export const PEOPLE_PAGE_SIZE = 50;
 
@@ -503,6 +503,8 @@ const form = v.pipe(
   ),
 );
 
+const personRefusals: Refusals = { missing: m.person_missing, conflict: m.person_edit_conflict };
+
 /**
  * Saves the edit page's form over a person, then redirects to their page.
  * Refused, with the fields at fault, when a value doesn't read or both
@@ -512,43 +514,28 @@ const form = v.pipe(
 export const savePerson = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = parseForm(form, Object.fromEntries(formData));
-  if (!parsed.success) {
-    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
-  }
-  const { id, version, ...fields } = parsed.output;
-  const before = await loadPerson(id);
-  if (!before) throw refuse({ message: m.person_missing() }, 404);
-  if (before.version !== version) throw refuse({ message: m.person_edit_conflict() }, 409);
+  const { id, version, ...fields } = parseOrRefuse(form, Object.fromEntries(formData));
+  const before = await rowForEdit(loadPerson, id, version, personRefusals);
 
   const values = { ...fields, searchText: searchTextOfPerson(fields) };
-  try {
-    await db.batch([
+  const by = { userId: user.id };
+  await writing('Saving a person', () =>
+    db.batch([
       db
         .update(person)
         .set({ ...values, version: before.version + 1, updatedAt: new Date(), updatedBy: user.id })
         .where(and(eq(person.id, id), eq(person.version, before.version))),
-      db.insert(changeLog).values({
-        userId: user.id,
-        entity: 'person',
-        entityId: id,
-        action: 'update',
-        before,
-        after: { ...before, ...fields, version: before.version + 1 },
+      logChange(by, 'person', id, 'update', before, {
+        ...before,
+        ...fields,
+        version: before.version + 1,
       }),
-    ]);
-  } catch (error) {
-    console.error('Saving a person failed', error);
-    throw refuse({ message: m.form_failed() }, 500);
-  }
+    ]),
+  );
   throw redirect(paths.people(id)());
 }, 'save-person');
 
-const deletion = v.object({
-  id: v.pipe(v.string(), v.transform(Number), rowId),
-  version,
-  confirm: v.literal('on'),
-});
+const deletion = deletionForm();
 
 /**
  * Deletes the edit page's person once confirmed in its dialog, then
@@ -559,30 +546,17 @@ const deletion = v.object({
 export const deletePerson = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = v.safeParse(deletion, Object.fromEntries(formData));
-  if (!parsed.success) throw refuse({ message: m.person_delete_unconfirmed() }, 400);
-  const { id, version } = parsed.output;
-
-  const before = await loadPerson(id);
-  if (!before) throw refuse({ message: m.person_missing() }, 404);
-  if (before.version !== version) throw refuse({ message: m.person_edit_conflict() }, 409);
+  const { id, version } = parseDeletion(deletion, formData, m.person_delete_unconfirmed);
+  const before = await rowForEdit(loadPerson, id, version, personRefusals);
   const linked = await db.select({ id: persona.id }).from(persona).where(eq(persona.personId, id));
-
-  try {
-    await db.batch([
-      db.delete(person).where(and(eq(person.id, id), eq(person.version, version))),
-      db.insert(changeLog).values({
-        userId: user.id,
-        entity: 'person',
-        entityId: id,
-        action: 'delete',
-        before: { ...before, personaIds: linked.map((p) => p.id) },
-      }),
-    ]);
-  } catch (error) {
-    console.error('Deleting a person failed', error);
-    throw refuse({ message: m.person_delete_failed() }, 500);
-  }
+  await deleteRow({
+    table: person,
+    entity: 'person',
+    row: before,
+    by: { userId: user.id },
+    logged: { ...before, personaIds: linked.map((p) => p.id) },
+    failed: m.person_delete_failed,
+  });
   throw redirect(paths.people());
 }, 'delete-person');
 
@@ -654,12 +628,7 @@ export const linkPersona = action(async (formData: FormData) => {
     if (sameRecord) throw refuse({ message: m.person_link_same_record() }, 409);
   }
 
-  try {
-    await db.batch(linkStatements(mention.id, personId, by));
-  } catch (error) {
-    console.error('Linking a mention failed', error);
-    throw refuse({ message: m.form_failed() }, 500);
-  }
+  await writing('Linking a mention', () => db.batch(linkStatements(mention.id, personId, by)));
   throw redirect(paths.people(personId)());
 }, 'link-persona');
 
@@ -685,25 +654,22 @@ export const unlinkPersona = action(async (formData: FormData) => {
     and(eq(persona.id, personaId), eq(persona.personId, personId)),
   );
   if (linked) {
-    try {
-      await db.batch([
+    await writing('Unlinking a mention', () =>
+      db.batch([
         db
           .update(persona)
           .set({ personId: null, updatedAt: new Date(), updatedBy: user.id })
           .where(and(eq(persona.id, personaId), eq(persona.personId, personId))),
-        db.insert(changeLog).values({
-          userId: user.id,
-          entity: 'persona',
-          entityId: personaId,
-          action: 'update',
-          before: { id: personaId, personId },
-          after: { id: personaId, personId: null },
-        }),
-      ]);
-    } catch (error) {
-      console.error('Unlinking a mention failed', error);
-      throw refuse({ message: m.form_failed() }, 500);
-    }
+        logChange(
+          { userId: user.id },
+          'persona',
+          personaId,
+          'update',
+          { id: personaId, personId },
+          { id: personaId, personId: null },
+        ),
+      ]),
+    );
   }
   throw redirect(paths.people(personId)());
 }, 'unlink-persona');

@@ -47,7 +47,6 @@ import { paths } from '~/router';
 import { db } from '~/server/database';
 import {
   type PersonaRole,
-  changeLog,
   persona,
   record,
   recordBaptism,
@@ -56,12 +55,21 @@ import {
   source,
 } from '~/server/database/schema';
 import {
-  fieldsAtFault,
+  type Refusals,
+  deleteRow,
+  deletionForm,
+  logChange,
+  parseDeletion,
+  rowForEdit,
+  writing,
+} from '~/server/edits';
+import {
   line,
   optionalId,
-  parseForm,
+  parseOrRefuse,
   partialDate,
   refuse,
+  refuseFields,
   rowId,
   text,
   version,
@@ -485,6 +493,11 @@ export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsDat
 // A row's names and spellings, each once.
 // --- The form ----------------------------------------------------------------------
 
+const recordRefusals: Refusals = {
+  missing: m.record_edit_missing,
+  conflict: m.record_edit_conflict,
+};
+
 // A <select> of fixed values, where '' is "none".
 const choice = <T extends readonly [string, ...string[]]>(options: T) =>
   v.pipe(
@@ -761,22 +774,20 @@ const creators: Record<
 > = {
   place: async (prefix, entries, text, by) => {
     const parsed = parseNewRow(newPlace, prefix, entries);
-    if (!parsed.success) throw refusedFields(parsed.issues);
+    if (!parsed.success) throw refuseFields(parsed.issues);
     return createPlace(parsed.output, by, text);
   },
   clergy: async (prefix, entries, _text, by) => {
     const parsed = parseNewRow(newClergy, prefix, entries);
-    if (!parsed.success) throw refusedFields(parsed.issues);
+    if (!parsed.success) throw refuseFields(parsed.issues);
     return createClergy(parsed.output, by);
   },
   relation: async (prefix, entries, _text, by) => {
     const parsed = parseNewRow(newRelation, prefix, entries);
-    if (!parsed.success) throw refusedFields(parsed.issues);
+    if (!parsed.success) throw refuseFields(parsed.issues);
     return createRelation(parsed.output, by);
   },
 };
-const refusedFields = (issues: readonly v.BaseIssue<unknown>[]) =>
-  refuse({ message: m.form_invalid(), fields: fieldsAtFault(issues) }, 400);
 
 /**
  * Creates the rows the form asks to add for values still unlinked after
@@ -838,7 +849,7 @@ export const saveRecord = action(async (formData: FormData) => {
   // An existing record keeps its type: it can move only to another source
   // of the same type. A new one takes its source's.
   const existing = id.output ? await loadRecord(id.output) : null;
-  if (id.output && !existing) throw refuse({ message: m.record_edit_missing() }, 404);
+  if (id.output && !existing) throw refuse({ message: recordRefusals.missing() }, 404);
   const kind = existing?.source.kind ?? chosen.kind;
   if (chosen.kind !== kind) {
     throw refuse(
@@ -848,13 +859,10 @@ export const saveRecord = action(async (formData: FormData) => {
   }
   const indexes = memberIndexes(entries);
   if (indexes.length > MAX_MEMBERS) throw refuse({ message: m.form_invalid() }, 400);
-  const parsed = parseForm(formOf(kind, indexes), entries);
-  if (!parsed.success) {
-    throw refuse({ message: m.form_invalid(), fields: fieldsAtFault(parsed.issues) }, 400);
-  }
-  const input = parsed.output as typeof parsed.output & Values;
+  const parsedInput = parseOrRefuse(formOf(kind, indexes), entries);
+  const input = parsedInput as typeof parsedInput & Values;
   if (existing && existing.version !== input.version) {
-    throw refuse({ message: m.record_edit_conflict() }, 409);
+    throw refuse({ message: recordRefusals.conflict() }, 409);
   }
   await linkSpellings(input);
   const now = new Date();
@@ -1118,45 +1126,40 @@ export const saveRecord = action(async (formData: FormData) => {
 
   const { source: _, ...beforeLog } = before;
   statements.push(
-    db.insert(changeLog).values({
-      userId: user.id,
-      entity: 'record',
-      entityId: rid,
-      action: created ? 'create' : 'update',
-      before: created ? null : beforeLog,
-      after: {
-        ...beforeLog,
-        ...fields,
-        version: created ? before.version : before.version + 1,
-        ...details,
-        people: edited.map(({ key, current, values }) => ({
-          key,
-          id: current?.id ?? null,
-          ...values,
-        })),
-      },
+    logChange(by, 'record', rid, created ? 'create' : 'update', created ? null : beforeLog, {
+      ...beforeLog,
+      ...fields,
+      version: created ? before.version : before.version + 1,
+      ...details,
+      people: edited.map(({ key, current, values }) => ({
+        key,
+        id: current?.id ?? null,
+        ...values,
+      })),
     }),
   );
 
-  try {
-    await db.batch(statements as unknown as Parameters<typeof db.batch>[0]);
-  } catch (error) {
-    console.error('Saving a record failed', error);
-    // A new record whose details or people couldn't be written goes again,
-    // with what it added.
-    if (created) await db.delete(record).where(eq(record.id, rid));
-    else if (insertedPersonas.length) {
-      await db.delete(persona).where(inArray(persona.id, insertedPersonas));
-    }
-    await deleteCreated(added);
-    throw refuse({ message: m.form_failed() }, 500);
-  }
+  await writing(
+    'Saving a record',
+    () => db.batch(statements as unknown as Parameters<typeof db.batch>[0]),
+    {
+      // A new record whose details or people couldn't be written goes again,
+      // with what it added.
+      undo: async () => {
+        if (created) await db.delete(record).where(eq(record.id, rid));
+        else if (insertedPersonas.length) {
+          await db.delete(persona).where(inArray(persona.id, insertedPersonas));
+        }
+        await deleteCreated(added);
+      },
+    },
+  );
 
   // The links the form asked for, now that every mention has its id. A
   // person made from a mention takes its names, sex and dates
   // (src/server/link-person.ts). The record is saved by now: a link that
   // fails leaves it saved, unlinked, and says so.
-  try {
+  await writing('Linking a mention', async () => {
     for (const { personaId, role, values, target } of links) {
       const personId =
         target === 'new'
@@ -1177,10 +1180,7 @@ export const saveRecord = action(async (formData: FormData) => {
           : target;
       await db.batch(linkStatements(personaId, personId, by));
     }
-  } catch (error) {
-    console.error('Linking a mention failed', error);
-    throw refuse({ message: m.form_failed() }, 500);
-  }
+  });
   const listKind = kind === 'baptisms' ? undefined : kind; // the default
   // The source the list was narrowed to, while the record is still in it.
   const listSource = input.returnSource === chosen.id ? String(chosen.id) : undefined;
@@ -1224,14 +1224,11 @@ const backToList = (input: {
     source: input.returnSource ? String(input.returnSource) : undefined,
   });
 
-const deletion = v.object({
+const deletion = deletionForm({
   returnKind: common.returnKind,
   returnQ: common.returnQ,
   returnPage: common.returnPage,
   returnSource: common.returnSource,
-  id: recordId,
-  version,
-  confirm: v.literal('on'),
 });
 
 /**
@@ -1243,29 +1240,16 @@ const deletion = v.object({
 export const deleteRecord = action(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
-  const parsed = v.safeParse(deletion, Object.fromEntries(formData));
-  if (!parsed.success) throw refuse({ message: m.record_delete_unconfirmed() }, 400);
-  const input = parsed.output;
-
-  const before = await loadRecord(input.id);
-  if (!before) throw refuse({ message: m.record_edit_missing() }, 404);
-  if (before.version !== input.version) throw refuse({ message: m.record_edit_conflict() }, 409);
-
+  const input = parseDeletion(deletion, formData, m.record_delete_unconfirmed);
+  const before = await rowForEdit(loadRecord, input.id, input.version, recordRefusals);
   const { source: _, ...beforeLog } = before;
-  try {
-    await db.batch([
-      db.delete(record).where(and(eq(record.id, input.id), eq(record.version, input.version))),
-      db.insert(changeLog).values({
-        userId: user.id,
-        entity: 'record',
-        entityId: input.id,
-        action: 'delete',
-        before: beforeLog,
-      }),
-    ]);
-  } catch (error) {
-    console.error('Deleting a record failed', error);
-    throw refuse({ message: m.record_delete_failed() }, 500);
-  }
+  await deleteRow({
+    table: record,
+    entity: 'record',
+    row: before,
+    by: { userId: user.id },
+    logged: beforeLog,
+    failed: m.record_delete_failed,
+  });
   throw redirect(backToList(input));
 }, 'delete-record');
