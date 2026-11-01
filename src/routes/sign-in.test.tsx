@@ -1,5 +1,5 @@
 import { Loading, flush } from 'solid-js';
-import { captureArtifact } from '@solidjs/diagnostics';
+import { captureArtifact } from '~/testing/capture';
 import { query } from '@solidjs/router';
 import '@solidjs/diagnostics/vitest';
 import { cleanup, fireEvent, render, screen } from '@solidjs/testing-library';
