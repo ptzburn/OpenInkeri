@@ -11,6 +11,7 @@ import {
   TextArea,
   TextInput,
   useFormDone,
+  saveBarClass,
   useFormErrors,
 } from '~/components/form-fields';
 import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
@@ -548,7 +549,7 @@ export default function RecordEditForm(props: {
               cancelHref={props.cancelHref}
               saveAndNext={!r.id}
               primary={inSource() ? 'next' : 'save'}
-              class="sticky bottom-0 -mx-4 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8"
+              class={saveBarClass(!r.id)}
             />
           </form>
           <Show when={r.id}>

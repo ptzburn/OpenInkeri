@@ -13,6 +13,7 @@ import {
   TextInput,
   postedName,
   useFormDone,
+  saveBarClass,
   useFormErrors,
 } from '~/components/form-fields';
 import { useToast } from '~/components/toaster';
@@ -165,13 +166,6 @@ export default function PlaceEditForm(props: {
           const found = (markers() ?? []).find((n) => n.church?.id === parishId());
           return found ? { lat: found.latitude, lng: found.longitude } : null;
         };
-        // The save bar: kept in view at the bottom of the window while
-        // scrolling, over the pinned map; where nothing follows the form (a
-        // new locality) it reaches the page's bottom edge.
-        const barClass = [
-          'sticky bottom-0 z-10 -mx-4 border-t border-base-300 bg-base-100 px-4 py-3 lg:-mx-8 lg:px-8',
-          p.id ? '' : '-mb-4 lg:-mb-8',
-        ].join(' ');
         return (
           <>
             {/* While a save is in flight the router marks the form aria-busy. */}
@@ -321,7 +315,11 @@ export default function PlaceEditForm(props: {
                 </div>
               </div>
 
-              <FormActions error={error()} cancelHref={props.cancelHref} class={barClass} />
+              <FormActions
+                error={error()}
+                cancelHref={props.cancelHref}
+                class={saveBarClass(!p.id)}
+              />
             </form>
             <Show when={p.id}>
               <DeleteSection

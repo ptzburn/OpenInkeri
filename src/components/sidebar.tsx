@@ -125,7 +125,10 @@ export default function Sidebar(props: { collapsed: boolean; onToggle: () => voi
           </Loading>
         </ul>
       </nav>
-      <div class="border-t border-base-300 p-4 sidebar-collapsed:p-1">
+      {/* As tall as the forms' save bar (min-h-18, see FormActions'
+          callers), folded or not, so the line over it runs level with the
+          bar's. */}
+      <div class="flex min-h-18 items-center border-t border-base-300 px-4 sidebar-collapsed:px-1">
         <AccountMenu />
       </div>
     </aside>

@@ -88,7 +88,8 @@ export function postedName(form: FormData): string {
  * back) and Save; with `saveAndNext`, also Save and add next, which posts
  * `next=on`. The form must have the `group` class: while a save is in
  * flight the router marks it aria-busy, which shows the spinner and stops
- * further clicks.
+ * further clicks. A form that pins it to the window's bottom passes
+ * `saveBarClass(...)`.
  */
 export function FormActions(props: {
   error?: FormError;
@@ -147,6 +148,18 @@ export function FormActions(props: {
     </div>
   );
 }
+
+/**
+ * FormActions pinned to the window's bottom while the form scrolls, over the
+ * page's padding, as tall as the sidebar's account corner (min-h-18) so the
+ * line over each runs level. Where nothing follows the form (`last`: a new
+ * row, with no Delete section) it reaches the page's bottom edge too.
+ */
+export const saveBarClass = (last: boolean) =>
+  [
+    'sticky bottom-0 z-10 -mx-4 min-h-18 justify-center border-t border-base-300 bg-base-100 px-4 lg:-mx-8 lg:px-8',
+    last ? '-mb-4 lg:-mb-8' : '',
+  ].join(' ');
 
 /**
  * Why a field's value is wrong, right after its control (which has daisyUI's

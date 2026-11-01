@@ -30,7 +30,7 @@ export default function AccountMenu() {
         }
       >
         {(current) => (
-          <form action={signOut} method="post" class="flex items-center gap-2">
+          <form action={signOut} method="post" class="flex w-full items-center gap-2">
             <a
               href={paths.account()}
               title={m.account_title()}
