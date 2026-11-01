@@ -67,7 +67,7 @@ const blank: PlaceEditData = {
  *
  * The map is the page and the form a panel over it (MapPage): the heading,
  * the search, the coordinates the map sets, the fields, and Cancel and Save
- * pinned at the bottom.
+ * pinned at the bottom; on a small screen, a sheet at the bottom of the map.
  */
 export default function PlaceEditForm(props: {
   id?: number;
@@ -160,14 +160,18 @@ export default function PlaceEditForm(props: {
           const found = (markers() ?? []).find((n) => n.church?.id === parishId());
           return found ? { lat: found.latitude, lng: found.longitude } : null;
         };
+        // Below lg the panel is a sheet at the bottom of the map: collapsed
+        // it shows the heading and the search, with the map above; it opens
+        // (to most of the height) on its handle or as a field is focused,
+        // and closes on the handle, for a tap on the map.
+        const [open, setOpen] = createSignal(false, { name: 'place-sheet-open' });
         return (
-          // The map is the page: from lg up it fills the box under the
-          // header, with the form a panel over its left side, scrolling
-          // inside itself, Cancel and Save at its bottom; below lg the map
-          // is a band on top and the panel the page beneath it.
-          <div class="flex flex-col lg:absolute lg:inset-0">
+          // The map is the page, filling the box under the header, with the
+          // form a panel over its left side from lg up, scrolling inside
+          // itself, Cancel and Save at its bottom; a sheet below lg.
+          <div class="absolute inset-0">
             <LocationPicker
-              class="h-[50vh] min-h-72 lg:absolute lg:inset-0 lg:h-full lg:min-h-0"
+              class="absolute inset-0 h-full"
               value={coordinates()}
               onPick={(lat, lng) => {
                 setCoordinates(formatCoordinates(lat, lng));
@@ -178,16 +182,33 @@ export default function PlaceEditForm(props: {
               focus={church()}
             />
             <section
-              class="flex flex-col bg-base-100 lg:absolute lg:top-4 lg:bottom-4 lg:left-4 lg:z-1 lg:w-md lg:overflow-hidden lg:rounded-box lg:border lg:border-base-300 lg:shadow-xl"
+              class={[
+                'absolute z-1 flex flex-col overflow-hidden border-base-300 bg-base-100 shadow-xl',
+                'max-lg:inset-x-0 max-lg:bottom-0 max-lg:rounded-t-box max-lg:border-t max-lg:transition-[height] max-lg:duration-300 max-lg:ease-out',
+                open() ? 'max-lg:h-[88%]' : 'max-lg:h-2/5',
+                'lg:top-4 lg:bottom-4 lg:left-4 lg:w-md lg:rounded-box lg:border',
+              ]}
               aria-labelledby="place-form-title"
+              onFocusIn={() => setOpen(true)}
             >
+              <button
+                type="button"
+                class="flex w-full justify-center py-2 lg:hidden"
+                aria-label={m.place_edit_sheet()}
+                aria-expanded={open() ? 'true' : 'false'}
+                onClick={() => setOpen((o) => !o)}
+                // Its tap must not count as a focus that opens the sheet.
+                onFocusIn={(event) => event.stopPropagation()}
+              >
+                <span class="h-1.5 w-10 rounded-full bg-base-content/30" aria-hidden="true" />
+              </button>
               <h1
                 id="place-form-title"
-                class="border-b border-base-300 px-4 py-3 text-2xl font-bold"
+                class="border-b border-base-300 px-4 py-3 text-2xl font-bold max-lg:pt-0"
               >
                 {props.title}
               </h1>
-              <div class="flex flex-1 flex-col gap-6 px-4 pt-4 lg:min-h-0 lg:overflow-y-auto">
+              <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pt-4">
                 {/* While a save is in flight the router marks the form aria-busy. */}
                 <form method="post" action={savePlace} class="group flex flex-1 flex-col gap-4">
                   <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />

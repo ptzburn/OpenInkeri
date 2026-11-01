@@ -282,6 +282,7 @@
   "place_edit_verified": "Sijainti tarkistettu lähteistä",
   "place_edit_remove_marker": "Poista merkki",
   "place_edit_map_hint": "Aseta koordinaatit napsauttamalla karttaa tai vetämällä merkkiä.",
+  "place_edit_sheet": "Paikkakunnan lomake",
   "place_search_label": "Etsi paikkakunta",
   "place_search_placeholder": "Nimi venäjäksi tai suomeksi",
   "place_search_none": "Paikannimistössä ei ole tällaista asutusta.",

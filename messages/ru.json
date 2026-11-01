@@ -284,6 +284,7 @@
   "place_edit_verified": "Положение сверено с источниками",
   "place_edit_remove_marker": "Убрать метку",
   "place_edit_map_hint": "Нажмите на карту, чтобы задать координаты, или перетащите метку.",
+  "place_edit_sheet": "Форма населённого пункта",
   "place_search_label": "Найти населённый пункт",
   "place_search_placeholder": "Название по-русски или по-фински",
   "place_search_none": "В справочнике такого населённого пункта нет.",

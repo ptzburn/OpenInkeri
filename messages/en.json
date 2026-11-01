@@ -282,6 +282,7 @@
   "place_edit_verified": "Position checked against sources",
   "place_edit_remove_marker": "Remove marker",
   "place_edit_map_hint": "Click the map to set the coordinates, or drag the marker.",
+  "place_edit_sheet": "Locality form",
   "place_search_label": "Find the locality",
   "place_search_placeholder": "Name in Russian or Finnish",
   "place_search_none": "No such settlement in the gazetteer.",
