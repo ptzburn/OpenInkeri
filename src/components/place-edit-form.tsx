@@ -78,11 +78,16 @@ export default function PlaceEditForm(props: {
   returnTo: { q?: string; parish?: string };
   cancelHref: string;
 }) {
+  // Not a read of props.returnTo here: the router sets up its search params
+  // on their first read, under whichever owner reads them, and the server
+  // (which reads them first in this memo) and the browser (which has read
+  // them earlier) then number the form's hydration ids differently, so a
+  // page loaded directly keeps its server-rendered form without its
+  // behaviour. The parish the list was narrowed to is read where the
+  // parish signal starts instead.
   const place = createMemo(
     (): Promise<QueryData<typeof getPlaceEdit>> | PlaceEditData =>
-      props.id
-        ? getPlaceEdit(props.id)
-        : { ...blank, parishId: Number(props.returnTo.parish) || null },
+      props.id ? getPlaceEdit(props.id) : blank,
     { name: 'place-edit' },
   );
   const parishes = createMemo(
@@ -137,7 +142,11 @@ export default function PlaceEditForm(props: {
         const [nameRu, setNameRu] = createSignal(p.nameRu, { name: 'place-name-ru' });
         const [nameFi, setNameFi] = createSignal(p.nameFi, { name: 'place-name-fi' });
         const [kind, setKind] = createSignal<PlaceKind>(p.kind, { name: 'place-kind' });
-        const [parishId, setParishId] = createSignal(p.parishId, { name: 'place-parish-id' });
+        // A new place starts in the parish the list was narrowed to.
+        const [parishId, setParishId] = createSignal(
+          p.id ? p.parishId : Number(props.returnTo.parish) || null,
+          { name: 'place-parish-id' },
+        );
         const [coordinates, setCoordinates] = createSignal(
           formatCoordinates(p.latitude, p.longitude),
           { name: 'place-coordinates' },
