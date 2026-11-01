@@ -65,6 +65,7 @@ import {
 } from '~/server/edits';
 import {
   line,
+  listParam,
   optionalId,
   parseOrRefuse,
   partialDate,
@@ -518,9 +519,9 @@ const common = {
   // Where the list was (kind, search, page, source), to return there after
   // saving. The redirect is built from these, never taken whole from the
   // request.
-  returnKind: v.optional(v.picklist(recordKinds)),
-  returnQ: v.optional(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
-  returnPage: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,5}$/))),
+  returnKind: listParam(v.picklist(recordKinds)),
+  returnQ: listParam(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
+  returnPage: listParam(v.pipe(v.string(), v.regex(/^[1-9]\d{0,5}$/))),
   returnSource: optionalId,
   // Save and add next: a new record's form follows, carrying this one's
   // source and page.

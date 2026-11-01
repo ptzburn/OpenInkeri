@@ -67,6 +67,18 @@ export const optionalId = v.pipe(
   v.nullable(rowId),
 );
 
+/**
+ * Where the list was (its search, page, filter), as a form posts it in a
+ * hidden field: '' for unset, which the form writes for a param the URL
+ * didn't have, reads as absent; anything else as `schema` reads it.
+ */
+export const listParam = <S extends v.GenericSchema<string>>(schema: S) =>
+  v.pipe(
+    v.optional(v.string(), ''),
+    v.transform((s) => s || undefined),
+    v.optional(schema),
+  );
+
 /** The version a form's row was loaded at (0 for a new row), for the conflict check. */
 export const version = v.pipe(
   v.optional(v.string(), '0'),

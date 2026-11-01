@@ -53,6 +53,7 @@ import {
   collapse,
   finnishName,
   line,
+  listParam,
   optionalId,
   parseOrRefuse,
   refuse,
@@ -299,8 +300,8 @@ export const getPlaceOptions = query(async (): Promise<PlaceOption[]> => {
 // or deleting. The redirect is built from these, never taken whole from the
 // request.
 const returnTo = {
-  returnQ: v.optional(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
-  returnParish: v.optional(v.pipe(v.string(), v.regex(/^[1-9]\d{0,8}$|^$/))),
+  returnQ: listParam(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
+  returnParish: listParam(v.pipe(v.string(), v.regex(/^[1-9]\d{0,8}$/))),
 };
 
 /** The villages list as the form came from it. */
