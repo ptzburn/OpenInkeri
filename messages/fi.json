@@ -5,6 +5,8 @@
   "toast_close": "Sulje",
   "app_loading": "Ladataan",
   "sidebar_language": "Kieli",
+  "sidebar_collapse": "Pienennä valikko",
+  "sidebar_expand": "Laajenna valikko",
   "sidebar_nav_label": "Päävalikko",
   "sidebar_home": "Etusivu",
   "theme_toggle": "Vaihda tummaan teemaan",

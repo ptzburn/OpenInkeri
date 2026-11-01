@@ -25,9 +25,9 @@ vi.mock('~/data/theme', () => ({
   saveTheme: vi.fn(),
 }));
 
-function renderAt(url: string) {
+function renderAt(url: string, collapsed = false, onToggle = () => {}) {
   window.history.replaceState(null, '', url);
-  render(() => <Router>{() => <Sidebar />}</Router>);
+  render(() => <Router>{() => <Sidebar collapsed={collapsed} onToggle={onToggle} />}</Router>);
 }
 
 const link = (name: string) => screen.findByRole('link', { name });
@@ -76,5 +76,24 @@ describe('<Sidebar />', () => {
     renderAt('/');
     await waitFor(async () => expect(await link('Home')).toHaveAttribute('data-active'));
     expect(await link('Users')).not.toHaveAttribute('data-active');
+  });
+
+  test('the fold button says what it does and tells the app; folded links keep their names as tips', async () => {
+    let toggles = 0;
+    renderAt('/', false, () => toggles++);
+    const fold = screen.getByRole('button', { name: 'Collapse menu' });
+    expect(fold).toHaveAttribute('aria-expanded', 'true');
+    expect(fold).toHaveAttribute('aria-controls', 'app-nav');
+    fireEvent.click(fold);
+    expect(toggles).toBe(1);
+    cleanup();
+
+    renderAt('/', true);
+    expect(screen.getByRole('button', { name: 'Expand menu' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(await link('Records')).toHaveAttribute('data-tip', 'Records');
+    expect(await link('Home')).toHaveClass('sidebar-collapsed:tooltip');
   });
 });

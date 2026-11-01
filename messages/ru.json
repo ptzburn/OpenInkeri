@@ -5,6 +5,8 @@
   "toast_close": "Закрыть",
   "app_loading": "Загрузка",
   "sidebar_language": "Язык",
+  "sidebar_collapse": "Свернуть меню",
+  "sidebar_expand": "Развернуть меню",
   "sidebar_nav_label": "Основное меню",
   "sidebar_home": "Главная",
   "theme_toggle": "Переключить тёмную тему",

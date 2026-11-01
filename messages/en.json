@@ -5,6 +5,8 @@
   "toast_close": "Close",
   "app_loading": "Loading",
   "sidebar_language": "Language",
+  "sidebar_collapse": "Collapse menu",
+  "sidebar_expand": "Expand menu",
   "sidebar_nav_label": "Main",
   "sidebar_home": "Home",
   "theme_toggle": "Toggle dark theme",
