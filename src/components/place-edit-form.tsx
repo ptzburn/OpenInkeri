@@ -13,19 +13,14 @@ import {
   saveBarClass,
   useEditForm,
 } from '~/components/form-fields';
-import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
+import { placeKindLabels } from '~/components/labels';
 import { type Lookup, LookupField, namedRow } from '~/components/lookup-field';
 import LocationPicker from '~/components/location-picker';
 import { parishLookup } from '~/components/new-row-fields';
 import PlaceSearch from '~/components/place-search';
 import { formatCoordinates, parseCoordinates } from '~/lib/coordinates';
 import { type GazetteerHit, placeKindOf } from '~/lib/gazetteer';
-import {
-  type CoordinateStatus,
-  type PlaceKind,
-  coordinateStatuses,
-  placeKinds,
-} from '~/lib/place-kinds';
+import { type CoordinateStatus, type PlaceKind, placeKinds } from '~/lib/place-kinds';
 import { getParishOptions } from '~/data/parishes';
 import {
   type PlaceEditData,
@@ -180,51 +175,58 @@ export default function PlaceEditForm(props: {
                     value={coordinates()}
                     onPick={(lat, lng) => {
                       setCoordinates(formatCoordinates(lat, lng));
-                      // Placed by hand: approximate until checked.
-                      if (coordinateStatus() === 'unknown') setCoordinateStatus('approximate');
+                      // Placed by hand: approximate until checked (again).
+                      setCoordinateStatus('approximate');
                     }}
                     markers={neighbours()}
                     focus={church()}
                   />
-                  {/* The coordinates the map or the search set, posted
-                      hidden: nobody types them. Under the map they read
-                      back; "Not located" unsets them (the server does the
-                      same for a form posted without JavaScript). */}
+                  {/* The coordinates the map or the search set, and their
+                      status, posted hidden: nobody types them. Under the map
+                      they read back, with a box to tick once the spot is
+                      checked against sources, and a link that removes the
+                      marker: without coordinates the place counts as not
+                      located (the server does the same). */}
                   <input type="hidden" name="coordinates" value={coordinates()} />
-                  <div class="grid gap-x-4 sm:grid-cols-2">
-                    <div class="fieldset">
-                      <span class="fieldset-legend">{m.place_edit_coordinates()}</span>
-                      <Show
-                        when={parseCoordinates(coordinates())}
-                        fallback={
-                          <p class="py-2 text-sm text-base-content/60">
-                            {m.place_edit_coordinates_none()}
-                          </p>
-                        }
+                  <input type="hidden" name="coordinateStatus" value={coordinateStatus()} />
+                  <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                    <Show
+                      when={parseCoordinates(coordinates())}
+                      fallback={
+                        <span class="text-base-content/60">{m.place_edit_coordinates_none()}</span>
+                      }
+                    >
+                      <span class="tabular-nums">{coordinates()}</span>
+                      <label class="label cursor-pointer gap-2">
+                        <input
+                          type="checkbox"
+                          class="checkbox checkbox-sm"
+                          checked={coordinateStatus() === 'verified'}
+                          onChange={(event) =>
+                            setCoordinateStatus(
+                              event.currentTarget.checked ? 'verified' : 'approximate',
+                            )
+                          }
+                        />
+                        {m.place_edit_verified()}
+                      </label>
+                      <button
+                        type="button"
+                        class="link link-hover text-base-content/60 sm:ml-auto"
+                        onClick={() => {
+                          setCoordinates('');
+                          setCoordinateStatus('unknown');
+                        }}
                       >
-                        <p class="py-2 text-sm font-medium tabular-nums">{coordinates()}</p>
-                      </Show>
-                      <Show when={invalid('coordinates') !== undefined}>
-                        <p class="text-sm text-error">
-                          {invalid('coordinates') || m.form_field_invalid()}
-                        </p>
-                      </Show>
-                    </div>
-                    <Select
-                      name="coordinateStatus"
-                      label={m.place_edit_coordinate_status()}
-                      value={coordinateStatus()}
-                      options={coordinateStatuses.map((s) => ({
-                        value: s,
-                        label: coordinateStatusLabels[s](),
-                      }))}
-                      invalid={invalid('coordinateStatus')}
-                      onChange={(status) => {
-                        setCoordinateStatus(status as CoordinateStatus);
-                        if (status === 'unknown') setCoordinates('');
-                      }}
-                    />
+                        {m.place_edit_remove_marker()}
+                      </button>
+                    </Show>
                   </div>
+                  <Show when={invalid('coordinates') !== undefined}>
+                    <p class="text-sm text-error">
+                      {invalid('coordinates') || m.form_field_invalid()}
+                    </p>
+                  </Show>
                 </div>
                 <div class="grid content-start gap-x-4 sm:grid-cols-2 lg:col-start-1">
                   <NamePair

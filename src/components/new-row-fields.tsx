@@ -51,7 +51,6 @@ function NameInputs(props: NewRowProps) {
           label={m.form_name_ru()}
           value={null}
           required
-          hint={m.form_name_ru_hint()}
           maxlength={FIELD_MAX.line}
           invalid={props.invalid(`${props.prefix}.nameRu`)}
         />
@@ -69,7 +68,6 @@ function NameInputs(props: NewRowProps) {
           name={`${props.prefix}.nameFi`}
           label={m.form_name_fi()}
           value={null}
-          hint={m.form_name_fi_hint()}
           maxlength={FIELD_MAX.line}
           invalid={props.invalid(`${props.prefix}.nameFi`)}
         />
@@ -142,7 +140,6 @@ export function NewRelationFields(props: NewRowProps) {
         name={`${props.prefix}.ru`}
         label={m.form_name_ru()}
         value={inCyrillic(props.text) ? props.text : null}
-        hint={m.form_name_ru_hint()}
         maxlength={FIELD_MAX.line}
         invalid={props.invalid(`${props.prefix}.ru`)}
       />

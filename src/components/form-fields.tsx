@@ -251,7 +251,6 @@ export function NamePair(props: {
         label={m.form_name_ru()}
         value={props.nameRu}
         pattern={CYRILLIC_NAME_PATTERN}
-        hint={m.form_name_ru_hint()}
         required
         maxlength={FIELD_MAX.line}
         invalid={props.invalid('nameRu')}
@@ -262,7 +261,6 @@ export function NamePair(props: {
         label={m.form_name_fi()}
         value={props.nameFi}
         pattern={LATIN_NAME_PATTERN}
-        hint={m.form_name_fi_hint()}
         maxlength={FIELD_MAX.line}
         invalid={props.invalid('nameFi')}
         onInput={(value) => props.onInput?.('nameFi', value)}

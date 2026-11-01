@@ -464,17 +464,34 @@ describe('editing a village', () => {
     expect(field('kind')).toHaveValue('village');
   });
 
-  test('choosing "Not located" unsets the coordinates', async () => {
+  test('removing the marker unsets the coordinates', async () => {
     await openGorki();
     expect(field('coordinates')).toHaveValue('59.613487, 30.22519');
     expect(screen.getByText('59.613487, 30.22519')).toBeInTheDocument();
-    fireEvent.change(field('coordinateStatus'), { target: { value: 'unknown' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove marker' }));
     await waitFor(() => expect(field('coordinates')).toHaveValue(''));
     expect(screen.getByText('Not located yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Remove marker' })).not.toBeInTheDocument();
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
     await waitFor(() => expect(places.saved).toHaveLength(1));
     expect(places.saved[0].get('coordinates')).toBe('');
     expect(places.saved[0].get('coordinateStatus')).toBe('unknown');
+  });
+
+  test('ticking the box marks the position verified; unticking it, approximate', async () => {
+    await openGorki();
+    const box = screen.getByRole('checkbox', { name: 'Position checked against sources' });
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    await waitFor(() => expect(field('coordinateStatus')).toHaveValue('verified'));
+    fireEvent.click(box);
+    await waitFor(() => expect(field('coordinateStatus')).toHaveValue('approximate'));
+    fireEvent.click(box);
+    await waitFor(() => expect(field('coordinateStatus')).toHaveValue('verified'));
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    await waitFor(() => expect(places.saved).toHaveLength(1));
+    expect(places.saved[0].get('coordinates')).toBe('59.613487, 30.22519');
+    expect(places.saved[0].get('coordinateStatus')).toBe('verified');
   });
 });
 
