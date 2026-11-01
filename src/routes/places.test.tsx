@@ -493,15 +493,17 @@ describe('editing a village', () => {
     expect(places.saved[0].get('coordinateStatus')).toBe('unknown');
   });
 
-  test('ticking the box marks the position verified; unticking it, approximate', async () => {
+  test('the position is approximate or verified, by its buttons', async () => {
     await openGorki();
-    const box = screen.getByRole('checkbox', { name: 'Position checked against sources' });
-    expect(box).not.toBeChecked();
-    fireEvent.click(box);
+    const approximate = screen.getByRole('button', { name: 'Approximate', pressed: true });
+    const verified = screen.getByRole('button', { name: 'Verified', pressed: false });
+    fireEvent.click(verified);
     await waitFor(() => expect(field('coordinateStatus')).toHaveValue('verified'));
-    fireEvent.click(box);
+    expect(verified).toHaveAttribute('aria-pressed', 'true');
+    expect(approximate).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(approximate);
     await waitFor(() => expect(field('coordinateStatus')).toHaveValue('approximate'));
-    fireEvent.click(box);
+    fireEvent.click(verified);
     await waitFor(() => expect(field('coordinateStatus')).toHaveValue('verified'));
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
     await waitFor(() => expect(places.saved).toHaveLength(1));
