@@ -317,7 +317,7 @@ describe('editing a village', () => {
     me.current = { isAdmin: true };
     renderAt(`/places/villages?q=${encodeURIComponent('горк')}`);
     fireEvent.click(await screen.findByRole('link', { name: 'Edit locality' }));
-    await screen.findByRole('heading', { level: 1, name: 'Edit locality' });
+    await screen.findByRole('combobox', { name: 'Find the locality' });
     await waitFor(() => expect(field('nameRu')).toHaveValue('Горки'));
     return document.querySelector('main form') as HTMLFormElement;
   }
@@ -397,7 +397,7 @@ describe('editing a village', () => {
   test('a new locality has nothing to delete', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/villages/new');
-    await screen.findByRole('heading', { level: 1, name: 'New locality' });
+    await screen.findByRole('combobox', { name: 'Find the locality' });
     await waitFor(() => expect(field('nameRu')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Delete locality' })).toBeNull();
   });
@@ -406,7 +406,7 @@ describe('editing a village', () => {
     me.current = { isAdmin: true };
     renderAt('/places/villages');
     fireEvent.click(await screen.findByRole('link', { name: 'Add locality' }));
-    await screen.findByRole('heading', { level: 1, name: 'New locality' });
+    await screen.findByRole('combobox', { name: 'Find the locality' });
     await waitFor(() => expect(field('nameRu')).toHaveValue(''));
     expect(field('kind')).toHaveValue('village');
     // Spellings come with records: nothing to edit on a new locality.
@@ -670,7 +670,7 @@ describe('/places/parishes', () => {
     me.current = { isAdmin: true };
     renderAt('/places/villages?parish=5');
     fireEvent.click(await screen.findByRole('link', { name: 'Add locality' }));
-    await screen.findByRole('heading', { level: 1, name: 'New locality' });
+    await screen.findByRole('combobox', { name: 'Find the locality' });
     await waitFor(() => expect(field('parishId')).toHaveValue('5'));
     expect(field('parishText')).toHaveValue('Hevaa'); // English shows the Finnish name
     expect(field('returnParish')).toHaveValue('5');

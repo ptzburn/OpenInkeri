@@ -65,13 +65,14 @@ const blank: PlaceEditData = {
  * server refuses keeps the form as typed, says why and marks the fields at fault.
  * An existing place's form is followed by its Delete section.
  *
- * The map is the page and the form a panel over it (MapPage): the heading,
- * the search, the coordinates the map sets, the fields, and Cancel and Save
- * pinned at the bottom; on a small screen, a sheet at the bottom of the map.
+ * The map is the page and the form a panel over it (MapPage), without a
+ * heading: the search, the coordinates the map sets, the fields, and Cancel
+ * and Save pinned at the bottom; on a small screen, a sheet at the bottom
+ * of the map.
  */
 export default function PlaceEditForm(props: {
   id?: number;
-  /** The page's heading, at the top of the panel. */
+  /** What the page is (the sheet's accessible name): there is no heading, the map is the page. */
   title: string;
   returnTo: { q?: string; parish?: string };
   cancelHref: string;
@@ -161,7 +162,7 @@ export default function PlaceEditForm(props: {
           return found ? { lat: found.latitude, lng: found.longitude } : null;
         };
         // Below lg the panel is a sheet at the bottom of the map: collapsed
-        // it shows the heading and the coordinates, with the map above; it
+        // it shows the coordinates, with the map above; it
         // opens (to most of the height) on its handle or as a field is
         // focused, and closes on the handle, for a tap on the map.
         const [open, setOpen] = createSignal(false, { name: 'place-sheet-open' });
@@ -199,7 +200,7 @@ export default function PlaceEditForm(props: {
                   open() ? 'max-lg:h-[88%]' : 'max-lg:h-1/3',
                   'lg:min-h-0 lg:flex-1',
                 ]}
-                aria-labelledby="place-form-title"
+                aria-label={props.title}
                 onFocusIn={() => setOpen(true)}
               >
                 <button
@@ -213,12 +214,6 @@ export default function PlaceEditForm(props: {
                 >
                   <span class="h-1.5 w-10 rounded-full bg-base-content/30" aria-hidden="true" />
                 </button>
-                <h1
-                  id="place-form-title"
-                  class="border-b border-base-300 px-4 py-3 text-2xl font-bold max-lg:pt-0"
-                >
-                  {props.title}
-                </h1>
                 <div class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-4 pt-4">
                   {/* While a save is in flight the router marks the form aria-busy. */}
                   <form method="post" action={savePlace} class="group flex flex-1 flex-col gap-4">
