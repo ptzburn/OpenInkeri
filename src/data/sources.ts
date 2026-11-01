@@ -26,6 +26,7 @@ import {
   version,
 } from '~/server/forms';
 import { adminOnly, signedIn } from '~/server/guards';
+import { namesOf } from '~/lib/format';
 import {
   type Created,
   createFlag,
@@ -91,7 +92,7 @@ export const getSources = query(async (): Promise<SourceRow[]> => {
   return sources
     .map(({ parish, ...s }) => ({
       ...s,
-      parish: parish ? { ru: parish.nameRu, fi: parish.nameFi } : null,
+      parish: namesOf(parish),
       records: records.get(s.id) ?? 0,
     }))
     .sort(

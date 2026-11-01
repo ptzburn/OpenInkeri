@@ -6,7 +6,7 @@ import { query } from '@solidjs/router';
 import { sql } from 'drizzle-orm';
 
 import { FIELD_MAX } from '~/lib/field-limits';
-import type { Names } from '~/lib/format';
+import { type Names, namesOf } from '~/lib/format';
 import { type GazetteerHit, type GazetteerKind, distanceKm, gazetteerKinds } from '~/lib/gazetteer';
 import { CYRILLIC_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import { foldForSearch } from '~/lib/search-text';
@@ -37,7 +37,7 @@ async function parishChurches() {
       ? [
           {
             id: p.id,
-            name: { ru: p.nameRu, fi: p.nameFi },
+            name: namesOf(p),
             latitude: p.church.latitude!,
             longitude: p.church.longitude!,
           },
@@ -69,7 +69,7 @@ async function knownPlaces(): Promise<Known[]> {
   });
   return places.map((p) => ({
     id: p.id,
-    name: { ru: p.nameRu, fi: p.nameFi },
+    name: namesOf(p),
     latitude: p.latitude!,
     longitude: p.longitude!,
   }));

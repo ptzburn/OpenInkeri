@@ -37,6 +37,7 @@ import {
 import { isAdmin } from '~/server/auth';
 import { adminOnly, signedIn } from '~/server/guards';
 import { createPersonFrom, linkStatements, linkTarget } from '~/server/link-person';
+import { namesOf } from '~/lib/format';
 
 export const PEOPLE_PAGE_SIZE = 50;
 
@@ -225,9 +226,9 @@ async function loadMentions(
       role: p.role,
       date: p.record.date,
       birthDate: p.role === 'child' ? (p.record.baptism?.birthDate ?? null) : null,
-      name: { ru: p.nameRu, fi: p.nameFi },
+      name: namesOf(p),
       age: p.ageText,
-      place: place ? { ru: place.nameRu, fi: place.nameFi } : null,
+      place: namesOf(place),
       placeAsWritten: p.residence ? p.residenceText : p.record.placeText,
     };
     return { mention, personId: p.personId, given: p.givenRu ?? p.givenFi };
@@ -277,9 +278,7 @@ export const getPerson = query(async (id: number): Promise<PersonData | null> =>
       recordId: p.recordId,
       role: p.role,
       personId: p.personId,
-      name: p.person
-        ? { ru: p.person.nameRu, fi: p.person.nameFi }
-        : { ru: p.nameRu, fi: p.nameFi },
+      name: p.person ? namesOf(p.person) : namesOf(p),
     })),
     (recordId) => years.get(recordId) ?? null,
   );
@@ -450,10 +449,7 @@ export const getPersonSuggestions = query(async (id: number): Promise<PersonSugg
   }
 
   const placeOf = new Map(
-    places.map((p) => [
-      p.id,
-      { id: p.id, name: { ru: p.nameRu, fi: p.nameFi }, lat: p.latitude, lon: p.longitude },
-    ]),
+    places.map((p) => [p.id, { id: p.id, name: namesOf(p), lat: p.latitude, lon: p.longitude }]),
   );
   const asMatch = ({ id, record, residenceId, ...p }: (typeof own)[number]): MatchMention => {
     const placeId = residenceId ?? record.placeId;

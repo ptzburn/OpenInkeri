@@ -11,7 +11,7 @@ import { eq } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { type PlaceKind, placeKinds } from '~/lib/place-kinds';
-import { rowsSpelled, spellingIndex } from '~/lib/spellings';
+import { rowsSpelled, spellingIndex, spellingsOf } from '~/lib/spellings';
 import { db } from '~/server/database';
 import { changeLog, clergy, parish, place, placeAlias, term } from '~/server/database/schema';
 import { finnishName, line, optionalId, parseForm, russianName } from '~/server/forms';
@@ -87,10 +87,6 @@ type Statement = Parameters<typeof db.batch>[0][number];
 const logCreate = (entity: string, entityId: number, after: object, by: By) =>
   db.insert(changeLog).values({ userId: by.userId, entity, entityId, action: 'create', after });
 
-const names = (...values: (string | null | undefined)[]) => [
-  ...new Set(values.filter((s): s is string => !!s)),
-];
-
 // The one row a value as written names, by the rows' names (and a
 // locality's spellings). The lookup field links by this rule as the admin
 // types; the saves apply it to a value posted without a link (before
@@ -107,7 +103,7 @@ export async function parishNamed(text: string): Promise<number | null> {
     columns: { id: true, nameRu: true, nameFi: true },
   });
   return theOne(
-    parishes.map((p) => ({ id: p.id, spellings: names(p.nameRu, p.nameFi) })),
+    parishes.map((p) => ({ id: p.id, spellings: spellingsOf(p.nameRu, p.nameFi) })),
     text,
   );
 }
@@ -121,7 +117,7 @@ export async function placeNamed(text: string): Promise<number | null> {
   return theOne(
     places.map((p) => ({
       id: p.id,
-      spellings: names(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
+      spellings: spellingsOf(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
     })),
     text,
   );
@@ -153,7 +149,7 @@ export async function createPlace(
     asWritten && asWritten !== fields.nameRu && asWritten !== fields.nameFi ? [asWritten] : [];
   return {
     id,
-    spellings: names(fields.nameRu, fields.nameFi, ...spellings),
+    spellings: spellingsOf(fields.nameRu, fields.nameFi, ...spellings),
     statements: [
       ...spellings.map((name) => db.insert(placeAlias).values({ placeId: id, name })),
       logCreate('place', id, { ...fields, spellings }, by),
@@ -172,7 +168,7 @@ export async function createClergy(
     .returning({ id: clergy.id });
   return {
     id: created.id,
-    spellings: names(fields.nameRu, fields.nameFi),
+    spellings: spellingsOf(fields.nameRu, fields.nameFi),
     statements: [logCreate('clergy', created.id, fields, by)],
     inserted: [{ table: 'clergy', id: created.id }],
   };
@@ -193,7 +189,7 @@ export async function createRelation(
   if (existing) {
     return {
       id: existing.id,
-      spellings: names(existing.ru, existing.fi, existing.en),
+      spellings: spellingsOf(existing.ru, existing.fi, existing.en),
       statements: [],
       inserted: [],
     };
@@ -205,7 +201,7 @@ export async function createRelation(
     .returning({ id: term.id });
   return {
     id: created.id,
-    spellings: names(fields.ru, fields.fi, fields.en),
+    spellings: spellingsOf(fields.ru, fields.fi, fields.en),
     statements: [logCreate('term', created.id, values, by)],
     inserted: [{ table: 'term', id: created.id }],
   };
@@ -238,7 +234,12 @@ export async function createParish(
     inserted.push(...village.inserted);
   }
   statements.push(logCreate('parish', created.id, { ...values, churchPlaceId }, by));
-  return { id: created.id, spellings: names(values.nameRu, values.nameFi), statements, inserted };
+  return {
+    id: created.id,
+    spellings: spellingsOf(values.nameRu, values.nameFi),
+    statements,
+    inserted,
+  };
 }
 
 const tables = { place, clergy, term, parish } as const;

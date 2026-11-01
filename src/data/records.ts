@@ -40,8 +40,8 @@ import {
 } from '~/lib/record-people';
 import { type NameLanguage, lastWord, splitName } from '~/lib/name-split';
 import { foldForSearch, searchTextOf } from '~/lib/search-text';
-import { rowsSpelled, spellingIndex } from '~/lib/spellings';
-import type { Names } from '~/lib/format';
+import { rowsSpelled, spellingIndex, spellingsOf } from '~/lib/spellings';
+import { type Names, namesOf } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -183,7 +183,7 @@ export const getRecords = query(
             ru: p.nameRu,
             fi: p.nameFi,
             age: p.ageText,
-            residence: p.residence ? { ru: p.residence.nameRu, fi: p.residence.nameFi } : null,
+            residence: namesOf(p.residence),
             residenceAsWritten: p.residenceText,
           }
         : null;
@@ -208,7 +208,7 @@ export const getRecords = query(
         burialDate: r.death?.burialDate ?? null,
         cause: r.death?.causeText ?? null,
         // Where the people lived; for a death, where it happened.
-        village: r.place ? { ru: r.place.nameRu, fi: r.place.nameFi } : null,
+        village: namesOf(r.place),
         villageAsWritten: r.placeText,
         child: named(r.personas, 'child'),
         father: named(r.personas, 'father'),
@@ -405,7 +405,7 @@ export const getRecordEdit = query(async (id: number): Promise<RecordEditData | 
             where: { id: { in: personIds } },
             columns: { id: true, nameRu: true, nameFi: true },
           })
-        ).map((p) => [p.id, { id: p.id, name: { ru: p.nameRu, fi: p.nameFi } }])
+        ).map((p) => [p.id, { id: p.id, name: namesOf(p) }])
       : [],
   );
   const personas: RecordEditPerson[] = mentions.map(({ personId, ...p }) => ({
@@ -463,30 +463,26 @@ export const getRecordEditOptions = query(async (): Promise<RecordEditOptionsDat
   return {
     places: places.map((p) => ({
       id: p.id,
-      name: { ru: p.nameRu, fi: p.nameFi },
-      parish: p.parish ? { ru: p.parish.nameRu, fi: p.parish.nameFi } : null,
-      spellings: spellings(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
+      name: namesOf(p),
+      parish: namesOf(p.parish),
+      spellings: spellingsOf(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
     })),
     clergy: clergy.map((c) => ({
       id: c.id,
-      name: { ru: c.nameRu, fi: c.nameFi },
-      spellings: spellings(c.nameRu, c.nameFi),
+      name: namesOf(c),
+      spellings: spellingsOf(c.nameRu, c.nameFi),
     })),
     relations: relations.map((t) => ({
       id: t.id,
       name: { ru: t.ru, fi: t.fi, en: t.en },
-      spellings: spellings(t.ru, t.fi, t.en),
+      spellings: spellingsOf(t.ru, t.fi, t.en),
     })),
     sources,
-    parishes: parishes.map((p) => ({ id: p.id, name: { ru: p.nameRu, fi: p.nameFi } })),
+    parishes: parishes.map((p) => ({ id: p.id, name: namesOf(p) })),
   };
 }, 'record-edit-options');
 
 // A row's names and spellings, each once.
-const spellings = (...names: (string | null)[]) => [
-  ...new Set(names.filter((name): name is string => !!name)),
-];
-
 // --- The form ----------------------------------------------------------------------
 
 // A <select> of fixed values, where '' is "none".
@@ -742,14 +738,14 @@ async function linkSpellings(input: Values) {
     place: spellingIndex(
       places.map((p) => ({
         id: p.id,
-        spellings: spellings(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
+        spellings: spellingsOf(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
       })),
     ),
     relation: spellingIndex(
-      relations.map((t) => ({ id: t.id, spellings: spellings(t.ru, t.fi, t.en) })),
+      relations.map((t) => ({ id: t.id, spellings: spellingsOf(t.ru, t.fi, t.en) })),
     ),
     clergy: spellingIndex(
-      clergymen.map((c) => ({ id: c.id, spellings: spellings(c.nameRu, c.nameFi) })),
+      clergymen.map((c) => ({ id: c.id, spellings: spellingsOf(c.nameRu, c.nameFi) })),
     ),
   };
   for (const { idKey, text, table } of unlinked) {

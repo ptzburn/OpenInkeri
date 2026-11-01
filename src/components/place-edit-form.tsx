@@ -2,7 +2,7 @@ import { Show, createMemo, createSignal } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
-import { localName, placeInUse } from '~/lib/format';
+import { localName, namesOf, placeInUse } from '~/lib/format';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
 import {
   DeleteSection,
@@ -320,7 +320,7 @@ export default function PlaceEditForm(props: {
                 title={m.place_delete()}
                 text={m.place_delete_text()}
                 inUse={placeInUse(p)}
-                deleted={m.place_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
+                deleted={m.place_deleted({ name: localName(namesOf(p)) })}
               >
                 {/* Back to the list as it was, like a save. */}
                 <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />

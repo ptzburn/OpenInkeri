@@ -98,6 +98,24 @@ export function localName(names: { ru: string | null; fi: string | null } | null
 /** A row's names in both languages, as the option lists carry them. */
 export type Names = { ru: string; fi: string | null };
 
+/** A row's names as the pages take them, from its nameRu and nameFi columns; null for no row. */
+export function namesOf<R extends string | null>(row: {
+  nameRu: R;
+  nameFi: string | null;
+}): { ru: R; fi: string | null };
+export function namesOf<R extends string | null>(
+  row: { nameRu: R; nameFi: string | null } | null | undefined,
+): { ru: R; fi: string | null } | null;
+export function namesOf(
+  row: { nameRu: string | null; nameFi: string | null } | null | undefined,
+): { ru: string | null; fi: string | null } | null {
+  return row ? { ru: row.nameRu, fi: row.nameFi } : null;
+}
+
+/** Rows by Russian name, as the lists sort them. */
+export const byRussianName = (a: { nameRu: string }, b: { nameRu: string }) =>
+  a.nameRu.localeCompare(b.nameRu, 'ru');
+
 /**
  * A locality as a form's choice: its name in the reader's language, with
  * its parish's when that isn't the same name ("Горки (Губаницы)").

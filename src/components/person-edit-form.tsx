@@ -14,7 +14,7 @@ import {
 import { sexLabels } from '~/components/labels';
 import { useToast } from '~/components/toaster';
 import { deletePerson, getPersonEdit, savePerson } from '~/data/people';
-import { PARTIAL_DATE_PATTERN, formatPartialDate, localName } from '~/lib/format';
+import { PARTIAL_DATE_PATTERN, formatPartialDate, localName, namesOf } from '~/lib/format';
 import { sexes } from '~/lib/record-kinds';
 import { m } from '~/paraglide/messages.js';
 
@@ -122,7 +122,7 @@ export default function PersonEditForm(props: { id: number; cancelHref: string }
             title={m.person_delete()}
             text={m.person_delete_text({ count: p.mentions })}
             inUse={undefined}
-            deleted={m.person_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
+            deleted={m.person_deleted({ name: localName(namesOf(p)) })}
           />
         </>
       )}

@@ -3,7 +3,7 @@ import { Show, createMemo } from 'solid-js';
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
-import { localName, parishInUse, placeLabel } from '~/lib/format';
+import { localName, namesOf, parishInUse, placeLabel } from '~/lib/format';
 import {
   DeleteSection,
   FormActions,
@@ -150,7 +150,7 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
               title={m.parish_delete()}
               text={m.parish_delete_text()}
               inUse={parishInUse(p)}
-              deleted={m.parish_deleted({ name: localName({ ru: p.nameRu, fi: p.nameFi }) })}
+              deleted={m.parish_deleted({ name: localName(namesOf(p)) })}
             />
           </Show>
         </>

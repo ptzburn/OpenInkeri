@@ -26,3 +26,8 @@ export function rowsSpelled(index: SpellingIndex, text: string | null | undefine
   const key = text ? foldForSearch(text) : '';
   return key ? (index.get(key) ?? []) : [];
 }
+
+/** A row's spellings from its names (and aliases): the ones there are, each once, in the order given. */
+export const spellingsOf = (...values: (string | null | undefined)[]): string[] => [
+  ...new Set(values.filter((s): s is string => !!s)),
+];

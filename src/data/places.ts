@@ -18,7 +18,7 @@ import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
 import { parseCoordinates } from '~/lib/coordinates';
-import { type Names, placeInUse } from '~/lib/format';
+import { type Names, byRussianName, namesOf, placeInUse } from '~/lib/format';
 import {
   type CoordinateStatus,
   type PlaceKind,
@@ -52,6 +52,7 @@ import {
   text,
   version,
 } from '~/server/forms';
+import { spellingsOf } from '~/lib/spellings';
 import { adminOnly, signedIn } from '~/server/guards';
 import {
   type Created,
@@ -152,11 +153,11 @@ export const getPlaces = query(async (): Promise<PlaceListData> => {
     places: places
       .map(({ parish, aliases, ...p }) => ({
         ...p,
-        parish: parish ? { ru: parish.nameRu, fi: parish.nameFi } : null,
+        parish: namesOf(parish),
         spellings: aliases.map((a) => a.name),
         records: counts.get(p.id) ?? 0,
       }))
-      .sort((a, b) => a.nameRu.localeCompare(b.nameRu, 'ru')),
+      .sort(byRussianName),
     unlinked: unlinked
       .filter((row): row is { text: string; records: number } => !!row.text)
       .sort((a, b) => b.records - a.records || a.text.localeCompare(b.text, 'ru')),
@@ -254,12 +255,10 @@ export const getPlaceMarkers = query(async (): Promise<PlaceMarker[]> => {
       where: { churchPlaceId: { isNotNull: true as const } },
     }),
   ]);
-  const churchOf = new Map(
-    parishes.map((p) => [p.churchPlaceId!, { id: p.id, name: { ru: p.nameRu, fi: p.nameFi } }]),
-  );
+  const churchOf = new Map(parishes.map((p) => [p.churchPlaceId!, { id: p.id, name: namesOf(p) }]));
   return places.map((p) => ({
     id: p.id,
-    name: { ru: p.nameRu, fi: p.nameFi },
+    name: namesOf(p),
     latitude: p.latitude!,
     longitude: p.longitude!,
     church: churchOf.get(p.id) ?? null,
@@ -280,12 +279,10 @@ export const getPlaceOptions = query(async (): Promise<PlaceOption[]> => {
   });
   return places.map((p) => ({
     id: p.id,
-    name: { ru: p.nameRu, fi: p.nameFi },
+    name: namesOf(p),
     parishId: p.parishId,
-    parish: p.parish ? { ru: p.parish.nameRu, fi: p.parish.nameFi } : null,
-    spellings: [
-      ...new Set([p.nameRu, ...(p.nameFi ? [p.nameFi] : []), ...p.aliases.map((a) => a.name)]),
-    ],
+    parish: namesOf(p.parish),
+    spellings: spellingsOf(p.nameRu, p.nameFi, ...p.aliases.map((a) => a.name)),
   }));
 }, 'place-options');
 

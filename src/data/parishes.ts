@@ -7,7 +7,7 @@ import { redirect } from '@solidjs/web';
 import { and, count, eq, isNotNull } from 'drizzle-orm';
 import * as v from 'valibot';
 
-import { type Names, parishInUse } from '~/lib/format';
+import { type Names, byRussianName, namesOf, parishInUse } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -24,6 +24,7 @@ import {
   text,
   version,
 } from '~/server/forms';
+import { spellingsOf } from '~/lib/spellings';
 import { adminOnly, signedIn } from '~/server/guards';
 import {
   type Created,
@@ -92,7 +93,7 @@ export const getParishes = query(async (): Promise<ParishRow[]> => {
       villages: placeCounts.get(p.id) ?? 0,
       sources: sourceCounts.get(p.id) ?? 0,
     }))
-    .sort((a, b) => a.nameRu.localeCompare(b.nameRu, 'ru'));
+    .sort(byRussianName);
 }, 'parishes');
 
 /** The parishes a place or source can belong to, for the forms' choices. */
@@ -105,8 +106,8 @@ export const getParishOptions = query(async (): Promise<ParishOption[]> => {
   });
   return parishes.map((p) => ({
     id: p.id,
-    name: { ru: p.nameRu, fi: p.nameFi },
-    spellings: p.nameFi ? [p.nameRu, p.nameFi] : [p.nameRu],
+    name: namesOf(p),
+    spellings: spellingsOf(p.nameRu, p.nameFi),
   }));
 }, 'parish-options');
 
