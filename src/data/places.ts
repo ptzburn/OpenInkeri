@@ -382,18 +382,18 @@ export const savePlace = action(async (formData: FormData) => {
     parishId = created.id;
   }
 
-  const coordinateStatus: CoordinateStatus = !input.coordinates
-    ? 'unknown'
-    : input.coordinateStatus === 'unknown'
-      ? 'approximate'
-      : input.coordinateStatus;
+  // "Not located" unsets the coordinates (the form does that as the status
+  // is chosen; this covers a form posted before JavaScript loaded), and no
+  // coordinates means not located.
+  const coordinates = input.coordinateStatus === 'unknown' ? null : input.coordinates;
+  const coordinateStatus: CoordinateStatus = coordinates ? input.coordinateStatus : 'unknown';
   const fields = {
     kind: input.kind,
     nameRu: input.nameRu,
     nameFi: input.nameFi,
     parishId,
-    latitude: input.coordinates?.lat ?? null,
-    longitude: input.coordinates?.lng ?? null,
+    latitude: coordinates?.lat ?? null,
+    longitude: coordinates?.lng ?? null,
     coordinateStatus,
     note: input.note,
   };

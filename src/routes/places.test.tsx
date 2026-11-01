@@ -458,6 +458,19 @@ describe('editing a village', () => {
     expect(places.saved[0].get('coordinates')).toBe('59.4880048, 29.5348549');
     expect(places.saved[0].get('parishId')).toBe('5');
   });
+
+  test('choosing "Not located" unsets the coordinates', async () => {
+    await openGorki();
+    expect(field('coordinates')).toHaveValue('59.613487, 30.22519');
+    expect(screen.getByText('59.613487, 30.22519')).toBeInTheDocument();
+    fireEvent.change(field('coordinateStatus'), { target: { value: 'unknown' } });
+    await waitFor(() => expect(field('coordinates')).toHaveValue(''));
+    expect(screen.getByText('Not located yet.')).toBeInTheDocument();
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    await waitFor(() => expect(places.saved).toHaveLength(1));
+    expect(places.saved[0].get('coordinates')).toBe('');
+    expect(places.saved[0].get('coordinateStatus')).toBe('unknown');
+  });
 });
 
 describe('/places/parishes', () => {

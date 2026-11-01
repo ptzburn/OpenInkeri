@@ -282,7 +282,6 @@
   "place_edit_parish": "Приход",
   "place_edit_coordinates": "Координаты",
   "place_edit_coordinates_none": "Пока не на карте.",
-  "place_edit_coordinates_clear": "Убрать",
   "place_edit_map_hint": "Нажмите на карту, чтобы задать координаты, или перетащите метку.",
   "place_search_label": "Найти населённый пункт",
   "place_search_placeholder": "Название по-русски или по-фински",

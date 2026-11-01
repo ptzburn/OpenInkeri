@@ -1,5 +1,4 @@
 import { Show, createMemo, createSignal } from 'solid-js';
-import MapIcon from '~icons/ri/map-pin-2-line';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
@@ -22,7 +21,7 @@ import { type Lookup, LookupField, lookupOf } from '~/components/lookup-field';
 import LocationPicker from '~/components/location-picker';
 import { NewParishFields } from '~/components/new-row-fields';
 import PlaceSearch from '~/components/place-search';
-import { formatCoordinates, mapLink, parseCoordinates } from '~/lib/coordinates';
+import { formatCoordinates, parseCoordinates } from '~/lib/coordinates';
 import { type GazetteerHit, placeKindOf } from '~/lib/gazetteer';
 import {
   type CoordinateStatus,
@@ -195,7 +194,8 @@ export default function PlaceEditForm(props: {
                   />
                   {/* The coordinates the map or the search set, posted
                       hidden: nobody types them. Under the map they read
-                      back, with a link to check them and a way to unset. */}
+                      back; "Not located" unsets them (the server does the
+                      same for a form posted without JavaScript). */}
                   <input type="hidden" name="coordinates" value={coordinates()} />
                   <div class="grid gap-x-4 sm:grid-cols-2">
                     <div class="fieldset">
@@ -208,33 +208,7 @@ export default function PlaceEditForm(props: {
                           </p>
                         }
                       >
-                        {(at) => (
-                          <p class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2 text-sm">
-                            <span class="font-medium tabular-nums">{coordinates()}</span>
-                            <a
-                              href={mapLink(at().lat, at().lng)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="link"
-                            >
-                              <MapIcon
-                                class="mr-1 inline size-4 align-text-bottom"
-                                aria-hidden="true"
-                              />
-                              {m.villages_show_on_map()}
-                            </a>
-                            <button
-                              type="button"
-                              class="link link-hover"
-                              onClick={() => {
-                                setCoordinates('');
-                                setCoordinateStatus('unknown');
-                              }}
-                            >
-                              {m.place_edit_coordinates_clear()}
-                            </button>
-                          </p>
-                        )}
+                        <p class="py-2 text-sm font-medium tabular-nums">{coordinates()}</p>
                       </Show>
                       <Show when={invalid('coordinates') !== undefined}>
                         <p class="text-sm text-error">
@@ -251,6 +225,10 @@ export default function PlaceEditForm(props: {
                         label: coordinateStatusLabels[s](),
                       }))}
                       invalid={invalid('coordinateStatus')}
+                      onChange={(status) => {
+                        setCoordinateStatus(status as CoordinateStatus);
+                        if (status === 'unknown') setCoordinates('');
+                      }}
                     />
                   </div>
                 </div>

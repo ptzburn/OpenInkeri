@@ -256,6 +256,8 @@ export function Select(props: {
   options: Option[];
   none?: string;
   invalid: Fault;
+  /** Told the value chosen, for a form that follows it (the coordinates' status). */
+  onChange?: (value: string) => void;
 }) {
   const current = () => String(props.value ?? '');
   return (
@@ -265,6 +267,7 @@ export function Select(props: {
         name={props.name}
         class="validator select w-full"
         aria-invalid={ariaInvalid(props.invalid)}
+        onChange={(event) => props.onChange?.(event.currentTarget.value)}
       >
         <Show when={props.none}>
           {(label) => (

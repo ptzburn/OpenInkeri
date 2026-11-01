@@ -280,7 +280,6 @@
   "place_edit_parish": "Seurakunta",
   "place_edit_coordinates": "Koordinaatit",
   "place_edit_coordinates_none": "Ei vielä kartalla.",
-  "place_edit_coordinates_clear": "Poista",
   "place_edit_map_hint": "Aseta koordinaatit napsauttamalla karttaa tai vetämällä merkkiä.",
   "place_search_label": "Etsi paikkakunta",
   "place_search_placeholder": "Nimi venäjäksi tai suomeksi",
