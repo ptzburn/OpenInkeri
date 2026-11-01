@@ -8,7 +8,6 @@ import { and, count, eq, isNotNull } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { type Names, parishInUse } from '~/lib/format';
-import { rowsSpelled, spellingIndex } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -33,6 +32,7 @@ import {
   deleteCreated,
   newPlace,
   parseNewRow,
+  placeNamed,
 } from '~/server/linked-rows';
 
 // The read functions' results, spelled out: the pages' types feed the
@@ -195,20 +195,7 @@ export const saveParish = action(async (formData: FormData) => {
     throw refuse({ message: m.form_invalid(), fields: { churchPlaceId: '' } }, 400);
   }
   if (!fields.churchPlaceId && churchText) {
-    const places = await db.query.place.findMany({
-      columns: { id: true, nameRu: true, nameFi: true },
-      with: { aliases: { columns: { name: true } } },
-    });
-    const named = rowsSpelled(
-      spellingIndex(
-        places.map((p) => ({
-          id: p.id,
-          spellings: [p.nameRu, ...(p.nameFi ? [p.nameFi] : []), ...p.aliases.map((a) => a.name)],
-        })),
-      ),
-      churchText,
-    );
-    if (named.length === 1) fields.churchPlaceId = named[0];
+    fields.churchPlaceId = await placeNamed(churchText);
   }
   const church =
     !fields.churchPlaceId && churchText && churchCreate

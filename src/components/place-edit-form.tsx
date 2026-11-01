@@ -90,7 +90,7 @@ export default function PlaceEditForm(props: {
         {
           label: m.lookup_create_parish(),
           fields: (prefix, text) => (
-            <NewParishFields prefix={prefix} text={text} invalid={invalid} church={false} />
+            <NewParishFields prefix={prefix} text={text()} invalid={invalid} church={false} />
           ),
         },
       ),

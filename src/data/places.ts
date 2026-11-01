@@ -60,9 +60,9 @@ import {
   deleteCreated,
   insertPlace,
   newParish,
+  parishNamed,
   parseNewRow,
 } from '~/server/linked-rows';
-import { rowsSpelled, spellingIndex } from '~/lib/spellings';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -334,21 +334,7 @@ export const savePlace = action(async (formData: FormData) => {
   ) {
     throw refuse({ message: m.form_invalid(), fields: { parishId: '' } }, 400);
   }
-  if (!parishId && input.parishText) {
-    const parishes = await db.query.parish.findMany({
-      columns: { id: true, nameRu: true, nameFi: true },
-    });
-    const named = rowsSpelled(
-      spellingIndex(
-        parishes.map((p) => ({
-          id: p.id,
-          spellings: p.nameFi ? [p.nameRu, p.nameFi] : [p.nameRu],
-        })),
-      ),
-      input.parishText,
-    );
-    if (named.length === 1) parishId = named[0];
-  }
+  if (!parishId && input.parishText) parishId = await parishNamed(input.parishText);
   const now = new Date();
   const createdRows: Created[] = [];
   if (!parishId && input.parishText && input.parishCreate) {

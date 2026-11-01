@@ -17,7 +17,12 @@ const lookup = lookupOf([
 // The same, where a locality not known yet can be added by its Russian name.
 const lookupWithCreate = lookupOf(lookup.options, {
   label: 'Add as a new locality',
-  fields: (prefix, text) => <input name={`${prefix}.nameRu`} value={text} />,
+  fields: (prefix, text) => (
+    <>
+      <input name={`${prefix}.nameRu`} value={text()} />
+      <input name={`${prefix}.nameFi`} aria-label="Finnish name" />
+    </>
+  ),
 });
 
 function renderField(text: string | null = null, id: number | null = null, create = false) {
@@ -182,6 +187,15 @@ describe('LookupField', () => {
         expect(screen.getByText('Add as a new locality')).toBeInTheDocument();
         expect(document.querySelector('[name="placeCreate"]')).toHaveValue('on');
         expect(document.querySelector('[name="placeNew.nameRu"]')).toHaveValue('Новая');
+        // Typing on keeps the fields, and what was typed in them: only the
+        // prefilled value follows.
+        const finnish = screen.getByLabelText('Finnish name') as HTMLInputElement;
+        fireEvent.input(finnish, { target: { value: 'Uusi' } });
+        fireEvent.input(input, { target: { value: 'Новая д' } });
+        flush();
+        expect(document.querySelector('[name="placeNew.nameRu"]')).toHaveValue('Новая д');
+        expect(screen.getByLabelText('Finnish name')).toBe(finnish);
+        expect(finnish).toHaveValue('Uusi');
         fireEvent.input(input, { target: { value: 'Горки' } });
         flush();
         expect(id()).toBe('1');

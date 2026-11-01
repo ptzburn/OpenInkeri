@@ -273,18 +273,20 @@ export function Select(props: {
   );
 }
 
-/**
- * An edit page's Delete section, for an action whose form posts `id`,
- * `version` and a ticked `confirm` box (a box instead of a confirm dialog,
- * so it works before JavaScript loads too; the server checks it again).
- * While something still depends on the row, `inUse` says what, and the box
- * and button are disabled (the server refuses too, in case something was
- * linked since the page loaded). A delete that went through shows `deleted`
- * as a toast on the page its action redirects to.
- */
 /** Whether this browser runs invoker commands (commandfor/command) itself. */
 const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype;
 
+/**
+ * An edit page's Delete section, for an action whose form posts `id`,
+ * `version` and `confirm=on`. Its button opens a native modal dialog
+ * (daisyUI's modal) through invoker commands, where Cancel, Escape and the
+ * backdrop close it and the dialog's form posts the delete; the server
+ * checks the confirmation again. While something still depends on the row,
+ * `inUse` says what, and the button is disabled (the server refuses too, in
+ * case something was linked since the page loaded). A refused delete closes
+ * the dialog and says why in the section. A delete that went through shows
+ * `deleted` as a toast on the page its action redirects to.
+ */
 export function DeleteSection<U>(props: {
   action: Action<[FormData], U>;
   id: number;

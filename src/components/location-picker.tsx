@@ -29,9 +29,10 @@ function webglSupported() {
   }
 }
 
-// daisyUI's theme-controller box (ThemeSwitcher): checked is dark.
-const themeBox = () => document.querySelector<HTMLInputElement>('input.theme-controller');
-const styleFor = () => (themeBox()?.checked ? STYLE.dark : STYLE.light);
+// The theme in force, read off the document: daisyUI's dark theme sets
+// color-scheme: dark, however it was chosen (here, ThemeSwitcher's box).
+const styleFor = () =>
+  getComputedStyle(document.documentElement).colorScheme === 'dark' ? STYLE.dark : STYLE.light;
 
 /**
  * A map to pick a locality's coordinates on: a click sets them, the marker
@@ -45,7 +46,7 @@ export default function LocationPicker(props: {
   onPick: (lat: number, lng: number) => void;
 }) {
   let container: HTMLDivElement | undefined;
-  const [map, setMap] = createSignal<MapLibreMap>();
+  const [map, setMap] = createSignal<MapLibreMap | undefined>(undefined, { name: 'map' });
   const [unsupported, setUnsupported] = createSignal(false, { name: 'map-unsupported' });
   let marker: Marker | undefined;
   const coordinates = () => parseCoordinates(props.value) ?? null;
@@ -60,15 +61,20 @@ export default function LocationPicker(props: {
     }
     let disposed = false;
     let created: MapLibreMap | undefined;
-    const box = themeBox();
-    const restyle = () => created?.setStyle(styleFor());
+    // The style follows the theme. A control that changes it fires change on
+    // the document, as the form's own fields do: only a changed theme restyles.
+    let style = styleFor();
+    const restyle = () => {
+      const next = styleFor();
+      if (next !== style) created?.setStyle((style = next));
+    };
     void import('maplibre-gl').then(({ Map, Marker, NavigationControl, setWorkerUrl }) => {
       if (disposed || !container) return;
       setWorkerUrl(workerUrl);
       const at = coordinates();
       created = new Map({
         container,
-        style: styleFor(),
+        style,
         center: at ? [at.lng, at.lat] : INGRIA.center,
         zoom: at ? PLACE_ZOOM : INGRIA.zoom,
         attributionControl: { compact: true },
@@ -81,13 +87,12 @@ export default function LocationPicker(props: {
         onPick(round(lat), round(lng));
       });
       marker = pin;
-      // The style follows the theme switch.
-      box?.addEventListener('change', restyle);
+      document.addEventListener('change', restyle);
       setMap(created);
     });
     return () => {
       disposed = true;
-      box?.removeEventListener('change', restyle);
+      document.removeEventListener('change', restyle);
       created?.remove();
     };
   });

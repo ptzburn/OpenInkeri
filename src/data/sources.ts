@@ -10,7 +10,6 @@ import { and, count, eq } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { type RecordKind, recordKinds, sourceLanguages } from '~/lib/record-kinds';
-import { rowsSpelled, spellingIndex } from '~/lib/spellings';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
@@ -33,6 +32,7 @@ import {
   createParish,
   deleteCreated,
   newParish,
+  parishNamed,
   parseNewRow,
 } from '~/server/linked-rows';
 
@@ -210,21 +210,7 @@ export const saveSource = action(async (formData: FormData) => {
   ) {
     throw refuse({ message: m.form_invalid(), fields: { parishId: '' } }, 400);
   }
-  if (!fields.parishId && parishText) {
-    const parishes = await db.query.parish.findMany({
-      columns: { id: true, nameRu: true, nameFi: true },
-    });
-    const named = rowsSpelled(
-      spellingIndex(
-        parishes.map((p) => ({
-          id: p.id,
-          spellings: p.nameFi ? [p.nameRu, p.nameFi] : [p.nameRu],
-        })),
-      ),
-      parishText,
-    );
-    if (named.length === 1) fields.parishId = named[0];
-  }
+  if (!fields.parishId && parishText) fields.parishId = await parishNamed(parishText);
 
   const now = new Date();
   const stamp = { updatedAt: now, updatedBy: user.id };

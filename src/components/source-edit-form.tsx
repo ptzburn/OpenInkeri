@@ -75,7 +75,7 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
         {
           label: m.lookup_create_parish(),
           fields: (prefix, text) => (
-            <NewParishFields prefix={prefix} text={text} invalid={invalid} />
+            <NewParishFields prefix={prefix} text={text()} invalid={invalid} />
           ),
         },
       ),
