@@ -1,4 +1,4 @@
-import { Show, createMemo, createSignal } from 'solid-js';
+import { Show, createMemo, createSignal, untrack } from 'solid-js';
 import ArrowIcon from '~icons/ri/arrow-right-s-line';
 
 import type { QueryData } from '~/lib/query-data';
@@ -147,6 +147,27 @@ export default function ParishEditForm(props: {
         );
         // A new church is being added: the map places it.
         const adding = () => addsRow(churchLookup(), churchTyped(), churchLinked());
+        // The localities on the map as this form would leave them: the
+        // church locality linked drawn as this parish's church, and the one
+        // it was, if another, as a plain locality. The parish's names as
+        // loaded (or typed, for a new one) name it; typing them redraws
+        // nothing.
+        const shown = createMemo(
+          () => {
+            const linked = churchLinked();
+            const parish = {
+              id: p.id,
+              name: untrack(() => ({ ru: nameRu(), fi: nameFi() })),
+            };
+            return (markers() ?? []).map((n) => {
+              const isChurch = n.id === linked;
+              const wasChurch = !!p.id && n.church?.id === p.id;
+              if (isChurch === wasChurch) return n;
+              return { ...n, church: isChurch ? parish : null };
+            });
+          },
+          { name: 'parish-map-markers' },
+        );
         // The church linked, on the map: where the view goes.
         const church = () => {
           const at = (markers() ?? []).find((n) => n.id === churchLinked());
@@ -178,7 +199,7 @@ export default function ParishEditForm(props: {
                 onPick={(lat, lng) => {
                   if (adding()) location.set(lat, lng);
                 }}
-                markers={markers()}
+                markers={shown()}
                 highlight={p.id || null}
                 target={target()}
                 focus={church()}
