@@ -121,6 +121,41 @@ describe('LookupField', () => {
     expect(screen.queryByRole('listbox')).toBeNull();
   });
 
+  test('a field that only names its row shows a row picked from the list by its name', () => {
+    // As an English reader sees them: the name in Finnish, the parish beside it.
+    const named = lookupOf([
+      { value: 1, label: 'Gorkka (Kupanitsa)', name: 'Gorkka', spellings: ['Горки', 'Gorkka'] },
+      {
+        value: 2,
+        label: 'Volkova (Kupanitsa)',
+        name: 'Volkova',
+        spellings: ['Волгово', 'Volkova'],
+      },
+    ]);
+    render(() => (
+      <form>
+        <LookupField
+          textName="churchText"
+          idName="churchPlaceId"
+          label="Church"
+          text={null}
+          id={null}
+          lookup={named}
+          invalid={() => undefined}
+          linksOnly
+        />
+      </form>
+    ));
+    const input = screen.getByRole('combobox', { name: 'Church' });
+    fireEvent.focus(input);
+    flush();
+    fireEvent.click(within(screen.getByRole('listbox')).getByText('Gorkka (Kupanitsa)'));
+    flush();
+    // Not its first spelling (the Russian name), nor the label with its parish.
+    expect(input).toHaveValue('Gorkka');
+    expect(document.querySelector('[name="churchPlaceId"]')).toHaveValue('1');
+  });
+
   test('a text matching nothing lists nothing; the chevron browses every row', () => {
     const { input, id, options } = renderField('Горкка', 1);
     expect(input).toHaveValue('Горкка');

@@ -339,21 +339,27 @@ export const placeLookup = (
     onFound?: (hit: GazetteerHit) => void;
   } = {},
 ): Lookup =>
-  lookupRows(places, placeLabel, {
-    label: added.plain ? undefined : m.lookup_create_place(),
-    fields: (prefix, text) => (
-      <NewPlaceFields
-        prefix={prefix}
-        text={text()}
-        plain={added.plain}
-        labels={added.labels}
-        kind={added.kind?.(prefix)}
-        parishes={added.parishes?.()}
-        parishId={added.parishId?.()}
-        start={added.start?.()}
-        location={added.location}
-        invalid={invalid}
-        onFound={added.onFound}
-      />
-    ),
-  });
+  lookupRows(
+    places,
+    placeLabel,
+    {
+      label: added.plain ? undefined : m.lookup_create_place(),
+      fields: (prefix, text) => (
+        <NewPlaceFields
+          prefix={prefix}
+          text={text()}
+          plain={added.plain}
+          labels={added.labels}
+          kind={added.kind?.(prefix)}
+          parishes={added.parishes?.()}
+          parishId={added.parishId?.()}
+          start={added.start?.()}
+          location={added.location}
+          invalid={invalid}
+          onFound={added.onFound}
+        />
+      ),
+    },
+    // Named without the parish the label adds.
+    (p) => localName(p.name),
+  );

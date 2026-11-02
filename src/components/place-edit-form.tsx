@@ -265,6 +265,7 @@ export default function PlaceEditForm(props: {
                 />
                 <LookupField
                   textName="parishText"
+                  linksOnly
                   maxlength={FIELD_MAX.line}
                   idName="parishId"
                   label={m.place_edit_parish()}

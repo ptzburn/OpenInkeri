@@ -195,6 +195,7 @@ export default function ParishEditForm(props: {
               <div class="sm:col-span-2">
                 <LookupField
                   textName="churchText"
+                  linksOnly
                   maxlength={FIELD_MAX.line}
                   idName="churchPlaceId"
                   label={m.parish_church()}
@@ -202,8 +203,6 @@ export default function ParishEditForm(props: {
                   id={churchId()}
                   lookup={churchLookup()}
                   invalid={invalid}
-                  // While a church is added, its own fields say what it is.
-                  hint={adding() ? undefined : m.parish_church_hint()}
                   onChange={({ text, id }) => {
                     setChurchTyped(text);
                     setChurchLinked(id);

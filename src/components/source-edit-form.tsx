@@ -122,6 +122,7 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
               </label>
               <LookupField
                 textName="parishText"
+                linksOnly
                 maxlength={FIELD_MAX.line}
                 idName="parishId"
                 label={m.sources_col_parish()}

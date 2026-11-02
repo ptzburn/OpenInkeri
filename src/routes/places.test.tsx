@@ -618,7 +618,7 @@ describe('/places/parishes', () => {
       field('churchNew.nameFi'),
     );
     expect(screen.getByLabelText(/^Church locality type/)).toBe(field('churchNew.kind'));
-    expect(screen.queryByText('The locality the parish church stands in')).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Church locality' })).toBe(field('churchText'));
     expect(field('churchCreate')).toHaveValue('on');
     expect(field('churchNew.nameFi')).toHaveValue('');
     expect(field('churchNew.kind')).toHaveValue('village');
@@ -638,7 +638,7 @@ describe('/places/parishes', () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/new');
     await waitFor(() => expect(field('churchText')).toBeInTheDocument());
-    const search = screen.getByRole('combobox', { name: 'Find the church' });
+    const search = screen.getByRole('combobox', { name: 'Find the church locality' });
     fireEvent.input(search, { target: { value: 'kupa' } });
     const option = await screen.findByRole('option', { name: /Губаницы/ });
     fireEvent.click(within(option).getByText('Губаницы'));
@@ -675,7 +675,7 @@ describe('/places/parishes', () => {
     renderAt('/places/parishes/new');
     await waitFor(() => expect(field('churchText')).toBeInTheDocument());
     fireEvent.input(field('nameRu'), { target: { value: 'Тест' } });
-    fireEvent.input(screen.getByRole('combobox', { name: 'Find the church' }), {
+    fireEvent.input(screen.getByRole('combobox', { name: 'Find the church locality' }), {
       target: { value: 'kupa' },
     });
     const option = await screen.findByRole('option', { name: /Губаницы/ });

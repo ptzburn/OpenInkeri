@@ -14,6 +14,8 @@ import { m } from '~/paraglide/messages.js';
 export interface LookupOption {
   value: number;
   label: string;
+  /** Its name in the reader's language, where the label says more (a locality's parish); the label otherwise. */
+  name?: string;
   spellings: string[];
 }
 
@@ -50,14 +52,24 @@ export const lookupOf = (options: LookupOption[], create?: LookupCreate): Lookup
   create,
 });
 
-/** A lookup over rows as the option queries list them (an id and spellings), each labelled by `label`; none while they load. */
+/**
+ * A lookup over rows as the option queries list them (an id and spellings),
+ * each labelled by `label` and, where the label says more than the name,
+ * named by `name`; none while they load.
+ */
 export const lookupRows = <R extends { id: number; spellings: string[] }>(
   rows: R[] | undefined,
   label: (row: R) => string,
   create?: LookupCreate,
+  name?: (row: R) => string,
 ): Lookup =>
   lookupOf(
-    (rows ?? []).map((row) => ({ value: row.id, label: label(row), spellings: row.spellings })),
+    (rows ?? []).map((row) => ({
+      value: row.id,
+      label: label(row),
+      name: name?.(row),
+      spellings: row.spellings,
+    })),
     create,
   );
 
@@ -119,8 +131,12 @@ export function LookupField(props: {
   id: number | null | undefined;
   lookup: Lookup;
   invalid: (field: string) => Fault;
-  /** Said under the input, in the field's small print. */
-  hint?: string;
+  /**
+   * The text only names the row linked (a parish, a church), rather than
+   * keeping a value as a source writes it (a record's village): a row
+   * picked from the whole list shows its name in the reader's language.
+   */
+  linksOnly?: boolean;
   /** The longest value the server takes; FIELD_MAX.text unless said otherwise. */
   maxlength?: number;
   /** The wrapper's classes, e.g. a grid column span. */
@@ -141,6 +157,12 @@ export function LookupField(props: {
   // Several rows have the spelling and none of them is chosen.
   const undecided = () => named().length > 1 && !named().includes(id() ?? 0);
   const several = () => props.lookup.options.filter((o) => named().includes(o.value));
+  // What a row picked from the whole list writes in the field: a value as
+  // written in a source starts from the row's first spelling (its Russian
+  // name); a field that only names the row linked, its name in the reader's
+  // language, as the field shows it loaded.
+  const browsedName = (option: LookupOption) =>
+    props.linksOnly ? (option.name ?? option.label) : (option.spellings[0] ?? option.label);
   // The rows a spelling of which contains the text, each with that spelling.
   const found = createMemo(() => matching(props.lookup, text()), { name: 'lookup-found' });
   // What the dropdown offers: the rows found (none when the text is in no
@@ -151,7 +173,7 @@ export function LookupField(props: {
       !text().trim() || browsing()
         ? props.lookup.options.map((option) => ({
             option,
-            spelling: option.spellings[0] ?? option.label,
+            spelling: browsedName(option),
           }))
         : found(),
     { name: 'lookup-matches' },
@@ -280,7 +302,6 @@ export function LookupField(props: {
         {/* A sibling of the .validator, which shows it when the server refused the text. */}
         <FieldError fault={props.invalid(props.textName)} />
       </div>
-      <Show when={props.hint}>{(hint) => <p class="label whitespace-normal">{hint()}</p>}</Show>
       {/* The row linked, posted as the id. A spelling several rows share,
           none of them chosen: the choice among them, instead. */}
       <Show
