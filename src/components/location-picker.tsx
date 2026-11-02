@@ -42,6 +42,7 @@ const DOTS = `${PLACES}-dots`;
 const CHURCHES = `${PLACES}-churches`;
 const CHURCH_ICON = 'church';
 interface PlaceProperties {
+  id: number;
   name: string;
   church: boolean;
   parish: string;
@@ -49,6 +50,7 @@ interface PlaceProperties {
   faded: boolean;
 }
 const propertiesOf = (p: PlaceMarker, highlight: number | null): PlaceProperties => ({
+  id: p.id,
   name: localName(p.name),
   church: p.church !== null,
   // A church's parish is the one it serves.
@@ -213,6 +215,19 @@ function boundsOf(points: { latitude: number; longitude: number }[]) {
   ] as [[number, number], [number, number]];
 }
 
+/** Where the marker `match` picks stands, for the view to go to; null when none does. */
+export function pointOf(
+  markers: PlaceMarker[] | undefined,
+  match: (marker: PlaceMarker) => boolean,
+): Point | null {
+  const found = markers?.find(match);
+  return found ? { lat: found.latitude, lng: found.longitude } : null;
+}
+
+/** Where a parish's church stands among the markers: where a map starts for a locality in it. */
+export const churchPoint = (markers: PlaceMarker[] | undefined, parishId: number | null) =>
+  pointOf(markers, (marker) => marker.church?.id === parishId);
+
 /**
  * A map to pick a locality's coordinates on: a click sets them, the marker
  * drags, and coordinates typed in the field move the marker. `value` is the
@@ -221,21 +236,33 @@ function boundsOf(points: { latitude: number; longitude: number }[]) {
  * churches among them, those outside the parish `highlight` faint; without
  * coordinates the view starts at `focus` (the parish church) if there is
  * one, else over Ingria; and with a parish to highlight, it then fits that
- * parish's localities. Under a MapForm's panel (`panel`) the view centres on
- * the part of the map in sight.
+ * parish's localities (again whenever it changes). Under a MapPanel
+ * (`panel`) the view centres on the part of the map in sight.
+ *
+ * Without `onPick` the map only shows (the places lists): a click on a dot
+ * names it and hands it to `onSelect`, `pointed` names a dot pointed at
+ * elsewhere (its row), and with `fit` the view frames the dots whenever
+ * they change (a search's matches).
  * MapLibre needs the browser (and WebGL), so it loads after the page
  * settles, only here; without WebGL the map says so and the field is all.
  */
 export default function LocationPicker(props: {
-  value: string;
-  onPick: (lat: number, lng: number) => void;
+  /** The coordinates as the field has them; none on a map that only shows. */
+  value?: string;
+  onPick?: (lat: number, lng: number) => void;
+  /** Told the locality whose dot was clicked. */
+  onSelect?: (id: number) => void;
   markers?: PlaceMarker[];
   /** The parish whose localities are drawn plain, the others faint; none: all plain. */
   highlight?: number | null;
   focus?: Point | null;
   /** A locality among the markers picked elsewhere (a form's field): the view flies to it and names it. */
   target?: number | null;
-  /** A MapForm's panel lies over the map. */
+  /** A locality pointed at elsewhere (its row in a list): its dot is named, the view stays. */
+  pointed?: number | null;
+  /** Frame the markers in view whenever they change. */
+  fit?: boolean;
+  /** A MapPanel lies over the map. */
   panel?: boolean;
   /** The box's classes, its height above all (h-72 unless said otherwise); MapLibre follows the box as it resizes. */
   class?: string;
@@ -246,9 +273,10 @@ export default function LocationPicker(props: {
   let marker: Marker | undefined;
   // Names a known locality in the popup, as pointing at its dot does; set once the map is up.
   let namePlace: ((place: PlaceMarker) => void) | undefined;
+  let unname: (() => void) | undefined;
   // The dots' data as last given, for a style (re)load to draw.
   let places = placesData([]);
-  const coordinates = () => parseCoordinates(props.value) ?? null;
+  const coordinates = () => parseCoordinates(props.value ?? '') ?? null;
   // What the map chose, to the handler as it is when the map fires (its
   // events are no tracking scope: the read is untracked, each time).
   // The last point the map itself chose (a click, a drag): the view stays
@@ -256,7 +284,7 @@ export default function LocationPicker(props: {
   let picked: Point | null = null;
   const pick = (lat: number, lng: number) => {
     picked = { lat, lng };
-    untrack(() => props.onPick(lat, lng));
+    untrack(() => props.onPick?.(lat, lng));
   };
 
   onSettled(() => {
@@ -318,6 +346,7 @@ export default function LocationPicker(props: {
           .setLngLat([place.longitude, place.latitude])
           .setDOMContent(describePlace(propertiesOf(place, null)))
           .addTo(withPopup);
+      unname = () => popup.remove();
       created.on('mousemove', (event) => {
         const [feature] = under(event.point);
         withPopup.getCanvas().style.cursor = feature ? 'pointer' : '';
@@ -329,10 +358,12 @@ export default function LocationPicker(props: {
         const [feature] = under(event.point);
         if (feature) {
           name(feature);
+          const { id } = feature.properties as PlaceProperties;
+          untrack(() => props.onSelect?.(id));
           return;
         }
         popup.remove();
-        pick(round(event.lngLat.lat), round(event.lngLat.lng));
+        if (untrack(() => props.onPick)) pick(round(event.lngLat.lat), round(event.lngLat.lng));
       });
       const pin = new Marker({ draggable: true });
       pin.on('dragend', () => {
@@ -396,26 +427,65 @@ export default function LocationPicker(props: {
     },
     { name: 'map-target' },
   );
+  // A locality pointed at elsewhere: named while pointed at. The markers
+  // count only then, so a pointer away doesn't close a name given since.
+  createEffect(
+    () => {
+      const pointed = props.pointed ?? null;
+      const place = pointed === null ? null : props.markers?.find((p) => p.id === pointed);
+      return { map: map(), place: place ?? null };
+    },
+    ({ map, place }) => {
+      if (!map) return;
+      if (place) namePlace?.(place);
+      else unname?.();
+    },
+    { name: 'map-pointed' },
+  );
   // The known localities, as given and whenever they (or the parish shown)
-  // change. The parish shown is fitted in view once, when the map has no
-  // coordinates of its own to show.
-  let fitted = false;
+  // change. While the map has no coordinates of its own to show, the view
+  // frames the markers (`fit`) or else the parish shown, each time they
+  // change; the first framing jumps, the later ones move.
+  let framed = false;
+  let framedMarkers: string | null = null;
+  let framedParish: number | null = null;
+  const frame = (map: MapLibreMap, points: PlaceMarker[]) => {
+    if (!points.length) return false;
+    const jump = framed ? {} : { duration: 0 };
+    framed = true;
+    if (points.length === 1) {
+      const [only] = points;
+      map.easeTo({
+        center: [only.longitude, only.latitude],
+        zoom: Math.max(map.getZoom(), PARISH_ZOOM),
+        ...jump,
+      });
+    } else {
+      map.fitBounds(boundsOf(points), { padding: 48, maxZoom: PLACE_ZOOM, ...jump });
+    }
+    return true;
+  };
   createEffect(
     () => ({
       map: map(),
       markers: props.markers ?? [],
       highlight: props.highlight ?? null,
+      fit: !!props.fit,
       located: !!coordinates(),
     }),
-    ({ map, markers, highlight, located }) => {
+    ({ map, markers, highlight, fit, located }) => {
       places = placesData(markers, highlight);
       void (map?.getSource(PLACES) as GeoJSONSource | undefined)?.setData(places);
-      if (!map || fitted || highlight === null || located) return;
+      if (!map || located) return;
+      if (fit) {
+        const key = markers.map((p) => p.id).join();
+        if (key !== framedMarkers && frame(map, markers)) framedMarkers = key;
+        return;
+      }
+      framedMarkers = null;
+      if (highlight === null || highlight === framedParish) return;
       const parish = markers.filter((p) => p.parishId === highlight || p.church?.id === highlight);
-      const core = parishCore(parish, highlight);
-      if (core.length < 2) return;
-      fitted = true;
-      map.fitBounds(boundsOf(core), { padding: 48, duration: 0, maxZoom: PLACE_ZOOM });
+      if (frame(map, parishCore(parish, highlight))) framedParish = highlight;
     },
     { name: 'map-places' },
   );

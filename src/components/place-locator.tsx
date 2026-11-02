@@ -6,14 +6,13 @@ import PinIcon from '~icons/ri/map-pin-line';
 import type { QueryData } from '~/lib/query-data';
 import type { Fault } from '~/components/form-fields';
 import { coordinateStatusLabels } from '~/components/labels';
-import LocationPicker from '~/components/location-picker';
+import LocationPicker, { churchPoint } from '~/components/location-picker';
 import PlaceSearch from '~/components/place-search';
 import { getPlaceMarkers } from '~/data/places';
 import { formatCoordinates, parseCoordinates } from '~/lib/coordinates';
 import type { GazetteerHit } from '~/lib/gazetteer';
+import { type CoordinateStatus, type LocatedStatus, locatedStatuses } from '~/lib/place-kinds';
 import { m } from '~/paraglide/messages.js';
-
-type Located = 'approximate' | 'verified';
 
 /**
  * Where a locality stands, as a map or a search set it: the coordinates,
@@ -26,8 +25,8 @@ export function LocationLine(props: {
   /** Its legend, when not "Location". */
   label?: string;
   coordinates: string;
-  status: Located | 'unknown';
-  onStatus: (status: Located) => void;
+  status: CoordinateStatus;
+  onStatus: (status: LocatedStatus) => void;
   onRemove: () => void;
   fault: Fault;
 }) {
@@ -45,7 +44,7 @@ export function LocationLine(props: {
           {/* The status and the button wrap together, to the right. */}
           <div class="ml-auto flex items-center gap-2">
             <div class="join" role="group" aria-label={m.place_edit_coordinate_status()}>
-              <For each={['approximate', 'verified'] as const}>
+              <For each={locatedStatuses}>
                 {(status) => (
                   <button
                     type="button"
@@ -78,23 +77,37 @@ export function LocationLine(props: {
   );
 }
 
-/** Where a locality being added stands, as a map or a search sets it. */
+/** Where a locality stands, as a map or a search sets it. */
 export interface Location {
   coordinates: () => string;
-  status: () => Located;
+  /** How sure the coordinates are; unknown without them. */
+  status: () => CoordinateStatus;
   /** Placed by hand or from a search: approximate until checked (again). */
   set: (lat: number, lng: number) => void;
-  setStatus: (status: Located) => void;
+  setStatus: (status: LocatedStatus) => void;
   clear: () => void;
 }
 
-/** A locality's location, not set yet. Call it in a component body: the signals need an owner. */
-export function createLocation(): Location {
-  const [coordinates, setCoordinates] = createSignal('', { name: 'location-coordinates' });
-  const [status, setStatus] = createSignal<Located>('approximate', { name: 'location-status' });
+/**
+ * A locality's location: where it stands as loaded (`start`), or not set
+ * yet. Call it in a component body: the signals need an owner.
+ */
+export function createLocation(start?: {
+  latitude: number | null;
+  longitude: number | null;
+  coordinateStatus: CoordinateStatus;
+}): Location {
+  const [coordinates, setCoordinates] = createSignal(
+    start ? formatCoordinates(start.latitude, start.longitude) : '',
+    { name: 'location-coordinates' },
+  );
+  const [status, setStatus] = createSignal<LocatedStatus>(
+    start?.coordinateStatus === 'verified' ? 'verified' : 'approximate',
+    { name: 'location-status' },
+  );
   return {
     coordinates,
-    status,
+    status: () => (parseCoordinates(coordinates()) ? status() : 'unknown'),
     set: (lat, lng) => {
       setCoordinates(formatCoordinates(lat, lng));
       setStatus('approximate');
@@ -136,7 +149,7 @@ export default function PlaceLocator(props: {
   // it starts, and a closed dialog's is empty.
   const [open, setOpen] = createSignal(false, { name: 'locator-open' });
   let dialog: HTMLDialogElement | undefined;
-  const located = () => !!parseCoordinates(location.coordinates());
+  const located = () => location.status() !== 'unknown';
   const found = (hit: GazetteerHit) => {
     location.set(hit.latitude, hit.longitude);
     props.onFound?.(hit);
@@ -150,7 +163,7 @@ export default function PlaceLocator(props: {
       <LocationLine
         label={props.label}
         coordinates={location.coordinates()}
-        status={located() ? location.status() : 'unknown'}
+        status={location.status()}
         onStatus={location.setStatus}
         onRemove={location.clear}
         fault={props.invalid(`${props.prefix}.coordinates`)}
@@ -216,7 +229,7 @@ export default function PlaceLocator(props: {
               <div class="min-w-64 grow">
                 <LocationLine
                   coordinates={location.coordinates()}
-                  status={located() ? location.status() : 'unknown'}
+                  status={location.status()}
                   onStatus={location.setStatus}
                   onRemove={location.clear}
                   fault={undefined}
@@ -243,17 +256,13 @@ function LocatorMap(props: {
   const markers = createMemo((): Promise<QueryData<typeof getPlaceMarkers>> => getPlaceMarkers(), {
     name: 'locator-markers',
   });
-  const church = () => {
-    const found = (markers() ?? []).find((n) => n.church?.id === props.parishId);
-    return found ? { lat: found.latitude, lng: found.longitude } : null;
-  };
   return (
     <LocationPicker
       class="min-h-0 flex-1 rounded-box"
       value={props.coordinates}
       onPick={(lat, lng) => props.onPick(lat, lng)}
       markers={markers()}
-      focus={church()}
+      focus={churchPoint(markers(), props.parishId)}
     />
   );
 }

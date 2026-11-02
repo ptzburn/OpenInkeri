@@ -518,5 +518,24 @@
   "lookup_locate_here": "Щёлкните по карте, чтобы отметить его, или найдите его через поиск выше.",
   "record_edit_split_correct": "Исправить разбивку",
   "record_edit_split_corrected": "Исправлено вручную",
-  "record_edit_split_none": "не разбито на части"
+  "record_edit_split_none": "не разбито на части",
+  "places_view_label": "Вид",
+  "places_view_map": "Карта",
+  "places_view_table": "Таблица",
+  "villages_sheet": "Список населённых пунктов",
+  "villages_map_hint": "Нажмите на точку, чтобы найти её в списке, или на строку — чтобы найти на карте.",
+  "parishes_sheet": "Список приходов",
+  "parishes_map_hint": "Выберите приход в списке или точку на карте, чтобы показать его населённые пункты.",
+  "villages_records_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} запись",
+        "countPlural=few": "{count} записи",
+        "countPlural=many": "{count} записей",
+        "countPlural=*": "{count} записи"
+      }
+    }
+  ]
 }

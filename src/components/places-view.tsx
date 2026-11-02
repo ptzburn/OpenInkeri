@@ -1,0 +1,188 @@
+import { For, Show, createMemo, createSignal } from 'solid-js';
+import type { JSX } from '@solidjs/web';
+import EditIcon from '~icons/ri/pencil-line';
+import MapIcon from '~icons/ri/road-map-line';
+import TableIcon from '~icons/ri/table-line';
+
+import type { QueryData } from '~/lib/query-data';
+import { type PlacesView, placesViews } from '~/lib/places-view';
+import LocationPicker from '~/components/location-picker';
+import { AddLink } from '~/components/list-page';
+import PlacesTabs from '~/components/places-tabs';
+import { type PlaceMarker, getPlaceMarkers } from '~/data/places';
+import { getPlacesView, savePlacesView } from '~/data/places-view';
+import { m } from '~/paraglide/messages.js';
+
+// What the places lists (villages and parishes) share in their two views:
+// the view chosen, its switch, and the map behind the map view's panel.
+
+const viewLabels: Record<PlacesView, () => string> = {
+  map: m.places_view_map,
+  table: m.places_view_table,
+};
+
+/**
+ * The view the reader chose (from its cookie, which the server read) and
+ * how to choose another, which remembers it. Call it in a component body:
+ * the signal needs an owner.
+ */
+export function usePlacesView(): [() => PlacesView, (view: PlacesView) => void] {
+  const [view, setView] = createSignal(() => getPlacesView(), { name: 'places-view' });
+  return [
+    view,
+    (next) => {
+      setView(next);
+      savePlacesView(next);
+    },
+  ];
+}
+
+/** The map or the table, as two joined buttons. */
+export function ViewSwitch(props: { view: PlacesView; onView: (view: PlacesView) => void }) {
+  return (
+    <div class="join" role="group" aria-label={m.places_view_label()}>
+      <For each={placesViews}>
+        {(view) => (
+          <button
+            type="button"
+            class={['btn join-item btn-sm', { 'btn-active': props.view === view }]}
+            aria-pressed={props.view === view ? 'true' : 'false'}
+            onClick={() => props.onView(view)}
+          >
+            <Show when={view === 'map'} fallback={<TableIcon class="size-4" aria-hidden="true" />}>
+              <MapIcon class="size-4" aria-hidden="true" />
+            </Show>
+            {viewLabels[view]()}
+          </button>
+        )}
+      </For>
+    </div>
+  );
+}
+
+/**
+ * The map behind a places list's panel: every located locality, parish
+ * churches as crosses, `highlight` the parish drawn plain. `only`, when
+ * given, keeps the dots of those localities (a search's matches) and frames
+ * them. A click on a dot is handed to `onSelect`; `target` flies to a
+ * locality and names it, `pointed` names it where it is.
+ */
+export function PlacesMap(props: {
+  class: string;
+  only?: Set<number> | null;
+  highlight?: number | null;
+  target?: number | null;
+  pointed?: number | null;
+  onSelect: (marker: PlaceMarker) => void;
+}) {
+  const markers = createMemo((): Promise<QueryData<typeof getPlaceMarkers>> => getPlaceMarkers(), {
+    name: 'places-map-markers',
+  });
+  const shown = () => {
+    const only = props.only;
+    const all = markers() ?? [];
+    return only ? all.filter((marker) => only.has(marker.id)) : all;
+  };
+  return (
+    <LocationPicker
+      class={props.class}
+      panel
+      markers={shown()}
+      fit={!!props.only}
+      highlight={props.highlight}
+      target={props.target}
+      pointed={props.pointed}
+      onSelect={(id) => {
+        const marker = markers()?.find((n) => n.id === id);
+        if (marker) props.onSelect(marker);
+      }}
+    />
+  );
+}
+
+/**
+ * A row of a map view's list: `children` in a button that picks the row
+ * (`selected` shows it picked; pointing at it or focusing it is told to
+ * `onPoint`), then `actions`, and for admins a link to the row's edit page.
+ * `id` marks the row for `scrollToRow`.
+ */
+export function MapListRow(props: {
+  id: number;
+  selected: boolean;
+  onSelect: () => void;
+  onPoint?: (on: boolean) => void;
+  editHref?: string;
+  editLabel: string;
+  actions?: JSX.Element;
+  children: JSX.Element;
+}) {
+  return (
+    <li
+      data-row={props.id}
+      class={['list-row items-center gap-1 px-2 py-2', { 'bg-primary/10': props.selected }]}
+    >
+      <button
+        type="button"
+        class="list-col-grow flex min-w-0 cursor-pointer flex-col items-start gap-0.5 text-left"
+        aria-pressed={props.selected ? 'true' : 'false'}
+        onClick={() => props.onSelect()}
+        onPointerEnter={() => props.onPoint?.(true)}
+        onPointerLeave={() => props.onPoint?.(false)}
+        onFocus={() => props.onPoint?.(true)}
+        onBlur={() => props.onPoint?.(false)}
+      >
+        {props.children}
+      </button>
+      {props.actions}
+      <Show when={props.editHref}>
+        {(href) => (
+          <a
+            href={href()}
+            class="btn btn-square btn-ghost btn-sm"
+            aria-label={props.editLabel}
+            title={props.editLabel}
+          >
+            <EditIcon class="size-4" aria-hidden="true" />
+          </a>
+        )}
+      </Show>
+    </li>
+  );
+}
+
+/** Scrolls a map view's list to the row of `id` (MapListRow), when it is there. */
+export const scrollToRow = (list: HTMLElement | undefined, id: number) =>
+  list
+    ?.querySelector(`[data-row="${id}"]`)
+    ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+/**
+ * The bottom of a map view's panel, for admins: its Add button, in a bar as
+ * tall as a form's (min-h-18), level with the sidebar's account corner.
+ */
+export function MapListFoot(props: { href: string; label: string }) {
+  return (
+    <div class="flex min-h-18 items-center justify-center border-t border-base-300 bg-base-100/90 px-4 backdrop-blur-md">
+      <AddLink href={props.href} label={props.label} class="" />
+    </div>
+  );
+}
+
+/** The top of a map view's panel: the places tabs and the view switch, then `children`. */
+export function MapListHead(props: {
+  current: 'villages' | 'parishes';
+  onView: (view: PlacesView) => void;
+  children?: JSX.Element;
+}) {
+  return (
+    <div class="flex flex-col gap-3 border-b border-base-300 px-4 pt-2 pb-3 lg:pt-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <PlacesTabs current={props.current} />
+        <div class="ml-auto">
+          <ViewSwitch view="map" onView={(view) => props.onView(view)} />
+        </div>
+      </div>
+      {props.children}
+    </div>
+  );
+}

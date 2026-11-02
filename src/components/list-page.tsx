@@ -39,10 +39,10 @@ export function CountBadge(props: { count: number | undefined }) {
   return <span class="badge badge-sm">{props.count}</span>;
 }
 
-/** The list's Add button, at the header's right, for those who may add. */
-export function AddLink(props: { href: string; label: string }) {
+/** The list's Add button, at the header's right (unless `class` places it), for those who may add. */
+export function AddLink(props: { href: string; label: string; class?: string }) {
   return (
-    <a href={props.href} class="btn ml-auto btn-sm btn-primary">
+    <a href={props.href} class={['btn btn-sm btn-primary', props.class ?? 'ml-auto']}>
       <AddIcon class="size-4" aria-hidden="true" />
       {props.label}
     </a>

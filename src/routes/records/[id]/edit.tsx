@@ -2,7 +2,7 @@ import { type RouteProps, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { Show } from 'solid-js';
 
-import RecordEditForm from '~/components/record-edit-form';
+import RecordEditForm, { listPlaceOf } from '~/components/record-edit-form';
 import EditPage from '~/components/edit-page';
 import { getRecordEdit, getRecordEditOptions } from '~/data/records';
 import { idParam, stringParams } from '~/lib/route-params';
@@ -16,12 +16,7 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 const crumbs: Crumbs = ({ query }) => [
   {
     label: m.records_title(),
-    href: paths.records({
-      kind: query.kind,
-      q: query.q,
-      page: query.page,
-      source: query.source,
-    }),
+    href: paths.records(listPlaceOf(query)),
   },
   { label: m.record_edit_title() },
 ];
@@ -40,12 +35,7 @@ export const route = defineFileRoute('/records/:id/edit', {
 
 export default function EditRecord(props: RouteProps<'/records/:id/edit'>) {
   const [search] = useSearchParams(paths.records);
-  const listPlace = () => ({
-    kind: search.kind,
-    q: search.q,
-    page: search.page,
-    source: search.source,
-  });
+  const listPlace = () => listPlaceOf(search);
   const listHref = () => paths.records(listPlace());
 
   return (

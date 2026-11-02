@@ -64,6 +64,14 @@ export interface ListPlace {
   source?: string;
 }
 
+/** Where the records list was, from a page's search params (or a crumb's query). */
+export const listPlaceOf = (search: ListPlace): ListPlace => ({
+  kind: search.kind,
+  q: search.q,
+  page: search.page,
+  source: search.source,
+});
+
 // What a new record's form starts from: empty, of the list's type, in the
 // source the list shows if any.
 const blank = (kind: RecordKind, sourceId: number | null = null): RecordEditData => ({

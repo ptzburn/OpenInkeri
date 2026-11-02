@@ -13,7 +13,7 @@
 //     stays for an admin to pick).
 import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
-import { and, count, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
@@ -251,10 +251,14 @@ export interface PlaceMarker {
   church: { id: number; name: Names } | null;
 }
 
-/** Every place with coordinates, and which of them are parish churches: the locality form's map shows them around the one being edited. */
+/**
+ * Every place with coordinates, and which of them are parish churches: the
+ * maps show them, the places lists' and the forms' (around the one being
+ * edited). For signed-in readers, as the villages list (getPlaces) is.
+ */
 export const getPlaceMarkers = query(async (): Promise<PlaceMarker[]> => {
   'use server';
-  adminOnly();
+  signedIn();
   const [places, parishes] = await Promise.all([
     db.query.place.findMany({
       columns: {
@@ -437,6 +441,10 @@ export const savePlace = formAction(async (formData: FormData) => {
 
   // The parish church: ticked, it stands here; unticked, it no longer does
   // where it did, and a parish the place leaves keeps no church here either.
+  // The parish is read just now, not as the page loaded it, so the writes
+  // go by its church rather than its version: setting lands whatever the
+  // church was by then, and unsetting clears only this place. Each moves
+  // the parish on a version, for its own open edit page to refuse.
   const church = input.church === 'on';
   const parishIds = [...new Set([parishId, before?.parishId])].filter((n): n is number => !!n);
   const parishRows = parishIds.length
@@ -452,8 +460,12 @@ export const savePlace = formAction(async (formData: FormData) => {
     statements.push(
       db
         .update(parish)
-        .set({ churchPlaceId, version: row.version + 1, ...stamp })
-        .where(and(eq(parish.id, row.id), eq(parish.version, row.version))),
+        .set({ churchPlaceId, version: sql`${parish.version} + 1`, ...stamp })
+        .where(
+          churchPlaceId === id
+            ? eq(parish.id, row.id)
+            : and(eq(parish.id, row.id), eq(parish.churchPlaceId, id)),
+        ),
       logChange(
         by,
         'parish',

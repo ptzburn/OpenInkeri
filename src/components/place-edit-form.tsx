@@ -14,14 +14,13 @@ import {
 } from '~/components/form-fields';
 import { placeKindLabels } from '~/components/labels';
 import { type Lookup, LookupField, namedRow } from '~/components/lookup-field';
-import LocationPicker from '~/components/location-picker';
-import { LocationLine } from '~/components/place-locator';
+import LocationPicker, { churchPoint } from '~/components/location-picker';
+import { LocationLine, createLocation } from '~/components/place-locator';
 import { parishLookup } from '~/components/new-row-fields';
 import MapForm from '~/components/map-form';
 import LeaveGuard from '~/components/leave-guard';
-import { formatCoordinates } from '~/lib/coordinates';
 import { type GazetteerHit, placeKindOf } from '~/lib/gazetteer';
-import { type CoordinateStatus, type PlaceKind, placeKinds } from '~/lib/place-kinds';
+import { type PlaceKind, placeKinds } from '~/lib/place-kinds';
 import { getParishOptions } from '~/data/parishes';
 import {
   type PlaceEditData,
@@ -31,6 +30,18 @@ import {
   savePlace,
 } from '~/data/places';
 import { m } from '~/paraglide/messages.js';
+
+/** Where the villages list was (its search and parish filter), to return there after saving. */
+export interface VillageListPlace {
+  q?: string;
+  parish?: string;
+}
+
+/** Where the villages list was, from a page's search params (or a crumb's query). */
+export const villageListPlaceOf = (search: VillageListPlace): VillageListPlace => ({
+  q: search.q,
+  parish: search.parish,
+});
 
 // What a new place's form starts from.
 const blank: PlaceEditData = {
@@ -75,7 +86,7 @@ export default function PlaceEditForm(props: {
   id?: number;
   /** What the page is (the sheet's accessible name): there is no heading, the map is the page. */
   title: string;
-  returnTo: { q?: string; parish?: string };
+  returnTo: VillageListPlace;
   cancelHref: string;
 }) {
   // Not a read of props.returnTo here: the router sets up its search params
@@ -165,14 +176,7 @@ export default function PlaceEditForm(props: {
           const at = parishOption()?.church;
           return at && at.id !== p.id ? localName(at.name) : undefined;
         };
-        const [coordinates, setCoordinates] = createSignal(
-          formatCoordinates(p.latitude, p.longitude),
-          { name: 'place-coordinates' },
-        );
-        const [coordinateStatus, setCoordinateStatus] = createSignal<CoordinateStatus>(
-          p.coordinateStatus,
-          { name: 'place-coordinate-status' },
-        );
+        const location = createLocation(p);
         // A settlement from the gazetteer: its names, what it is, where it
         // stands (approximate: a map's centre, until checked) and the
         // parish whose church is nearest.
@@ -181,17 +185,12 @@ export default function PlaceEditForm(props: {
           if (hit.nameFi) setNameFi(hit.nameFi);
           const placeKind = placeKindOf(hit.kind);
           if (placeKind) setKind(placeKind);
-          setCoordinates(formatCoordinates(hit.latitude, hit.longitude));
-          setCoordinateStatus('approximate');
+          location.set(hit.latitude, hit.longitude);
           if (hit.parish) setParishId(hit.parish.id);
         };
-        // The other localities on the map, and the church of the parish
-        // chosen, where the map starts while this one has no coordinates.
+        // The other localities on the map, which starts at the chosen
+        // parish's church while this one has no coordinates.
         const neighbours = () => (markers() ?? []).filter((n) => n.id !== p.id);
-        const church = () => {
-          const found = (markers() ?? []).find((n) => n.church?.id === parishId());
-          return found ? { lat: found.latitude, lng: found.longitude } : null;
-        };
         return (
           <MapForm
             title={props.title}
@@ -201,14 +200,10 @@ export default function PlaceEditForm(props: {
               <LocationPicker
                 class={mapClass}
                 panel
-                value={coordinates()}
-                onPick={(lat, lng) => {
-                  setCoordinates(formatCoordinates(lat, lng));
-                  // Placed by hand: approximate until checked (again).
-                  setCoordinateStatus('approximate');
-                }}
+                value={location.coordinates()}
+                onPick={location.set}
                 markers={neighbours()}
-                focus={church()}
+                focus={churchPoint(markers(), parishId())}
               />
             )}
             hint={`${m.place_edit_map_hint()} ${m.place_edit_map_legend()}`}
@@ -230,20 +225,17 @@ export default function PlaceEditForm(props: {
               <input type="hidden" name="version" value={p.version} />
               {/* The coordinates the map or the search set, and their
                       status, posted hidden: nobody types them. */}
-              <input type="hidden" name="coordinates" value={coordinates()} />
-              <input type="hidden" name="coordinateStatus" value={coordinateStatus()} />
+              <input type="hidden" name="coordinates" value={location.coordinates()} />
+              <input type="hidden" name="coordinateStatus" value={location.status()} />
 
               {/* Where the place stands, as the map or the search set
                       it. Without coordinates the place counts as not
                       located (the server does the same). */}
               <LocationLine
-                coordinates={coordinates()}
-                status={coordinateStatus()}
-                onStatus={setCoordinateStatus}
-                onRemove={() => {
-                  setCoordinates('');
-                  setCoordinateStatus('unknown');
-                }}
+                coordinates={location.coordinates()}
+                status={location.status()}
+                onStatus={location.setStatus}
+                onRemove={location.clear}
                 fault={invalid('coordinates')}
               />
 
