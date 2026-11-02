@@ -4,7 +4,7 @@ import { Show, createSignal } from 'solid-js';
 import { type Fault, FieldError, Select, TextInput } from '~/components/form-fields';
 import { placeKindLabels } from '~/components/labels';
 import { type Lookup, lookupRows } from '~/components/lookup-field';
-import PlaceLocator from '~/components/place-locator';
+import PlaceLocator, { type Location } from '~/components/place-locator';
 import type { ParishOption } from '~/data/parishes';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { type Names, localName, placeLabel } from '~/lib/format';
@@ -118,25 +118,31 @@ function Fields(props: { plain?: boolean; children: JSX.Element }) {
  * when the parish is fixed (a parish's own church). A settlement found on
  * the locator's map fills the name to type, the type and, when there is a
  * choice, the parish whose church is nearest, all still editable; and is
- * handed on to `onFound`.
+ * handed on to `onFound`. A page that is a map itself (the parish's) finds
+ * the settlement in its own search, given as `start`, and sets `location`
+ * on its map.
  */
 export function NewPlaceFields(
   props: NewRowProps & {
     kind?: PlaceKind;
     parishes?: { id: number; name: Names }[];
     parishId?: number | null;
+    start?: GazetteerHit | null;
+    location?: Location;
     onFound?: (hit: GazetteerHit) => void;
   },
 ) {
-  // What the fields show: as they start, then as typed or chosen (the
-  // fields report back, so a settlement found lands whatever they held).
-  const [names, setNames] = createSignal<{ ru: string | null; fi: string | null }>(
-    { ru: null, fi: null },
+  // What the fields show: as they start (from the settlement the page
+  // found, if any), then as typed or chosen (the fields report back, so a
+  // settlement found lands whatever they held).
+  const [names, setNames] = createSignal(
+    () => ({ ru: props.start?.nameRu ?? null, fi: props.start?.nameFi ?? null }),
     { name: 'new-place-names' },
   );
-  const [kind, setKind] = createSignal<PlaceKind>(() => props.kind ?? 'village', {
-    name: 'new-place-kind',
-  });
+  const [kind, setKind] = createSignal<PlaceKind>(
+    () => (props.start && placeKindOf(props.start.kind)) || props.kind || 'village',
+    { name: 'new-place-kind' },
+  );
   const [parishId, setParishId] = createSignal(() => props.parishId ?? null, {
     name: 'new-place-parish',
   });
@@ -183,6 +189,7 @@ export function NewPlaceFields(
         prefix={props.prefix}
         name={props.text}
         parishId={parishId()}
+        location={props.location}
         invalid={props.invalid}
         onFound={found}
       />
@@ -292,7 +299,9 @@ export const parishLookup = (
  * namesake; one not known yet can be added in the field. `added` says how:
  * its kind by the field's prefix (an estate is a manor), and the parishes to
  * choose from, starting at `parishId`; neither when the parish is fixed.
- * `onFound` hears a settlement found on its map, for the form around.
+ * `onFound` hears a settlement found on its map, for the form around; on a
+ * page that is a map, `start` is the settlement its search found and
+ * `location` what its map sets (see NewPlaceFields).
  */
 export const placeLookup = (
   places: { id: number; name: Names; parish: Names | null; spellings: string[] }[] | undefined,
@@ -301,6 +310,8 @@ export const placeLookup = (
     kind?: (prefix: string) => PlaceKind;
     parishes?: () => { id: number; name: Names }[];
     parishId?: () => number | null;
+    start?: () => GazetteerHit | null;
+    location?: Location;
     onFound?: (hit: GazetteerHit) => void;
   } = {},
 ): Lookup =>
@@ -313,6 +324,8 @@ export const placeLookup = (
         kind={added.kind?.(prefix)}
         parishes={added.parishes?.()}
         parishId={added.parishId?.()}
+        start={added.start?.()}
+        location={added.location}
         invalid={invalid}
         onFound={added.onFound}
       />

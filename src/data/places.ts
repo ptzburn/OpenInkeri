@@ -246,6 +246,7 @@ export interface PlaceMarker {
   name: Names;
   latitude: number;
   longitude: number;
+  parishId: number | null;
   parish: Names | null;
   church: { id: number; name: Names } | null;
 }
@@ -281,6 +282,7 @@ export const getPlaceMarkers = query(async (): Promise<PlaceMarker[]> => {
     name: namesOf(p),
     latitude: p.latitude!,
     longitude: p.longitude!,
+    parishId: p.parishId,
     parish: (p.parishId !== null && parishNames.get(p.parishId)) || null,
     church: churchOf.get(p.id) ?? null,
   }));

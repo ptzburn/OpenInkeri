@@ -70,7 +70,11 @@ vi.mock('~/data/session', () => ({
   getCurrentUser: vi.fn(async () => me.current),
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
 }));
-// The locality search: one settlement, found by either name, nearest to parish 5's church.
+// The locality search: one settlement, found by either name, nearest to
+// parish 5's church; recorded already when a test says so.
+const { gazetteer } = vi.hoisted(() => ({
+  gazetteer: { existing: null as null | { id: number; name: { ru: string; fi: string | null } } },
+}));
 vi.mock('~/data/gazetteer', () => ({
   getGazetteerHits: vi.fn(async (q: string) =>
     /^(губ|kup)/i.test(q)
@@ -87,7 +91,7 @@ vi.mock('~/data/gazetteer', () => ({
             longitude: 29.5348549,
             detail: null,
             parish: { id: 5, name: { ru: 'Губаницы', fi: 'Hevaa' }, km: 0.4 },
-            existing: null,
+            existing: gazetteer.existing,
             near: null,
           },
         ]
@@ -228,6 +232,7 @@ afterEach(() => {
   parishes.deleted = [];
   parishes.deleteFailsWith = null;
   parishes.uses = { villages: 0, sources: 0 };
+  gazetteer.existing = null;
 });
 
 describe('/places/villages', () => {
@@ -560,7 +565,7 @@ describe('/places/parishes', () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes');
     fireEvent.click((await screen.findAllByRole('link', { name: 'Edit parish' }))[0]);
-    await screen.findByRole('heading', { level: 1, name: 'Edit parish' });
+    await screen.findByRole('region', { name: 'Edit parish' });
     await waitFor(() => expect(field('nameFi')).toHaveValue('Hevaa'));
     // The church: its locality by name, linked to the one it names; the
     // localities to choose from show their parish.
@@ -584,7 +589,7 @@ describe('/places/parishes', () => {
   test('a new parish is confirmed with a toast, named as typed', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/new');
-    await screen.findByRole('heading', { level: 1, name: 'New parish' });
+    await screen.findByRole('region', { name: 'New parish' });
     await waitFor(() => expect(field('nameRu')).toBeInTheDocument());
     fireEvent.input(field('nameRu'), { target: { value: 'Тест' } });
     fireEvent.input(field('nameFi'), { target: { value: '  Testi ' } });
@@ -621,43 +626,67 @@ describe('/places/parishes', () => {
     expect(saved.get('churchNew.nameRu')).toBe('Тест');
   });
 
-  test('a new church locality is located on a map, its settlement naming the parish too', async () => {
+  test('a settlement found in the search becomes a new church, placed where it stands', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/new');
     await waitFor(() => expect(field('churchText')).toBeInTheDocument());
-    fireEvent.input(field('churchText'), { target: { value: 'Губаницы' } });
-    await waitFor(() => expect(field('churchNew.nameRu')).toHaveValue('Губаницы'));
-    // Not located yet: nothing posted but the status.
-    expect(field('churchNew.coordinates')).toHaveValue('');
-    fireEvent.click(screen.getByRole('button', { name: 'Locate on map' }));
-
-    const dialog = await screen.findByRole('dialog', { name: 'Where Губаницы stands' });
-    const search = within(dialog).getByRole('combobox', { name: 'Find the locality' });
+    const search = screen.getByRole('combobox', { name: 'Find the church' });
     fireEvent.input(search, { target: { value: 'kupa' } });
-    const option = await within(dialog).findByRole('option', { name: /Губаницы/ });
+    const option = await screen.findByRole('option', { name: /Губаницы/ });
     fireEvent.click(within(option).getByText('Губаницы'));
 
-    // The locality takes its Finnish name and position; the parish, still
-    // unnamed, takes both names.
-    await waitFor(() =>
-      expect(field('churchNew.coordinates')).toHaveValue('59.4880048, 29.5348549'),
-    );
-    expect(field('churchNew.coordinateStatus')).toHaveValue('approximate');
+    // No locality has its name: it is added as the church, with its names
+    // and position; the parish, still unnamed, takes both names.
+    await waitFor(() => expect(field('churchText')).toHaveValue('Губаницы'));
+    expect(field('churchCreate')).toHaveValue('on');
+    expect(field('churchNew.nameRu')).toHaveValue('Губаницы');
     expect(field('churchNew.nameFi')).toHaveValue('Kupanitsa');
+    expect(field('churchNew.coordinates')).toHaveValue('59.4880048, 29.5348549');
+    expect(field('churchNew.coordinateStatus')).toHaveValue('approximate');
     expect(field('nameRu')).toHaveValue('Губаницы');
     expect(field('nameFi')).toHaveValue('Kupanitsa');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Verified' }));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
-    await waitFor(() => expect(dialog).not.toHaveAttribute('open'));
-    expect(screen.getByRole('button', { name: 'Change' })).toBeInTheDocument();
+    // The page's map places it: no dialog of its own.
+    expect(screen.queryByRole('button', { name: 'Locate on map' })).toBeNull();
+    expect(screen.getByText(/Click the map to place it/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Verified' }));
+    await waitFor(() => expect(field('churchNew.coordinateStatus')).toHaveValue('verified'));
 
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
     await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
     const [saved] = parishes.saved;
     expect(saved.get('nameRu')).toBe('Губаницы');
+    expect(saved.get('churchPlaceId')).toBe('');
     expect(saved.get('churchNew.nameFi')).toBe('Kupanitsa');
     expect(saved.get('churchNew.coordinates')).toBe('59.4880048, 29.5348549');
     expect(saved.get('churchNew.coordinateStatus')).toBe('verified');
+  });
+
+  test('a settlement found that is recorded already becomes the church as it is', async () => {
+    me.current = { isAdmin: true };
+    gazetteer.existing = { id: 1, name: { ru: 'Горки', fi: 'Gorkka' } };
+    renderAt('/places/parishes/new');
+    await waitFor(() => expect(field('churchText')).toBeInTheDocument());
+    fireEvent.input(field('nameRu'), { target: { value: 'Тест' } });
+    fireEvent.input(screen.getByRole('combobox', { name: 'Find the church' }), {
+      target: { value: 'kupa' },
+    });
+    const option = await screen.findByRole('option', { name: /Губаницы/ });
+    fireEvent.click(within(option).getByText('Губаницы'));
+
+    // Linked, nothing added; the parish keeps the name typed.
+    await waitFor(() => expect(field('churchPlaceId')).toHaveValue('1'));
+    expect(field('churchText')).toHaveValue('Gorkka');
+    expect(field('churchCreate')).toBeNull();
+    expect(field('nameRu')).toHaveValue('Тест');
+  });
+
+  test('an existing parish lists what belongs to it, its localities linked', async () => {
+    me.current = { isAdmin: true };
+    parishes.uses = { villages: 160, sources: 4 };
+    renderAt('/places/parishes/5/edit');
+    const link = await screen.findByRole('link', { name: /160 localities/ });
+    expect(link).toHaveAttribute('href', '/places/villages?parish=5');
+    expect(screen.getByText('4 sources')).toBeInTheDocument();
   });
 
   test('deleting a parish posts its id and version once confirmed', async () => {
@@ -717,7 +746,7 @@ describe('/places/parishes', () => {
   test('a new parish has nothing to delete', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/new');
-    await screen.findByRole('heading', { level: 1, name: 'New parish' });
+    await screen.findByRole('region', { name: 'New parish' });
     await waitFor(() => expect(field('nameRu')).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: 'Delete parish' })).toBeNull();
   });

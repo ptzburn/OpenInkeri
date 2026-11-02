@@ -291,6 +291,36 @@ vi.mock('~/data/session', () => ({
   getCurrentUser: vi.fn(async () => me.current),
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
 }));
+// A new locality's map: none located yet, and the gazetteer's one
+// settlement, nearest to parish 7's church.
+vi.mock('~/data/places', async (original) => ({
+  ...(await original<typeof import('~/data/places')>()),
+  getPlaceMarkers: vi.fn(async () => []),
+}));
+vi.mock('~/data/gazetteer', () => ({
+  getGazetteerHits: vi.fn(async (q: string) =>
+    q.startsWith('нов')
+      ? [
+          {
+            source: 'osm',
+            sourceId: 'node/1',
+            kind: 'hamlet',
+            name: 'Новая',
+            nameRu: 'Новая',
+            nameFi: 'Uusikylä',
+            names: ['Новая', 'Uusikylä'],
+            latitude: 59.5,
+            longitude: 29.9,
+            detail: null,
+            parish: { id: 7, name: { ru: 'Волосово', fi: null }, km: 2.1 },
+            existing: null,
+            near: null,
+          },
+        ]
+      : [],
+  ),
+  getMapHits: vi.fn(async () => []),
+}));
 // The people a mention can be linked to, searched by name in the form.
 vi.mock('~/data/people', () => ({
   getPeople: vi.fn(async (search: string) => {
@@ -1108,6 +1138,33 @@ describe('adding and deleting records', () => {
     expect(saved.get('placeNew.nameRu')).toBe('Новая');
     expect(saved.get('placeNew.kind')).toBe('village');
     expect(saved.get('placeNew.parishId')).toBe('7');
+  });
+
+  test('a new locality is located in a dialog, its settlement filling its fields', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?source=2');
+    await waitFor(() => expect(field('deceased.nameRu')).toBeTruthy());
+    fireEvent.input(field('placeText'), { target: { value: 'Новая' } });
+    await waitFor(() => expect(field('placeNew.nameRu')).toHaveValue('Новая'));
+    expect(field('placeNew.coordinates')).toHaveValue('');
+    const box = field('placeNew.nameRu').closest('.fieldset') as HTMLElement;
+    fireEvent.click(within(box).getByRole('button', { name: 'Locate on map' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Where Новая stands' });
+    fireEvent.input(within(dialog).getByRole('combobox', { name: 'Find the locality' }), {
+      target: { value: 'нов' },
+    });
+    const option = await within(dialog).findByRole('option', { name: /Новая/ });
+    fireEvent.click(within(option).getByText('Новая'));
+
+    // Its Finnish name, its parish (whose church is nearest) and position.
+    await waitFor(() => expect(field('placeNew.coordinates')).toHaveValue('59.5, 29.9'));
+    expect(field('placeNew.coordinateStatus')).toHaveValue('approximate');
+    expect(field('placeNew.nameFi')).toHaveValue('Uusikylä');
+    expect(field('placeNew.parishId')).toHaveValue('7');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(dialog).not.toHaveAttribute('open'));
+    expect(within(box).getByRole('button', { name: 'Change' })).toBeInTheDocument();
   });
 
   test('Save and add next opens the next record on the same page, village and date', async () => {

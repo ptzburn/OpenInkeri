@@ -1,4 +1,4 @@
-import { For, Loading, Show, createMemo, createSignal } from 'solid-js';
+import { For, Loading, Show, createMemo, createSignal, untrack } from 'solid-js';
 import RemoveIcon from '~icons/ri/delete-bin-line';
 import CloseIcon from '~icons/ri/close-line';
 import PinIcon from '~icons/ri/map-pin-line';
@@ -76,6 +76,32 @@ export function LocationLine(props: {
   );
 }
 
+/** Where a locality being added stands, as a map or a search sets it. */
+export interface Location {
+  coordinates: () => string;
+  status: () => Located;
+  /** Placed by hand or from a search: approximate until checked (again). */
+  set: (lat: number, lng: number) => void;
+  setStatus: (status: Located) => void;
+  clear: () => void;
+}
+
+/** A locality's location, not set yet. Call it in a component body: the signals need an owner. */
+export function createLocation(): Location {
+  const [coordinates, setCoordinates] = createSignal('', { name: 'location-coordinates' });
+  const [status, setStatus] = createSignal<Located>('approximate', { name: 'location-status' });
+  return {
+    coordinates,
+    status,
+    set: (lat, lng) => {
+      setCoordinates(formatCoordinates(lat, lng));
+      setStatus('approximate');
+    },
+    setStatus,
+    clear: () => setCoordinates(''),
+  };
+}
+
 /**
  * Where a locality added in a lookup field stands (NewPlaceFields): its
  * location line, and a button that opens a dialog with the gazetteer's
@@ -85,6 +111,8 @@ export function LocationLine(props: {
  * hidden as "<prefix>.coordinates" and "<prefix>.coordinateStatus", with
  * the form the box is in: the dialog is inside it, and saves nothing itself.
  * Without JavaScript the box shows "not located yet" and nothing opens.
+ * On a page that is a map (the parish's), that map sets the `location`
+ * instead, and there is no dialog.
  */
 export default function PlaceLocator(props: {
   prefix: string;
@@ -92,107 +120,110 @@ export default function PlaceLocator(props: {
   name: string;
   /** The parish chosen, whose church the map starts at. */
   parishId?: number | null;
+  /** Set by the page's own map; the locator keeps its own otherwise. */
+  location?: Location;
   invalid: (field: string) => Fault;
   onFound?: (hit: GazetteerHit) => void;
 }) {
-  const [coordinates, setCoordinates] = createSignal('', { name: 'locator-coordinates' });
-  const [status, setStatus] = createSignal<Located>('approximate', { name: 'locator-status' });
+  // Whose the location is, for the box's life.
+  const outside = untrack(() => props.location);
+  const location = outside ?? createLocation();
   // The map is drawn while the dialog is open: MapLibre measures its box as
   // it starts, and a closed dialog's is empty.
   const [open, setOpen] = createSignal(false, { name: 'locator-open' });
   let dialog: HTMLDialogElement | undefined;
-  const located = () => !!parseCoordinates(coordinates());
-  const set = (lat: number, lng: number) => {
-    setCoordinates(formatCoordinates(lat, lng));
-    // Placed by hand or from a search: approximate until checked (again).
-    setStatus('approximate');
-  };
+  const located = () => !!parseCoordinates(location.coordinates());
   const found = (hit: GazetteerHit) => {
-    set(hit.latitude, hit.longitude);
+    location.set(hit.latitude, hit.longitude);
     props.onFound?.(hit);
   };
   const titleId = () => `${props.prefix}-locate-title`;
 
   return (
     <div class="sm:col-span-2">
-      <input type="hidden" name={`${props.prefix}.coordinates`} value={coordinates()} />
-      <input type="hidden" name={`${props.prefix}.coordinateStatus`} value={status()} />
+      <input type="hidden" name={`${props.prefix}.coordinates`} value={location.coordinates()} />
+      <input type="hidden" name={`${props.prefix}.coordinateStatus`} value={location.status()} />
       <LocationLine
-        coordinates={coordinates()}
-        status={located() ? status() : 'unknown'}
-        onStatus={setStatus}
-        onRemove={() => setCoordinates('')}
+        coordinates={location.coordinates()}
+        status={located() ? location.status() : 'unknown'}
+        onStatus={location.setStatus}
+        onRemove={location.clear}
         fault={props.invalid(`${props.prefix}.coordinates`)}
       />
-      <button
-        type="button"
-        class="btn btn-sm"
-        onClick={() => {
-          dialog?.showModal();
-          setOpen(true);
-        }}
+      <Show
+        when={!outside}
+        fallback={<p class="text-xs text-base-content/60">{m.lookup_locate_here()}</p>}
       >
-        <PinIcon class="size-4" aria-hidden="true" />
-        {located() ? m.lookup_locate_change() : m.lookup_locate()}
-      </button>
-      {/* Full screen on a phone, a large box over the form from sm up. Its
+        <button
+          type="button"
+          class="btn btn-sm"
+          onClick={() => {
+            dialog?.showModal();
+            setOpen(true);
+          }}
+        >
+          <PinIcon class="size-4" aria-hidden="true" />
+          {located() ? m.lookup_locate_change() : m.lookup_locate()}
+        </button>
+        {/* Full screen on a phone, a large box over the form from sm up. Its
           controls are buttons, not a form: a form can't hold another. */}
-      <dialog
-        ref={(el) => (dialog = el)}
-        class="modal"
-        aria-labelledby={titleId()}
-        onClose={() => setOpen(false)}
-      >
-        <div class="modal-box flex h-[85dvh] max-h-none w-11/12 max-w-5xl flex-col gap-3 overflow-visible p-4 max-sm:h-dvh max-sm:w-full max-sm:max-w-none max-sm:rounded-none">
-          <div class="flex items-center justify-between gap-2">
-            <h3 id={titleId()} class="text-lg font-bold">
-              {m.lookup_locate_title({ name: props.name })}
-            </h3>
-            <button
-              type="button"
-              class="btn btn-square btn-ghost btn-sm"
-              aria-label={m.form_cancel()}
-              onClick={() => dialog?.close()}
-            >
-              <CloseIcon class="size-5" aria-hidden="true" />
-            </button>
-          </div>
-          <Show when={open()}>
-            <PlaceSearch onPick={found} />
-            {/* The map waits for the localities around it. */}
-            <Loading
-              fallback={
-                <div class="grid min-h-0 flex-1 place-items-center rounded-box bg-base-200">
-                  <span class="loading loading-md loading-spinner" aria-hidden="true" />
-                </div>
-              }
-            >
-              <LocatorMap
-                coordinates={coordinates()}
-                parishId={props.parishId ?? null}
-                onPick={set}
-              />
-            </Loading>
-            <p class="text-xs text-base-content/60">
-              {m.place_edit_map_hint()} {m.place_edit_map_legend()}
-            </p>
-          </Show>
-          <div class="flex flex-wrap items-end gap-x-4 gap-y-2">
-            <div class="min-w-64 grow">
-              <LocationLine
-                coordinates={coordinates()}
-                status={located() ? status() : 'unknown'}
-                onStatus={setStatus}
-                onRemove={() => setCoordinates('')}
-                fault={undefined}
-              />
+        <dialog
+          ref={(el) => (dialog = el)}
+          class="modal"
+          aria-labelledby={titleId()}
+          onClose={() => setOpen(false)}
+        >
+          <div class="modal-box flex h-[85dvh] max-h-none w-11/12 max-w-5xl flex-col gap-3 overflow-visible p-4 max-sm:h-dvh max-sm:w-full max-sm:max-w-none max-sm:rounded-none">
+            <div class="flex items-center justify-between gap-2">
+              <h3 id={titleId()} class="text-lg font-bold">
+                {m.lookup_locate_title({ name: props.name })}
+              </h3>
+              <button
+                type="button"
+                class="btn btn-square btn-ghost btn-sm"
+                aria-label={m.form_cancel()}
+                onClick={() => dialog?.close()}
+              >
+                <CloseIcon class="size-5" aria-hidden="true" />
+              </button>
             </div>
-            <button type="button" class="btn btn-primary" onClick={() => dialog?.close()}>
-              {m.lookup_locate_done()}
-            </button>
+            <Show when={open()}>
+              <PlaceSearch onPick={found} />
+              {/* The map waits for the localities around it. */}
+              <Loading
+                fallback={
+                  <div class="grid min-h-0 flex-1 place-items-center rounded-box bg-base-200">
+                    <span class="loading loading-md loading-spinner" aria-hidden="true" />
+                  </div>
+                }
+              >
+                <LocatorMap
+                  coordinates={location.coordinates()}
+                  parishId={props.parishId ?? null}
+                  onPick={location.set}
+                />
+              </Loading>
+              <p class="text-xs text-base-content/60">
+                {m.place_edit_map_hint()} {m.place_edit_map_legend()}
+              </p>
+            </Show>
+            <div class="flex flex-wrap items-end gap-x-4 gap-y-2">
+              <div class="min-w-64 grow">
+                <LocationLine
+                  coordinates={location.coordinates()}
+                  status={located() ? location.status() : 'unknown'}
+                  onStatus={location.setStatus}
+                  onRemove={location.clear}
+                  fault={undefined}
+                />
+              </div>
+              <button type="button" class="btn btn-primary" onClick={() => dialog?.close()}>
+                {m.lookup_locate_done()}
+              </button>
+            </div>
           </div>
-        </div>
-      </dialog>
+        </dialog>
+      </Show>
     </div>
   );
 }

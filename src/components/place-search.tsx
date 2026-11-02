@@ -25,9 +25,12 @@ type Hits = GazetteerHit[] | Promise<QueryData<typeof getGazetteerHits>>;
  */
 export default function PlaceSearch(props: {
   onPick: (hit: GazetteerHit) => void;
+  /** What it finds, when not "Find the locality". */
+  label?: string;
   /** The box's classes: where it sits in the form. */
   class?: string;
 }) {
+  const label = () => props.label ?? m.place_search_label();
   // The text in the input; the search, once typing pauses; the search the
   // whole map was asked for.
   const [text, setText] = createSignal('', { name: 'place-search-text' });
@@ -176,7 +179,7 @@ export default function PlaceSearch(props: {
       {/* Below lg the box floats over the map, where a legend would hang
           in the air: the placeholder says what it is. */}
       <label for={box.ids.input()} class="fieldset-legend max-lg:sr-only">
-        {m.place_search_label()}
+        {label()}
       </label>
       <div class="relative">
         <label class="input w-full">
@@ -226,7 +229,7 @@ export default function PlaceSearch(props: {
               <ul
                 id={box.ids.list()}
                 role="listbox"
-                aria-label={m.place_search_label()}
+                aria-label={label()}
                 class="menu max-h-80 w-full flex-nowrap overflow-y-auto menu-sm"
               >
                 <For each={found()}>{(hit, index) => <Option hit={hit} index={index()} />}</For>
