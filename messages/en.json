@@ -504,5 +504,22 @@
   "lookup_locate_here": "Click the map to place it, or find it in the search above.",
   "record_edit_split_correct": "Correct the split",
   "record_edit_split_corrected": "Corrected by hand",
-  "record_edit_split_none": "not split into parts"
+  "record_edit_split_none": "not split into parts",
+  "places_view_label": "View",
+  "places_view_map": "Map",
+  "places_view_table": "Table",
+  "villages_sheet": "List of localities",
+  "villages_map_hint": "Click a dot to find it in the list, or a row to find it on the map.",
+  "parishes_sheet": "List of parishes",
+  "parishes_map_hint": "Choose a parish in the list, or a dot on the map, to show its localities.",
+  "villages_records_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} record",
+        "countPlural=*": "{count} records"
+      }
+    }
+  ]
 }

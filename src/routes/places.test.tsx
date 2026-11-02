@@ -150,6 +150,17 @@ vi.mock('~/data/parishes', async () => {
     }, 'delete-parish'),
   };
 });
+// The places lists' view: the table, where the lists' own tests look,
+// unless a test picks the map.
+const { placesView } = vi.hoisted(() => ({
+  placesView: { current: 'table' as 'map' | 'table', saved: [] as string[] },
+}));
+vi.mock('~/data/places-view', () => ({
+  getPlacesView: vi.fn(async () => placesView.current),
+  savePlacesView: vi.fn((view: 'map' | 'table') => {
+    placesView.saved.push(view);
+  }),
+}));
 vi.mock('~/data/places', async () => {
   const { formAction } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
@@ -234,6 +245,8 @@ afterEach(() => {
   parishes.deleteFailsWith = null;
   parishes.uses = { villages: 0, sources: 0 };
   gazetteer.existing = null;
+  placesView.current = 'table';
+  placesView.saved = [];
 });
 
 describe('/places/villages', () => {
@@ -1020,5 +1033,88 @@ describe('reactivity', () => {
       await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
       await screen.findAllByRole('link', { name: 'Edit parish' });
     });
+  });
+});
+
+describe('the map view', () => {
+  const rowNames = (container: HTMLElement) =>
+    [...container.querySelectorAll('.list-row .font-medium')].map((el) => el.textContent);
+
+  test('lists the localities in the panel; the search narrows them, a row is picked', async () => {
+    placesView.current = 'map';
+    const { container } = renderAt('/places/villages');
+    await waitFor(() => expect(rowNames(container)).toEqual(['Горки', 'Мыза Кикерино', 'Ёлкино']));
+    expect(container.querySelector('table')).toBeNull();
+    const [gorki, kikerino] = container.querySelectorAll('.list-row');
+    expect(gorki).toHaveTextContent('Village · Hevaa · 331 records');
+    expect(gorki).toHaveTextContent('Бедная Горка');
+    // One the map can't show says so.
+    expect(gorki).not.toHaveTextContent('Not located');
+    expect(kikerino).toHaveTextContent('Manor · 4 records · Not located');
+
+    const pick = within(gorki as HTMLElement).getAllByRole('button')[0];
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(pick);
+        await waitFor(() => expect(pick).toHaveAttribute('aria-pressed', 'true'));
+        fireEvent.input(screen.getByRole('searchbox', { name: 'Search localities' }), {
+          target: { value: 'елк' },
+        });
+        await waitFor(() => expect(rowNames(container)).toEqual(['Ёлкино']));
+        flush();
+      },
+      { scenario: 'villages-map' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+  });
+
+  test('switches to the table and back, and remembers the choice', async () => {
+    placesView.current = 'map';
+    const { container } = renderAt('/places/villages');
+    await waitFor(() => expect(rowNames(container)).toHaveLength(3));
+    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
+    await waitFor(() => expect(names(container)).toHaveLength(3));
+    expect(screen.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true');
+    expect(placesView.saved).toEqual(['table']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Map' }));
+    await waitFor(() => expect(rowNames(container)).toHaveLength(3));
+    expect(container.querySelector('table')).toBeNull();
+    expect(placesView.saved).toEqual(['table', 'map']);
+  });
+
+  test('admins add and edit from the panel', async () => {
+    placesView.current = 'map';
+    me.current = { isAdmin: true };
+    renderAt(`/places/villages?q=${encodeURIComponent('горк')}`);
+    expect(await screen.findByRole('link', { name: 'Edit locality' })).toHaveAttribute(
+      'href',
+      `/places/villages/1/edit?q=${encodeURIComponent('горк')}`,
+    );
+    expect(screen.getByRole('link', { name: 'Add locality' })).toHaveAttribute(
+      'href',
+      `/places/villages/new?q=${encodeURIComponent('горк')}`,
+    );
+    expect(screen.getByText('Not linked to a locality')).toBeInTheDocument();
+  });
+
+  test('lists the parishes in the panel, each a link away from its localities', async () => {
+    placesView.current = 'map';
+    const { container } = renderAt('/places/parishes');
+    await waitFor(() => expect(rowNames(container)).toEqual(['Губаницы', 'Курляндия']));
+    const [gubanitsy, kurlandia] = container.querySelectorAll('.list-row');
+    expect(gubanitsy).toHaveTextContent('1 locality · 1 source');
+    expect(kurlandia).toHaveTextContent('Не приход');
+    // No localities: no link to them.
+    expect(screen.getAllByRole('link', { name: /^Localities of/ })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Localities of Губаницы' })).toHaveAttribute(
+      'href',
+      '/places/villages?parish=5',
+    );
+    expect(screen.queryByRole('link', { name: 'Edit parish' })).toBeNull();
+
+    const pick = within(gubanitsy as HTMLElement).getAllByRole('button')[0];
+    fireEvent.click(pick);
+    await waitFor(() => expect(pick).toHaveAttribute('aria-pressed', 'true'));
   });
 });

@@ -504,5 +504,22 @@
   "lookup_locate_here": "Napsauta karttaa merkitäksesi sen, tai etsi se yllä olevalla haulla.",
   "record_edit_split_correct": "Korjaa jako",
   "record_edit_split_corrected": "Korjattu käsin",
-  "record_edit_split_none": "ei jaettu osiin"
+  "record_edit_split_none": "ei jaettu osiin",
+  "places_view_label": "Näkymä",
+  "places_view_map": "Kartta",
+  "places_view_table": "Taulukko",
+  "villages_sheet": "Paikkakuntien luettelo",
+  "villages_map_hint": "Napsauta pistettä löytääksesi sen luettelosta tai riviä löytääksesi sen kartalta.",
+  "parishes_sheet": "Seurakuntien luettelo",
+  "parishes_map_hint": "Valitse seurakunta luettelosta tai piste kartalta, niin sen paikkakunnat näkyvät.",
+  "villages_records_count": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} merkintä",
+        "countPlural=*": "{count} merkintää"
+      }
+    }
+  ]
 }

@@ -251,10 +251,14 @@ export interface PlaceMarker {
   church: { id: number; name: Names } | null;
 }
 
-/** Every place with coordinates, and which of them are parish churches: the locality form's map shows them around the one being edited. */
+/**
+ * Every place with coordinates, and which of them are parish churches: the
+ * maps show them, the places lists' and the forms' (around the one being
+ * edited). For signed-in readers, as the villages list (getPlaces) is.
+ */
 export const getPlaceMarkers = query(async (): Promise<PlaceMarker[]> => {
   'use server';
-  adminOnly();
+  signedIn();
   const [places, parishes] = await Promise.all([
     db.query.place.findMany({
       columns: {
