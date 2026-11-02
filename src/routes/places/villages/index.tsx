@@ -97,7 +97,7 @@ export default function Villages() {
           {(parish) => (
             <>
               <input type="hidden" name="parish" value={parish()} />
-              <span class="badge gap-1 badge-soft badge-primary">
+              <span class="badge gap-1 badge-soft">
                 {m.villages_parish_filter({ parish: parishName() })}
                 <a
                   href={paths.places.villages({ q: search.q })}

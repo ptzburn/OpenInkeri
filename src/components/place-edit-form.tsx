@@ -379,7 +379,7 @@ export default function PlaceEditForm(props: {
                           church), and where it stands when elsewhere. */}
                       <Show when={parishLinked() !== null || parishTyped().trim()}>
                         <div class="flex flex-col gap-1 sm:col-span-2">
-                          <label class="label cursor-pointer gap-2">
+                          <label class="label gap-2">
                             <input
                               type="checkbox"
                               name="church"

@@ -59,7 +59,7 @@ export default function App() {
                     <label
                       for="app-drawer"
                       aria-label={m.app_open_menu()}
-                      class="btn btn-square btn-ghost lg:hidden"
+                      class="btn drawer-button btn-square btn-ghost lg:hidden"
                     >
                       <MenuIcon class="size-6" aria-hidden="true" />
                     </label>
@@ -88,7 +88,7 @@ export default function App() {
               {/* Following a link closes the drawer on small screens. Folded,
                 the links' tooltips reach out past the sidebar. */}
               <div
-                class="drawer-side z-10 sidebar-collapsed:overflow-visible"
+                class="drawer-side sidebar-collapsed:overflow-visible"
                 onClick={(event) => {
                   if ((event.target as Element).closest('a')) drawer!.checked = false;
                 }}

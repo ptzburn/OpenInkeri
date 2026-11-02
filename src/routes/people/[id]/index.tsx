@@ -130,10 +130,7 @@ export default function Person(props: RouteProps<'/people/:id/'>) {
                             <form method="post" action={unlinkPersona} class="group">
                               <input type="hidden" name="persona" value={mention().personaId} />
                               <input type="hidden" name="person" value={p().id} />
-                              <button
-                                type="submit"
-                                class="btn btn-ghost btn-xs group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-                              >
+                              <button type="submit" class="btn btn-ghost btn-xs">
                                 {m.person_unlink()}
                               </button>
                             </form>
@@ -294,10 +291,7 @@ function SuggestionRow(props: { suggestion: PersonSuggestion; personId: number }
         <form method="post" action={linkPersona} class="group">
           <input type="hidden" name="persona" value={props.suggestion.mention.personaId} />
           <input type="hidden" name="person" value={props.personId} />
-          <button
-            type="submit"
-            class="btn btn-xs btn-primary group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-          >
+          <button type="submit" class="btn btn-xs">
             {m.link_to_this()}
           </button>
         </form>

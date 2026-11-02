@@ -445,7 +445,7 @@ describe('editing a village', () => {
     const option = await screen.findByRole('option', { name: /Губаницы/ });
     expect(option).toHaveTextContent('Kupanitsa');
     expect(option).toHaveTextContent('Village · Hevaa (0.4 km)');
-    fireEvent.click(within(option).getByRole('button'));
+    fireEvent.click(within(option).getByText('Губаницы'));
 
     await waitFor(() => expect(field('nameRu')).toHaveValue('Губаницы'));
     expect(field('nameFi')).toHaveValue('Kupanitsa');
@@ -473,7 +473,7 @@ describe('editing a village', () => {
     const search = screen.getByRole('combobox', { name: 'Find the locality' });
     fireEvent.input(search, { target: { value: 'kupa' } });
     const option = await screen.findByRole('option', { name: /Губаницы/ });
-    fireEvent.click(within(option).getByRole('button'));
+    fireEvent.click(within(option).getByText('Губаницы'));
     await waitFor(() => expect(field('nameFi')).toHaveValue('Kupanitsa'));
     expect(field('nameRu')).toHaveValue('Губаницы');
     expect(field('kind')).toHaveValue('village');

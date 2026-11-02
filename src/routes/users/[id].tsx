@@ -92,9 +92,9 @@ function UserAdmin(props: {
           )}
         </Show>
         <Show when={signOut()?.result}>
-          <p role="status" class="text-sm text-success">
+          <div role="status" class="alert alert-success alert-soft">
             {m.user_signed_out_everywhere()}
-          </p>
+          </div>
         </Show>
       </div>
 

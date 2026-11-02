@@ -141,7 +141,7 @@ export function FormActions(props: {
           type="submit"
           form={props.form}
           class={[
-            'btn group-aria-busy:pointer-events-none group-aria-busy:opacity-60 group-has-[form[aria-busy]]:pointer-events-none group-has-[form[aria-busy]]:opacity-60',
+            'btn group-has-[form[aria-busy]]:pointer-events-none group-has-[form[aria-busy]]:opacity-60',
             props.primary !== 'next' && 'btn-primary',
           ]}
         >
@@ -158,7 +158,7 @@ export function FormActions(props: {
             name="next"
             value="on"
             class={[
-              'btn group-aria-busy:pointer-events-none group-aria-busy:opacity-60 group-has-[form[aria-busy]]:pointer-events-none group-has-[form[aria-busy]]:opacity-60',
+              'btn group-has-[form[aria-busy]]:pointer-events-none group-has-[form[aria-busy]]:opacity-60',
               // The primary button is drawn at the end (the row is reversed).
               props.primary === 'next' && 'order-first btn-primary',
             ]}
@@ -234,7 +234,9 @@ export function TextInput(props: {
         onInput={(event) => props.onInput?.(event.currentTarget.value)}
       />
       <FieldError fault={props.invalid} error={props.error} />
-      <Show when={props.hint}>{(hint) => <span class="label">{hint()}</span>}</Show>
+      <Show when={props.hint}>
+        {(hint) => <span class="label whitespace-normal">{hint()}</span>}
+      </Show>
     </label>
   );
 }
@@ -405,7 +407,11 @@ export function DeleteSection<U>(props: {
       </h2>
       <p class="text-sm">{props.text}</p>
       <Show when={inUse()}>
-        {(message) => <div class="alert alert-warning alert-soft">{message()}</div>}
+        {(message) => (
+          <div role="alert" class="alert alert-warning alert-soft">
+            {message()}
+          </div>
+        )}
       </Show>
       <Show when={error()}>
         {(error) => (
@@ -458,12 +464,9 @@ export function DeleteSection<U>(props: {
               >
                 {m.form_cancel()}
               </button>
-              <button
-                type="submit"
-                class="btn btn-error group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-              >
+              <button type="submit" class="btn btn-error">
                 <span
-                  class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block group-has-[form[aria-busy]]:inline-block"
+                  class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
                   aria-hidden="true"
                 />
                 {props.title}

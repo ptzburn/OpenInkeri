@@ -79,10 +79,7 @@ export default function LinkMention(props: RouteProps<'/people/link/:persona'>) 
                     <input type="hidden" name="persona" value={d().mention.personaId} />
                     <input type="hidden" name="person" value="new" />
                     <p class="text-sm text-base-content/70">{m.link_new_text()}</p>
-                    <button
-                      type="submit"
-                      class="btn self-start btn-primary group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-                    >
+                    <button type="submit" class="btn self-start btn-primary">
                       <AddIcon class="size-4" aria-hidden="true" />
                       {m.link_new()}
                     </button>
@@ -115,10 +112,7 @@ export default function LinkMention(props: RouteProps<'/people/link/:persona'>) 
                             <form method="post" action={linkPersona} class="group">
                               <input type="hidden" name="persona" value={d().mention.personaId} />
                               <input type="hidden" name="person" value={row.id} />
-                              <button
-                                type="submit"
-                                class="btn btn-xs group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-                              >
+                              <button type="submit" class="btn btn-xs">
                                 <LinkIcon class="size-4" aria-hidden="true" />
                                 {m.link_to_this()}
                               </button>

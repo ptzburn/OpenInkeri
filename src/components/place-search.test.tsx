@@ -169,7 +169,7 @@ describe('PlaceSearch', () => {
     expect(options()[0]).toBe('KupanitsaVillage · Kupanitsa, Lappeenranta, Finland');
     // Asked once: the button is gone until the text changes.
     expect(screen.queryByRole('button', { name: 'Search the whole map' })).toBeNull();
-    fireEvent.click(within(screen.getByRole('option')).getByRole('button'));
+    fireEvent.click(within(screen.getByRole('option')).getByText('Kupanitsa'));
     expect(picked.map((h) => h.source)).toEqual(['nominatim']);
   });
 

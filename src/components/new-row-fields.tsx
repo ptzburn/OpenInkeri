@@ -194,7 +194,7 @@ export function NewParishFields(props: NewRowProps & { church?: boolean; plain?:
         labels={{ ru: m.parish_new_name_ru(), fi: m.parish_new_name_fi() }}
       />
       <Show when={props.church ?? true}>
-        <label class="label cursor-pointer gap-2 sm:col-span-2">
+        <label class="label gap-2 whitespace-normal sm:col-span-2">
           <input
             type="checkbox"
             name={`${props.prefix}.church`}

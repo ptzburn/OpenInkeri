@@ -262,8 +262,9 @@ export function LookupField(props: {
             </For>
           </ul>
         </Show>
+        {/* A sibling of the .validator, which shows it when the server refused the text. */}
+        <FieldError fault={props.invalid(props.textName)} />
       </div>
-      <FieldError fault={props.invalid(props.textName)} />
       {/* The row linked, posted as the id. A spelling several rows share,
           none of them chosen: the choice among them, instead. */}
       <Show

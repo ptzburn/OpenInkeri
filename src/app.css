@@ -27,7 +27,9 @@
 }
 
 /* While a form's action runs, the router marks the form aria-busy: dim its
-   buttons and ignore clicks, so a second submit can't start. */
+   buttons and ignore clicks, so a second submit can't start. A button
+   outside its form (form="…") does the same through group-has-[form[aria-busy]]
+   utilities (FormActions). */
 form[aria-busy] button {
   opacity: 0.6;
   pointer-events: none;

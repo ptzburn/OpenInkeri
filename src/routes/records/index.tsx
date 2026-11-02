@@ -132,7 +132,7 @@ export default function Records() {
       <Show when={list()?.source}>
         {(source) => (
           <div class="flex flex-wrap items-center gap-2">
-            <span class="badge gap-1 badge-soft badge-primary">
+            <span class="badge gap-1 badge-soft">
               {m.records_source({ title: source().title })}
             </span>
             <a href={paths.records({ kind: search.kind, q: search.q })} class="link text-sm">
