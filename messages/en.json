@@ -372,6 +372,7 @@
   "parish_delete_text": "Deletes the parish.",
   "parish_delete_unconfirmed": "The deletion was not confirmed.",
   "parish_church": "Church locality",
+  "parish_church_unplaced": "{name} has no position on the map yet.",
   "parish_church_new_name_ru": "Church locality name in Russian",
   "parish_church_new_name_fi": "Church locality name in Finnish",
   "parish_church_new_kind": "Church locality type",

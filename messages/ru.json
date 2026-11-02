@@ -380,6 +380,7 @@
   "parish_delete_text": "Удаляет приход.",
   "parish_delete_unconfirmed": "Удаление не подтверждено.",
   "parish_church": "Место церкви",
+  "parish_church_unplaced": "Место «{name}» ещё не отмечено на карте.",
   "parish_church_new_name_ru": "Название места церкви по-русски",
   "parish_church_new_name_fi": "Название места церкви по-фински",
   "parish_church_new_kind": "Тип места церкви",

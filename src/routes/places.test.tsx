@@ -717,6 +717,17 @@ describe('/places/parishes', () => {
     expect(field('churchText')).toHaveAttribute('maxlength', '200');
   });
 
+  test('a church locality not on the map says so', async () => {
+    me.current = { isAdmin: true };
+    // None of the localities here has coordinates (getPlaceMarkers lists none).
+    renderAt('/places/parishes/5/edit');
+    await waitFor(() => expect(field('churchText')).toHaveValue('Gorkka'));
+    expect(await screen.findByText('Gorkka has no position on the map yet.')).toBeInTheDocument();
+    // Typed away from it, nothing is linked: nothing to say.
+    fireEvent.input(field('churchText'), { target: { value: 'Ки' } });
+    await waitFor(() => expect(screen.queryByText(/has no position/)).toBeNull());
+  });
+
   test('deleting a parish posts its id and version once confirmed', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/5/edit');

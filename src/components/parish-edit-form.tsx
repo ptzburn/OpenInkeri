@@ -111,6 +111,19 @@ export default function ParishEditForm(props: {
         const [churchHit, setChurchHit] = createSignal<GazetteerHit | null>(null, {
           name: 'parish-church-hit',
         });
+        // The church locality last linked in the field or the search: the
+        // map flies to it (not as the page loads, which shows the parish).
+        const [target, setTarget] = createSignal<number | null>(null, {
+          name: 'parish-church-target',
+        });
+        // The church linked has no position: the map can't show it.
+        const unplaced = () => {
+          const id = churchLinked();
+          const all = markers();
+          return id !== null && all && !all.some((n) => n.id === id)
+            ? namedRow(places(), id)
+            : null;
+        };
         // Where a new church stands: this page's map sets it.
         const location = createLocation();
         // The church's choices: every locality, with its parish when it isn't
@@ -145,6 +158,7 @@ export default function ParishEditForm(props: {
           if (hit.existing) {
             setChurchHit(null);
             setChurchSet({ text: localName(hit.existing.name), id: hit.existing.id });
+            setTarget(hit.existing.id);
             return;
           }
           setChurchHit(hit);
@@ -166,6 +180,7 @@ export default function ParishEditForm(props: {
                 }}
                 markers={markers()}
                 highlight={p.id || null}
+                target={target()}
                 focus={church()}
               />
             )}
@@ -206,8 +221,16 @@ export default function ParishEditForm(props: {
                   onChange={({ text, id }) => {
                     setChurchTyped(text);
                     setChurchLinked(id);
+                    setTarget(id);
                   }}
                 />
+                <Show when={unplaced()}>
+                  {(name) => (
+                    <p class="mt-1 text-xs text-base-content/60">
+                      {m.parish_church_unplaced({ name: name() })}
+                    </p>
+                  )}
+                </Show>
               </div>
               <TextArea
                 name="note"

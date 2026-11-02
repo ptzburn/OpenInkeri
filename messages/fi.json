@@ -372,6 +372,7 @@
   "parish_delete_text": "Poistaa seurakunnan.",
   "parish_delete_unconfirmed": "Poistoa ei vahvistettu.",
   "parish_church": "Kirkon paikkakunta",
+  "parish_church_unplaced": "Paikkakunnalla {name} ei ole vielä sijaintia kartalla.",
   "parish_church_new_name_ru": "Kirkon paikkakunnan nimi venäjäksi",
   "parish_church_new_name_fi": "Kirkon paikkakunnan nimi suomeksi",
   "parish_church_new_kind": "Kirkon paikkakunnan tyyppi",

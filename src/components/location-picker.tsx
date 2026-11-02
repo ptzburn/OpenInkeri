@@ -48,18 +48,19 @@ interface PlaceProperties {
   /** Outside the parish the map shows (`highlight`): drawn faint. */
   faded: boolean;
 }
+const propertiesOf = (p: PlaceMarker, highlight: number | null): PlaceProperties => ({
+  name: localName(p.name),
+  church: p.church !== null,
+  // A church's parish is the one it serves.
+  parish: localName(p.church?.name ?? p.parish) ?? '',
+  faded: highlight !== null && p.parishId !== highlight && p.church?.id !== highlight,
+});
 const placesData = (markers: PlaceMarker[], highlight: number | null = null): GeoData => ({
   type: 'FeatureCollection',
   features: markers.map((p) => ({
     type: 'Feature',
     geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
-    properties: {
-      name: localName(p.name),
-      church: p.church !== null,
-      // A church's parish is the one it serves.
-      parish: localName(p.church?.name ?? p.parish) ?? '',
-      faded: highlight !== null && p.parishId !== highlight && p.church?.id !== highlight,
-    } satisfies PlaceProperties,
+    properties: propertiesOf(p, highlight),
   })),
 });
 
@@ -232,6 +233,8 @@ export default function LocationPicker(props: {
   /** The parish whose localities are drawn plain, the others faint; none: all plain. */
   highlight?: number | null;
   focus?: Point | null;
+  /** A locality among the markers picked elsewhere (a form's field): the view flies to it and names it. */
+  target?: number | null;
   /** A MapForm's panel lies over the map. */
   panel?: boolean;
   /** The box's classes, its height above all (h-72 unless said otherwise); MapLibre follows the box as it resizes. */
@@ -241,6 +244,8 @@ export default function LocationPicker(props: {
   const [map, setMap] = createSignal<MapLibreMap | undefined>(undefined, { name: 'map' });
   const [unsupported, setUnsupported] = createSignal(false, { name: 'map-unsupported' });
   let marker: Marker | undefined;
+  // Names a known locality in the popup, as pointing at its dot does; set once the map is up.
+  let namePlace: ((place: PlaceMarker) => void) | undefined;
   // The dots' data as last given, for a style (re)load to draw.
   let places = placesData([]);
   const coordinates = () => parseCoordinates(props.value) ?? null;
@@ -308,6 +313,11 @@ export default function LocationPicker(props: {
           .setDOMContent(describePlace(feature.properties as PlaceProperties))
           .addTo(withPopup);
       };
+      namePlace = (place) =>
+        popup
+          .setLngLat([place.longitude, place.latitude])
+          .setDOMContent(describePlace(propertiesOf(place, null)))
+          .addTo(withPopup);
       created.on('mousemove', (event) => {
         const [feature] = under(event.point);
         withPopup.getCanvas().style.cursor = feature ? 'pointer' : '';
@@ -364,6 +374,27 @@ export default function LocationPicker(props: {
       map.flyTo({ center: [at.lng, at.lat], zoom: PLACE_ZOOM });
     },
     { name: 'map-marker' },
+  );
+  // A locality picked elsewhere: the view flies to it (closer in, never out)
+  // and names it, once for each pick; one not on the map (no coordinates)
+  // moves nothing.
+  let flownTo: number | null = null;
+  createEffect(
+    () => ({ map: map(), target: props.target ?? null, markers: props.markers ?? [] }),
+    ({ map, target, markers }) => {
+      // Cleared, the same locality picked again flies there again.
+      if (target === null) flownTo = null;
+      if (!map || target === null || target === flownTo) return;
+      const place = markers.find((p) => p.id === target);
+      if (!place) return;
+      flownTo = target;
+      map.flyTo({
+        center: [place.longitude, place.latitude],
+        zoom: Math.max(map.getZoom(), PLACE_ZOOM),
+      });
+      namePlace?.(place);
+    },
+    { name: 'map-target' },
   );
   // The known localities, as given and whenever they (or the parish shown)
   // change. The parish shown is fitted in view once, when the map has no
