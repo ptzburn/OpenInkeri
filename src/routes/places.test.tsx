@@ -610,7 +610,14 @@ describe('/places/parishes', () => {
     fireEvent.input(field('churchText'), { target: { value: 'Тест' } });
     await waitFor(() => expect(field('churchNew.nameRu')).toHaveValue('Тест'));
     expect(field('churchPlaceId')).toHaveValue('');
-    expect(screen.getByText('Add as a new locality')).toBeInTheDocument();
+    // As a locality's form adds a parish: no word of adding, the fields
+    // named for the church.
+    expect(screen.queryByText('Add as a new locality')).toBeNull();
+    expect(screen.getByLabelText(/^Church locality name in Finnish/)).toBe(
+      field('churchNew.nameFi'),
+    );
+    expect(screen.getByLabelText(/^Church locality type/)).toBe(field('churchNew.kind'));
+    expect(screen.queryByText('The locality the parish church stands in')).toBeNull();
     expect(field('churchCreate')).toHaveValue('on');
     expect(field('churchNew.nameFi')).toHaveValue('');
     expect(field('churchNew.kind')).toHaveValue('village');

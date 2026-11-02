@@ -34,6 +34,12 @@ interface NameLabels {
   fi: string;
 }
 
+/** What a new locality's fields are called, where it is something in particular (a church). */
+export interface PlaceLabels extends NameLabels {
+  kind: string;
+  location: string;
+}
+
 const inCyrillic = (text: string) => matchesPattern(CYRILLIC_NAME_PATTERN, text);
 const inLatin = (text: string) => matchesPattern(LATIN_NAME_PATTERN, text);
 
@@ -120,10 +126,13 @@ function Fields(props: { plain?: boolean; children: JSX.Element }) {
  * choice, the parish whose church is nearest, all still editable; and is
  * handed on to `onFound`. A page that is a map itself (the parish's) finds
  * the settlement in its own search, given as `start`, and sets `location`
- * on its map.
+ * on its map. `plain` leaves the box out, the fields following the lookup's
+ * own, named by `labels` for what the locality is to the form (a church).
  */
 export function NewPlaceFields(
   props: NewRowProps & {
+    plain?: boolean;
+    labels?: PlaceLabels;
     kind?: PlaceKind;
     parishes?: { id: number; name: Names }[];
     parishId?: number | null;
@@ -156,17 +165,18 @@ export function NewPlaceFields(
     props.onFound?.(hit);
   };
   return (
-    <Fields>
+    <Fields plain={props.plain}>
       <NameInputs
         prefix={props.prefix}
         text={props.text}
         invalid={props.invalid}
+        labels={props.labels}
         values={names()}
         onInput={(field, value) => setNames((n) => ({ ...n, [field]: value }))}
       />
       <Select
         name={`${props.prefix}.kind`}
-        label={m.place_edit_kind()}
+        label={props.labels?.kind ?? m.place_edit_kind()}
         value={kind()}
         options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
         invalid={props.invalid(`${props.prefix}.kind`)}
@@ -188,6 +198,7 @@ export function NewPlaceFields(
       <PlaceLocator
         prefix={props.prefix}
         name={props.text}
+        label={props.labels?.location}
         parishId={parishId()}
         location={props.location}
         invalid={props.invalid}
@@ -299,6 +310,8 @@ export const parishLookup = (
  * namesake; one not known yet can be added in the field. `added` says how:
  * its kind by the field's prefix (an estate is a manor), and the parishes to
  * choose from, starting at `parishId`; neither when the parish is fixed.
+ * With `plain`, nothing says a locality is being added: its fields, named
+ * by `labels`, just follow the field (see NewPlaceFields).
  * `onFound` hears a settlement found on its map, for the form around; on a
  * page that is a map, `start` is the settlement its search found and
  * `location` what its map sets (see NewPlaceFields).
@@ -307,6 +320,8 @@ export const placeLookup = (
   places: { id: number; name: Names; parish: Names | null; spellings: string[] }[] | undefined,
   invalid: (field: string) => Fault,
   added: {
+    plain?: boolean;
+    labels?: PlaceLabels;
     kind?: (prefix: string) => PlaceKind;
     parishes?: () => { id: number; name: Names }[];
     parishId?: () => number | null;
@@ -316,11 +331,13 @@ export const placeLookup = (
   } = {},
 ): Lookup =>
   lookupRows(places, placeLabel, {
-    label: m.lookup_create_place(),
+    label: added.plain ? undefined : m.lookup_create_place(),
     fields: (prefix, text) => (
       <NewPlaceFields
         prefix={prefix}
         text={text()}
+        plain={added.plain}
+        labels={added.labels}
         kind={added.kind?.(prefix)}
         parishes={added.parishes?.()}
         parishId={added.parishId?.()}

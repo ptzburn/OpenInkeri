@@ -116,7 +116,20 @@ export default function ParishEditForm(props: {
         // The church's choices: every locality, with its parish when it isn't
         // its namesake; a new one can be added here, in this parish.
         const churchLookup = createMemo(
-          (): Lookup => placeLookup(places(), invalid, { start: churchHit, location }),
+          (): Lookup =>
+            placeLookup(places(), invalid, {
+              start: churchHit,
+              location,
+              // As a locality's form adds a parish: no box, and the fields
+              // named for the church.
+              plain: true,
+              labels: {
+                ru: m.parish_church_new_name_ru(),
+                fi: m.parish_church_new_name_fi(),
+                kind: m.parish_church_new_kind(),
+                location: m.parish_church_new_location(),
+              },
+            }),
           { name: 'parish-church-lookup' },
         );
         // A new church is being added: the map places it.
@@ -193,7 +206,10 @@ export default function ParishEditForm(props: {
                     setChurchLinked(id);
                   }}
                 />
-                <p class="label whitespace-normal">{m.parish_church_hint()}</p>
+                {/* While a church is added, its own fields say what it is. */}
+                <Show when={!adding()}>
+                  <p class="label whitespace-normal">{m.parish_church_hint()}</p>
+                </Show>
               </div>
               <TextArea
                 name="note"
