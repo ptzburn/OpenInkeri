@@ -442,6 +442,19 @@ describe('editing a village', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Locality Серебетта added.');
   });
 
+  test('a required field is marked with an asterisk, hidden from screen readers', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/villages/new');
+    await waitFor(() => expect(field('nameRu')).toBeInTheDocument());
+    const mark = (name: string) =>
+      field(name).closest('label')!.querySelector('.fieldset-legend [aria-hidden="true"]');
+    expect(mark('nameRu')).toHaveTextContent('*');
+    expect(mark('nameFi')).toBeNull();
+    // Its name stays the label's words, without the asterisk (jsdom has no
+    // CSS, so the hidden error hint follows them here).
+    expect(field('nameRu')).toHaveAccessibleName(/^Name in Russian Russian names/);
+  });
+
   test('a settlement picked in the search fills the names, type, coordinates and parish', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/villages/new');

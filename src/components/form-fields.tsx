@@ -204,6 +204,18 @@ export function FieldError(props: { fault: Fault; error?: string }) {
 /** The aria-invalid of a control the server refused. */
 export const ariaInvalid = (fault: Fault) => (fault === undefined ? undefined : 'true');
 
+/**
+ * The asterisk after a required field's label. Hidden from screen readers:
+ * they say "required" from the input's own attribute.
+ */
+export function RequiredMark() {
+  return (
+    <span class="ms-0.5 text-error" aria-hidden="true">
+      *
+    </span>
+  );
+}
+
 export function TextInput(props: {
   name: string;
   label: string;
@@ -221,7 +233,15 @@ export function TextInput(props: {
 }) {
   return (
     <label class="fieldset">
-      <span class="fieldset-legend">{props.label}</span>
+      {/* One child: the legend is a row that spreads its children apart. */}
+      <span class="fieldset-legend">
+        <span>
+          {props.label}
+          <Show when={props.required}>
+            <RequiredMark />
+          </Show>
+        </span>
+      </span>
       <input
         name={props.name}
         value={props.value ?? ''}
