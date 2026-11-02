@@ -1,5 +1,5 @@
 import { Title } from '@solidjs/meta';
-import { Loading, createSignal } from 'solid-js';
+import { Loading, createSignal, onSettled } from 'solid-js';
 import MenuIcon from '~icons/ri/menu-line';
 // Typed client env, validated and baked in at build time (see env.ts).
 import { env } from 'virtual:solid-env/client';
@@ -7,7 +7,7 @@ import { env } from 'virtual:solid-env/client';
 import Breadcrumbs from './components/breadcrumbs';
 import LanguageSwitcher from './components/language-switcher';
 import Logo from './components/logo';
-import Sidebar, { SidebarToggle } from './components/sidebar';
+import Sidebar, { type Shortcut, SidebarToggle } from './components/sidebar';
 import ThemeSwitcher from './components/theme-switcher';
 import { ToastProvider } from './components/toaster';
 import { getSidebarCollapsed, saveSidebarCollapsed } from './data/sidebar';
@@ -33,6 +33,29 @@ export default function App() {
           setCollapsed(next);
           saveSidebarCollapsed(next);
         };
+        // Cmd+B (Ctrl+B off a Mac, where Ctrl+B moves the caret back in a
+        // field) toggles the sidebar: folds it from lg up, opens or closes
+        // the drawer below. By the key's place, not its letter: a Russian
+        // layout types "и" there. Known once in the browser: the server
+        // can't tell a Mac, and the fold button's title says it then.
+        const [shortcut, setShortcut] = createSignal<Shortcut | null>(null, {
+          name: 'sidebar-shortcut',
+        });
+        onSettled(() => {
+          const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+          setShortcut(
+            mac ? { label: '⌘B', aria: 'Meta+B' } : { label: 'Ctrl+B', aria: 'Control+B' },
+          );
+          const pressed = (event: KeyboardEvent) => {
+            const command = mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
+            if (event.code !== 'KeyB' || !command || event.altKey || event.shiftKey) return;
+            event.preventDefault();
+            if (matchMedia('(min-width: 64rem)').matches) toggleSidebar();
+            else if (drawer) drawer.checked = !drawer.checked;
+          };
+          document.addEventListener('keydown', pressed);
+          return () => document.removeEventListener('keydown', pressed);
+        });
         return (
           <ToastProvider>
             <Title>{env.VITE_APP_NAME}</Title>
@@ -65,11 +88,16 @@ export default function App() {
                     <label
                       for="app-drawer"
                       aria-label={m.app_open_menu()}
+                      aria-keyshortcuts={shortcut()?.aria}
                       class="btn drawer-button btn-square btn-ghost lg:hidden"
                     >
                       <MenuIcon class="size-6" aria-hidden="true" />
                     </label>
-                    <SidebarToggle collapsed={collapsed()} onToggle={toggleSidebar} />
+                    <SidebarToggle
+                      collapsed={collapsed()}
+                      onToggle={toggleSidebar}
+                      shortcut={shortcut()}
+                    />
                     <span class="flex shrink-0 items-center gap-2 px-2 text-lg font-bold lg:hidden max-sm:group-has-[nav[data-back]]:hidden">
                       <Logo class="size-6" />
                       {env.VITE_APP_NAME}

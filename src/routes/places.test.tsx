@@ -6,6 +6,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@solidjs/testing-li
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
+import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
 import { renderAt as renderPage } from '~/testing/render';
 
 // The places pages (villages and parishes) through the real router, with
@@ -441,6 +442,19 @@ describe('editing a village', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Locality Серебетта added.');
   });
 
+  test('a required field is marked with an asterisk, hidden from screen readers', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/villages/new');
+    await waitFor(() => expect(field('nameRu')).toBeInTheDocument());
+    const mark = (name: string) =>
+      field(name).closest('label')!.querySelector('.fieldset-legend [aria-hidden="true"]');
+    expect(mark('nameRu')).toHaveTextContent('*');
+    expect(mark('nameFi')).toBeNull();
+    // Its name stays the label's words, without the asterisk (jsdom has no
+    // CSS, so the hidden error hint follows them here).
+    expect(field('nameRu')).toHaveAccessibleName(/^Name in Russian Russian names/);
+  });
+
   test('a settlement picked in the search fills the names, type, coordinates and parish', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/villages/new');
@@ -610,7 +624,14 @@ describe('/places/parishes', () => {
     fireEvent.input(field('churchText'), { target: { value: 'Тест' } });
     await waitFor(() => expect(field('churchNew.nameRu')).toHaveValue('Тест'));
     expect(field('churchPlaceId')).toHaveValue('');
-    expect(screen.getByText('Add as a new locality')).toBeInTheDocument();
+    // As a locality's form adds a parish: no word of adding, the fields
+    // named for the church.
+    expect(screen.queryByText('Add as a new locality')).toBeNull();
+    expect(screen.getByLabelText(/^Church locality name in Finnish/)).toBe(
+      field('churchNew.nameFi'),
+    );
+    expect(screen.getByLabelText(/^Church locality type/)).toBe(field('churchNew.kind'));
+    expect(screen.getByRole('combobox', { name: 'Church locality' })).toBe(field('churchText'));
     expect(field('churchCreate')).toHaveValue('on');
     expect(field('churchNew.nameFi')).toHaveValue('');
     expect(field('churchNew.kind')).toHaveValue('village');
@@ -630,7 +651,7 @@ describe('/places/parishes', () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/new');
     await waitFor(() => expect(field('churchText')).toBeInTheDocument());
-    const search = screen.getByRole('combobox', { name: 'Find the church' });
+    const search = screen.getByRole('combobox', { name: 'Find the church locality' });
     fireEvent.input(search, { target: { value: 'kupa' } });
     const option = await screen.findByRole('option', { name: /Губаницы/ });
     fireEvent.click(within(option).getByText('Губаницы'));
@@ -667,7 +688,7 @@ describe('/places/parishes', () => {
     renderAt('/places/parishes/new');
     await waitFor(() => expect(field('churchText')).toBeInTheDocument());
     fireEvent.input(field('nameRu'), { target: { value: 'Тест' } });
-    fireEvent.input(screen.getByRole('combobox', { name: 'Find the church' }), {
+    fireEvent.input(screen.getByRole('combobox', { name: 'Find the church locality' }), {
       target: { value: 'kupa' },
     });
     const option = await screen.findByRole('option', { name: /Губаницы/ });
@@ -687,6 +708,80 @@ describe('/places/parishes', () => {
     const link = await screen.findByRole('link', { name: /160 localities/ });
     expect(link).toHaveAttribute('href', '/places/villages?parish=5');
     expect(screen.getByText('4 sources')).toBeInTheDocument();
+  });
+
+  test("a new church's name fields take only their own alphabet", async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/new');
+    await waitFor(() => expect(field('churchText')).toBeInTheDocument());
+    // Typed in Latin letters, the Finnish name: the Russian one is asked for, in Cyrillic.
+    fireEvent.input(field('churchText'), { target: { value: 'Uusikylä' } });
+    await waitFor(() => expect(field('churchNew.nameRu')).toBeInTheDocument());
+    expect(field('churchNew.nameRu')).toHaveAttribute('pattern', CYRILLIC_NAME_PATTERN);
+    expect(field('churchNew.nameFi')).toHaveAttribute('type', 'hidden');
+    expect(
+      field('churchNew.nameRu').closest('label')!.querySelector('.validator-hint'),
+    ).toHaveTextContent('Russian names are written in Cyrillic letters.');
+    // Typed in Cyrillic, the Russian one: the Finnish one is asked for, in Latin letters.
+    fireEvent.input(field('churchText'), { target: { value: 'Новая' } });
+    await waitFor(() => expect(field('churchNew.nameFi')).not.toHaveAttribute('type', 'hidden'));
+    expect(field('churchNew.nameFi')).toHaveAttribute('pattern', LATIN_NAME_PATTERN);
+    // The church as written is one line, as the server keeps it.
+    expect(field('churchText')).toHaveAttribute('maxlength', '200');
+  });
+
+  test('a church locality not on the map says so', async () => {
+    me.current = { isAdmin: true };
+    // None of the localities here has coordinates (getPlaceMarkers lists none).
+    renderAt('/places/parishes/5/edit');
+    await waitFor(() => expect(field('churchText')).toHaveValue('Gorkka'));
+    expect(await screen.findByText('Gorkka has no position on the map yet.')).toBeInTheDocument();
+    // Typed away from it, nothing is linked: nothing to say.
+    fireEvent.input(field('churchText'), { target: { value: 'Ки' } });
+    await waitFor(() => expect(screen.queryByText(/has no position/)).toBeNull());
+  });
+
+  test('leaving with unsaved changes asks first; untouched, it leaves', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/5/edit');
+    await waitFor(() => expect(field('nameRu')).toHaveValue('Губаницы'));
+    const crumb = () => screen.getByRole('link', { name: 'Parishes' });
+
+    // A change: the dialog stops the way out; Stay keeps the page as typed.
+    fireEvent.input(field('note'), { target: { value: 'Не сохранено' } });
+    fireEvent.click(crumb());
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved changes' });
+    expect(window.location.pathname).toBe('/places/parishes/5/edit');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+    expect(dialog).not.toHaveAttribute('open');
+    expect(field('note')).toHaveValue('Не сохранено');
+
+    // Undone, it is no change: the link leaves.
+    fireEvent.input(field('note'), { target: { value: '' } });
+    fireEvent.click(crumb());
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+  });
+
+  test('leaving without saving goes on, once chosen', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/5/edit');
+    await waitFor(() => expect(field('nameRu')).toHaveValue('Губаницы'));
+    fireEvent.input(field('nameFi'), { target: { value: 'Kupanitsa' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Parishes' }));
+    const dialog = screen.getByRole('dialog', { name: 'Unsaved changes', hidden: true });
+    await waitFor(() => expect(dialog).toHaveAttribute('open'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Leave without saving' }));
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+  });
+
+  test('a save leaves without asking', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/5/edit');
+    await waitFor(() => expect(field('nameRu')).toHaveValue('Губаницы'));
+    fireEvent.input(field('note'), { target: { value: 'Сохранено' } });
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+    expect(parishes.saved).toHaveLength(1);
   });
 
   test('deleting a parish posts its id and version once confirmed', async () => {

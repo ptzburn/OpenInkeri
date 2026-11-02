@@ -11,6 +11,7 @@ import { FIELD_MAX } from '~/lib/field-limits';
 import AuthProviderIcon from '~/components/auth-provider-icon';
 import { authProviderLabels } from '~/components/labels';
 import UserAvatar from '~/components/user-avatar';
+import { RequiredMark } from '~/components/form-fields';
 import {
   type DeleteAccountError,
   deleteAccount,
@@ -128,7 +129,12 @@ export default function Account() {
               <p class="text-sm text-base-content/60">{m.account_email_from_provider()}</p>
               <form action={renameMe} method="post">
                 <fieldset class="fieldset">
-                  <legend class="fieldset-legend">{m.account_display_name()}</legend>
+                  <legend class="fieldset-legend">
+                    <span>
+                      {m.account_display_name()}
+                      <RequiredMark />
+                    </span>
+                  </legend>
                   <div class="join">
                     <input
                       name="name"
@@ -241,7 +247,10 @@ export default function Account() {
               <form action={deleteAccount} method="post" class="flex flex-col gap-3">
                 <label class="label text-base-content">
                   <input type="checkbox" name="confirm" required class="checkbox checkbox-error" />
-                  {m.account_delete_confirm()}
+                  <span>
+                    {m.account_delete_confirm()}
+                    <RequiredMark />
+                  </span>
                 </label>
                 <button type="submit" class="btn self-start btn-error">
                   {m.account_delete()}

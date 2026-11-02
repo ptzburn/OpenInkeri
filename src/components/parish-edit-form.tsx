@@ -1,4 +1,4 @@
-import { Show, createMemo, createSignal } from 'solid-js';
+import { Show, createMemo, createSignal, untrack } from 'solid-js';
 import ArrowIcon from '~icons/ri/arrow-right-s-line';
 
 import type { QueryData } from '~/lib/query-data';
@@ -16,6 +16,7 @@ import { type Lookup, LookupField, addsRow, namedRow } from '~/components/lookup
 import MapForm from '~/components/map-form';
 import { placeLookup } from '~/components/new-row-fields';
 import { createLocation } from '~/components/place-locator';
+import LeaveGuard from '~/components/leave-guard';
 import { type ParishEditData, deleteParish, getParishEdit, saveParish } from '~/data/parishes';
 import { getPlaceMarkers, getPlaceOptions } from '~/data/places';
 import type { GazetteerHit } from '~/lib/gazetteer';
@@ -111,16 +112,63 @@ export default function ParishEditForm(props: {
         const [churchHit, setChurchHit] = createSignal<GazetteerHit | null>(null, {
           name: 'parish-church-hit',
         });
+        // The church locality last linked in the field or the search: the
+        // map flies to it (not as the page loads, which shows the parish).
+        const [target, setTarget] = createSignal<number | null>(null, {
+          name: 'parish-church-target',
+        });
+        // The church linked has no position: the map can't show it.
+        const unplaced = () => {
+          const id = churchLinked();
+          const all = markers();
+          return id !== null && all && !all.some((n) => n.id === id)
+            ? namedRow(places(), id)
+            : null;
+        };
         // Where a new church stands: this page's map sets it.
         const location = createLocation();
         // The church's choices: every locality, with its parish when it isn't
         // its namesake; a new one can be added here, in this parish.
         const churchLookup = createMemo(
-          (): Lookup => placeLookup(places(), invalid, { start: churchHit, location }),
+          (): Lookup =>
+            placeLookup(places(), invalid, {
+              start: churchHit,
+              location,
+              // As a locality's form adds a parish: no box, and the fields
+              // named for the church.
+              plain: true,
+              labels: {
+                ru: m.parish_church_new_name_ru(),
+                fi: m.parish_church_new_name_fi(),
+                kind: m.parish_church_new_kind(),
+                location: m.parish_church_new_location(),
+              },
+            }),
           { name: 'parish-church-lookup' },
         );
         // A new church is being added: the map places it.
         const adding = () => addsRow(churchLookup(), churchTyped(), churchLinked());
+        // The localities on the map as this form would leave them: the
+        // church locality linked drawn as this parish's church, and the one
+        // it was, if another, as a plain locality. The parish's names as
+        // loaded (or typed, for a new one) name it; typing them redraws
+        // nothing.
+        const shown = createMemo(
+          () => {
+            const linked = churchLinked();
+            const parish = {
+              id: p.id,
+              name: untrack(() => ({ ru: nameRu(), fi: nameFi() })),
+            };
+            return (markers() ?? []).map((n) => {
+              const isChurch = n.id === linked;
+              const wasChurch = !!p.id && n.church?.id === p.id;
+              if (isChurch === wasChurch) return n;
+              return { ...n, church: isChurch ? parish : null };
+            });
+          },
+          { name: 'parish-map-markers' },
+        );
         // The church linked, on the map: where the view goes.
         const church = () => {
           const at = (markers() ?? []).find((n) => n.id === churchLinked());
@@ -132,6 +180,7 @@ export default function ParishEditForm(props: {
           if (hit.existing) {
             setChurchHit(null);
             setChurchSet({ text: localName(hit.existing.name), id: hit.existing.id });
+            setTarget(hit.existing.id);
             return;
           }
           setChurchHit(hit);
@@ -151,8 +200,9 @@ export default function ParishEditForm(props: {
                 onPick={(lat, lng) => {
                   if (adding()) location.set(lat, lng);
                 }}
-                markers={markers()}
+                markers={shown()}
                 highlight={p.id || null}
+                target={target()}
                 focus={church()}
               />
             )}
@@ -169,6 +219,7 @@ export default function ParishEditForm(props: {
               action={saveParish}
               class="group grid content-start gap-x-4 sm:grid-cols-2"
             >
+              <LeaveGuard />
               <input type="hidden" name="id" value={p.id || ''} />
               <input type="hidden" name="version" value={p.version} />
               <NamePair
@@ -182,6 +233,8 @@ export default function ParishEditForm(props: {
               <div class="sm:col-span-2">
                 <LookupField
                   textName="churchText"
+                  linksOnly
+                  maxlength={FIELD_MAX.line}
                   idName="churchPlaceId"
                   label={m.parish_church()}
                   text={churchText()}
@@ -191,9 +244,16 @@ export default function ParishEditForm(props: {
                   onChange={({ text, id }) => {
                     setChurchTyped(text);
                     setChurchLinked(id);
+                    setTarget(id);
                   }}
                 />
-                <p class="label whitespace-normal">{m.parish_church_hint()}</p>
+                <Show when={unplaced()}>
+                  {(name) => (
+                    <p class="mt-1 text-xs text-base-content/60">
+                      {m.parish_church_unplaced({ name: name() })}
+                    </p>
+                  )}
+                </Show>
               </div>
               <TextArea
                 name="note"

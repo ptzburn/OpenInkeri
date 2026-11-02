@@ -347,7 +347,10 @@ const form = v.object({
   spellings: v.pipe(
     v.optional(v.string(), ''),
     v.transform((s) => [...new Set(s.split('\n').map(collapse).filter(Boolean))]),
-    v.check((list) => list.every((s) => s.length <= FIELD_MAX.line)),
+    v.check(
+      (list) => list.every((s) => s.length <= FIELD_MAX.line),
+      () => m.place_edit_spellings_too_long({ max: FIELD_MAX.line }),
+    ),
   ),
 });
 

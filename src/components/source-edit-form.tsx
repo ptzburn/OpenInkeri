@@ -15,6 +15,7 @@ import {
 import { recordKindLabels, sourceLanguageLabels } from '~/components/labels';
 import { type Lookup, LookupField, namedRow } from '~/components/lookup-field';
 import { parishLookup } from '~/components/new-row-fields';
+import LeaveGuard from '~/components/leave-guard';
 import { getParishOptions } from '~/data/parishes';
 import { type SourceEditData, deleteSource, getSourceEdit, saveSource } from '~/data/sources';
 import { recordKinds, sourceLanguages } from '~/lib/record-kinds';
@@ -81,6 +82,7 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
         <>
           {/* While a save is in flight the router marks the form aria-busy. */}
           <form method="post" action={saveSource} class="group flex max-w-3xl flex-col gap-6">
+            <LeaveGuard />
             <input type="hidden" name="id" value={s.id || ''} />
             <input type="hidden" name="version" value={s.version} />
 
@@ -122,6 +124,8 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
               </label>
               <LookupField
                 textName="parishText"
+                linksOnly
+                maxlength={FIELD_MAX.line}
                 idName="parishId"
                 label={m.sources_col_parish()}
                 text={namedRow(parishes(), s.parishId)}

@@ -23,6 +23,8 @@ type Located = 'approximate' | 'verified';
  * of the coordinates, if any.
  */
 export function LocationLine(props: {
+  /** Its legend, when not "Location". */
+  label?: string;
   coordinates: string;
   status: Located | 'unknown';
   onStatus: (status: Located) => void;
@@ -31,7 +33,7 @@ export function LocationLine(props: {
 }) {
   return (
     <div class="fieldset">
-      <span class="fieldset-legend">{m.place_edit_location()}</span>
+      <span class="fieldset-legend">{props.label ?? m.place_edit_location()}</span>
       <Show
         when={parseCoordinates(props.coordinates)}
         fallback={
@@ -118,6 +120,8 @@ export default function PlaceLocator(props: {
   prefix: string;
   /** The locality as written, for the dialog's title. */
   name: string;
+  /** The location line's legend, when not "Location". */
+  label?: string;
   /** The parish chosen, whose church the map starts at. */
   parishId?: number | null;
   /** Set by the page's own map; the locator keeps its own otherwise. */
@@ -144,6 +148,7 @@ export default function PlaceLocator(props: {
       <input type="hidden" name={`${props.prefix}.coordinates`} value={location.coordinates()} />
       <input type="hidden" name={`${props.prefix}.coordinateStatus`} value={location.status()} />
       <LocationLine
+        label={props.label}
         coordinates={location.coordinates()}
         status={located() ? location.status() : 'unknown'}
         onStatus={location.setStatus}

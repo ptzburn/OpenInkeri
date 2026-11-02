@@ -2,6 +2,7 @@ import { isResponseEnvelope } from '@solidjs/web';
 import * as v from 'valibot';
 import { describe, expect, test } from 'vite-plus/test';
 
+import { m } from '~/paraglide/messages.js';
 import { fieldsAtFault, finnishName, parseForm, refuse, russianName } from './forms';
 
 describe('refuse', () => {
@@ -32,7 +33,7 @@ describe('fieldsAtFault', () => {
     expect(bad.success).toBe(false);
     // A failed check (not a wrong type) still lets the object's own check run.
     expect(fieldsAtFault(bad.issues!)).toEqual({
-      name: '',
+      name: m.form_name_ru_script(),
       to: 'The first year is after the last.',
     });
     // A value of the wrong type stops it.
@@ -46,6 +47,13 @@ describe('name fields', () => {
     expect(v.parse(russianName(), '  Сало   (Оржевка) ')).toBe('Сало (Оржевка)');
     expect(v.is(russianName(), 'X')).toBe(false);
     expect(v.is(russianName(), '')).toBe(false);
+  });
+
+  test('a name in the wrong alphabet says which one it takes', () => {
+    const [ru] = v.safeParse(russianName(), 'Kupanitsa').issues!;
+    expect(ru.message).toBe(m.form_name_ru_script());
+    const [fi] = v.safeParse(finnishName(), 'Губаницы').issues!;
+    expect(fi.message).toBe(m.form_name_fi_script());
   });
 
   test('a Finnish name is optional, and in Latin letters', () => {

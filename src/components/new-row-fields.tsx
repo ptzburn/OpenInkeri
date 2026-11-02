@@ -34,6 +34,12 @@ interface NameLabels {
   fi: string;
 }
 
+/** What a new locality's fields are called, where it is something in particular (a church). */
+export interface PlaceLabels extends NameLabels {
+  kind: string;
+  location: string;
+}
+
 const inCyrillic = (text: string) => matchesPattern(CYRILLIC_NAME_PATTERN, text);
 const inLatin = (text: string) => matchesPattern(LATIN_NAME_PATTERN, text);
 
@@ -67,6 +73,8 @@ function NameInputs(
           name={`${props.prefix}.nameRu`}
           label={labels().ru}
           value={props.values?.ru}
+          pattern={CYRILLIC_NAME_PATTERN}
+          error={m.form_name_ru_script()}
           required
           maxlength={FIELD_MAX.line}
           invalid={props.invalid(`${props.prefix}.nameRu`)}
@@ -86,6 +94,8 @@ function NameInputs(
           name={`${props.prefix}.nameFi`}
           label={labels().fi}
           value={props.values?.fi}
+          pattern={LATIN_NAME_PATTERN}
+          error={m.form_name_fi_script()}
           maxlength={FIELD_MAX.line}
           invalid={props.invalid(`${props.prefix}.nameFi`)}
           onInput={(value) => props.onInput?.('fi', value)}
@@ -120,10 +130,13 @@ function Fields(props: { plain?: boolean; children: JSX.Element }) {
  * choice, the parish whose church is nearest, all still editable; and is
  * handed on to `onFound`. A page that is a map itself (the parish's) finds
  * the settlement in its own search, given as `start`, and sets `location`
- * on its map.
+ * on its map. `plain` leaves the box out, the fields following the lookup's
+ * own, named by `labels` for what the locality is to the form (a church).
  */
 export function NewPlaceFields(
   props: NewRowProps & {
+    plain?: boolean;
+    labels?: PlaceLabels;
     kind?: PlaceKind;
     parishes?: { id: number; name: Names }[];
     parishId?: number | null;
@@ -156,17 +169,18 @@ export function NewPlaceFields(
     props.onFound?.(hit);
   };
   return (
-    <Fields>
+    <Fields plain={props.plain}>
       <NameInputs
         prefix={props.prefix}
         text={props.text}
         invalid={props.invalid}
+        labels={props.labels}
         values={names()}
         onInput={(field, value) => setNames((n) => ({ ...n, [field]: value }))}
       />
       <Select
         name={`${props.prefix}.kind`}
-        label={m.place_edit_kind()}
+        label={props.labels?.kind ?? m.place_edit_kind()}
         value={kind()}
         options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
         invalid={props.invalid(`${props.prefix}.kind`)}
@@ -188,6 +202,7 @@ export function NewPlaceFields(
       <PlaceLocator
         prefix={props.prefix}
         name={props.text}
+        label={props.labels?.location}
         parishId={parishId()}
         location={props.location}
         invalid={props.invalid}
@@ -206,7 +221,7 @@ export function NewClergyFields(props: NewRowProps) {
   );
 }
 
-/** A new household or farm relation: its wording in each language. */
+/** A new household or farm relation: its wording in each language, the Russian one required, in Cyrillic. */
 export function NewRelationFields(props: NewRowProps) {
   return (
     <Fields>
@@ -214,6 +229,9 @@ export function NewRelationFields(props: NewRowProps) {
         name={`${props.prefix}.ru`}
         label={m.form_name_ru()}
         value={inCyrillic(props.text) ? props.text : null}
+        pattern={CYRILLIC_NAME_PATTERN}
+        error={m.form_name_ru_script()}
+        required
         maxlength={FIELD_MAX.line}
         invalid={props.invalid(`${props.prefix}.ru`)}
       />
@@ -253,15 +271,17 @@ export function NewParishFields(props: NewRowProps & { church?: boolean; plain?:
         labels={{ ru: m.parish_new_name_ru(), fi: m.parish_new_name_fi() }}
       />
       <Show when={props.church ?? true}>
-        <label class="label gap-2 whitespace-normal sm:col-span-2">
-          <input
-            type="checkbox"
-            name={`${props.prefix}.church`}
-            checked
-            class="checkbox checkbox-sm"
-          />
-          {m.parish_new_church()}
-        </label>
+        <div class="fieldset sm:col-span-2">
+          <label class="label gap-2 whitespace-normal">
+            <input
+              type="checkbox"
+              name={`${props.prefix}.church`}
+              checked
+              class="checkbox checkbox-sm"
+            />
+            {m.parish_new_church()}
+          </label>
+        </div>
       </Show>
     </Fields>
   );
@@ -299,6 +319,8 @@ export const parishLookup = (
  * namesake; one not known yet can be added in the field. `added` says how:
  * its kind by the field's prefix (an estate is a manor), and the parishes to
  * choose from, starting at `parishId`; neither when the parish is fixed.
+ * With `plain`, nothing says a locality is being added: its fields, named
+ * by `labels`, just follow the field (see NewPlaceFields).
  * `onFound` hears a settlement found on its map, for the form around; on a
  * page that is a map, `start` is the settlement its search found and
  * `location` what its map sets (see NewPlaceFields).
@@ -307,6 +329,8 @@ export const placeLookup = (
   places: { id: number; name: Names; parish: Names | null; spellings: string[] }[] | undefined,
   invalid: (field: string) => Fault,
   added: {
+    plain?: boolean;
+    labels?: PlaceLabels;
     kind?: (prefix: string) => PlaceKind;
     parishes?: () => { id: number; name: Names }[];
     parishId?: () => number | null;
@@ -315,19 +339,27 @@ export const placeLookup = (
     onFound?: (hit: GazetteerHit) => void;
   } = {},
 ): Lookup =>
-  lookupRows(places, placeLabel, {
-    label: m.lookup_create_place(),
-    fields: (prefix, text) => (
-      <NewPlaceFields
-        prefix={prefix}
-        text={text()}
-        kind={added.kind?.(prefix)}
-        parishes={added.parishes?.()}
-        parishId={added.parishId?.()}
-        start={added.start?.()}
-        location={added.location}
-        invalid={invalid}
-        onFound={added.onFound}
-      />
-    ),
-  });
+  lookupRows(
+    places,
+    placeLabel,
+    {
+      label: added.plain ? undefined : m.lookup_create_place(),
+      fields: (prefix, text) => (
+        <NewPlaceFields
+          prefix={prefix}
+          text={text()}
+          plain={added.plain}
+          labels={added.labels}
+          kind={added.kind?.(prefix)}
+          parishes={added.parishes?.()}
+          parishId={added.parishId?.()}
+          start={added.start?.()}
+          location={added.location}
+          invalid={invalid}
+          onFound={added.onFound}
+        />
+      ),
+    },
+    // Named without the parish the label adds.
+    (p) => localName(p.name),
+  );

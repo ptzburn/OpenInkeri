@@ -18,6 +18,7 @@ import LocationPicker from '~/components/location-picker';
 import { LocationLine } from '~/components/place-locator';
 import { parishLookup } from '~/components/new-row-fields';
 import MapForm from '~/components/map-form';
+import LeaveGuard from '~/components/leave-guard';
 import { formatCoordinates } from '~/lib/coordinates';
 import { type GazetteerHit, placeKindOf } from '~/lib/gazetteer';
 import { type CoordinateStatus, type PlaceKind, placeKinds } from '~/lib/place-kinds';
@@ -222,6 +223,7 @@ export default function PlaceEditForm(props: {
               action={savePlace}
               class="group flex flex-col gap-4"
             >
+              <LeaveGuard />
               <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
               <input type="hidden" name="returnParish" value={props.returnTo.parish ?? ''} />
               <input type="hidden" name="id" value={p.id || ''} />
@@ -265,6 +267,8 @@ export default function PlaceEditForm(props: {
                 />
                 <LookupField
                   textName="parishText"
+                  linksOnly
+                  maxlength={FIELD_MAX.line}
                   idName="parishId"
                   label={m.place_edit_parish()}
                   text={namedRow(parishes(), parishId())}
@@ -281,7 +285,7 @@ export default function PlaceEditForm(props: {
                           stands here (the save sets or unsets the parish's
                           church), and where it stands when elsewhere. */}
                 <Show when={parishLinked() !== null || parishTyped().trim()}>
-                  <div class="flex flex-col gap-1 sm:col-span-2">
+                  <div class="fieldset sm:col-span-2">
                     <label class="label gap-2">
                       <input
                         type="checkbox"

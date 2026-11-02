@@ -23,6 +23,7 @@ import {
   recordStatusLabels,
   sexLabels,
 } from '~/components/labels';
+import LeaveGuard from '~/components/leave-guard';
 import { PARTIAL_DATE_PATTERN, formatPartialDate, localName, localTerm } from '~/lib/format';
 import {
   type RecordEditData,
@@ -243,6 +244,7 @@ export default function RecordEditForm(props: {
           </Show>
           {/* While a save is in flight the router marks the form aria-busy. */}
           <form method="post" action={saveRecord} class="group flex max-w-5xl flex-col gap-6">
+            <LeaveGuard />
             <input type="hidden" name="returnKind" value={props.returnTo.kind ?? ''} />
             <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
             <input type="hidden" name="returnPage" value={props.returnTo.page ?? ''} />
@@ -463,7 +465,7 @@ export default function RecordEditForm(props: {
                     ]}
                     invalid={invalid('multipleBirth')}
                   />
-                  <div class="flex flex-col justify-end gap-2 pb-2">
+                  <div class="fieldset flex flex-col justify-end gap-2 pb-2">
                     <Checkbox
                       name="illegitimate"
                       label={m.records_illegitimate()}
@@ -483,7 +485,7 @@ export default function RecordEditForm(props: {
                     value={r.death?.burialPlaceText}
                     invalid={invalid('burialPlaceText')}
                   />
-                  <div class="flex flex-col justify-end gap-2 pb-2">
+                  <div class="fieldset flex flex-col justify-end gap-2 pb-2">
                     <Checkbox
                       name="stillborn"
                       label={m.records_stillborn()}
@@ -657,7 +659,7 @@ function PersonFields(props: {
         );
       case 'hasWife':
         return (
-          <div class="flex flex-col justify-end pb-2">
+          <div class="fieldset flex flex-col justify-end pb-2">
             <Checkbox
               name={field('hasWife')}
               label={m.record_edit_has_wife()}

@@ -12,6 +12,7 @@ import {
   useEditForm,
 } from '~/components/form-fields';
 import { sexLabels } from '~/components/labels';
+import LeaveGuard from '~/components/leave-guard';
 import { deletePerson, getPersonEdit, savePerson } from '~/data/people';
 import { PARTIAL_DATE_PATTERN, formatPartialDate, localName, namesOf } from '~/lib/format';
 import { sexes } from '~/lib/record-kinds';
@@ -46,6 +47,7 @@ export default function PersonEditForm(props: { id: number; cancelHref: string }
         <>
           {/* While a save is in flight the router marks the form aria-busy. */}
           <form method="post" action={savePerson} class="group flex max-w-3xl flex-col gap-6">
+            <LeaveGuard />
             <input type="hidden" name="id" value={p.id} />
             <input type="hidden" name="version" value={p.version} />
 
