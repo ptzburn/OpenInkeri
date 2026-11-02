@@ -32,14 +32,20 @@ export const requiredLine = (max: number = FIELD_MAX.line) =>
 export const russianName = () =>
   v.pipe(
     requiredLine(),
-    v.check((s) => matchesPattern(CYRILLIC_NAME_PATTERN, s)),
+    v.check(
+      (s) => matchesPattern(CYRILLIC_NAME_PATTERN, s),
+      () => m.form_name_ru_script(),
+    ),
   );
 
 /** An optional Finnish name: in Latin letters, null when empty. */
 export const finnishName = () =>
   v.pipe(
     line(),
-    v.check((s) => s === null || matchesPattern(LATIN_NAME_PATTERN, s)),
+    v.check(
+      (s) => s === null || matchesPattern(LATIN_NAME_PATTERN, s),
+      () => m.form_name_fi_script(),
+    ),
   );
 
 /** A text field that keeps its line breaks (notes): trimmed, null when empty. */

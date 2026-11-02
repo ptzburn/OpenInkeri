@@ -6,6 +6,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@solidjs/testing-li
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
+import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
 import { renderAt as renderPage } from '~/testing/render';
 
 // The places pages (villages and parishes) through the real router, with
@@ -694,6 +695,26 @@ describe('/places/parishes', () => {
     const link = await screen.findByRole('link', { name: /160 localities/ });
     expect(link).toHaveAttribute('href', '/places/villages?parish=5');
     expect(screen.getByText('4 sources')).toBeInTheDocument();
+  });
+
+  test("a new church's name fields take only their own alphabet", async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/new');
+    await waitFor(() => expect(field('churchText')).toBeInTheDocument());
+    // Typed in Latin letters, the Finnish name: the Russian one is asked for, in Cyrillic.
+    fireEvent.input(field('churchText'), { target: { value: 'Uusikylä' } });
+    await waitFor(() => expect(field('churchNew.nameRu')).toBeInTheDocument());
+    expect(field('churchNew.nameRu')).toHaveAttribute('pattern', CYRILLIC_NAME_PATTERN);
+    expect(field('churchNew.nameFi')).toHaveAttribute('type', 'hidden');
+    expect(
+      field('churchNew.nameRu').closest('label')!.querySelector('.validator-hint'),
+    ).toHaveTextContent('Russian names are written in Cyrillic letters.');
+    // Typed in Cyrillic, the Russian one: the Finnish one is asked for, in Latin letters.
+    fireEvent.input(field('churchText'), { target: { value: 'Новая' } });
+    await waitFor(() => expect(field('churchNew.nameFi')).not.toHaveAttribute('type', 'hidden'));
+    expect(field('churchNew.nameFi')).toHaveAttribute('pattern', LATIN_NAME_PATTERN);
+    // The church as written is one line, as the server keeps it.
+    expect(field('churchText')).toHaveAttribute('maxlength', '200');
   });
 
   test('deleting a parish posts its id and version once confirmed', async () => {

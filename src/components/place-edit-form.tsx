@@ -265,6 +265,7 @@ export default function PlaceEditForm(props: {
                 />
                 <LookupField
                   textName="parishText"
+                  maxlength={FIELD_MAX.line}
                   idName="parishId"
                   label={m.place_edit_parish()}
                   text={namedRow(parishes(), parishId())}
@@ -281,7 +282,7 @@ export default function PlaceEditForm(props: {
                           stands here (the save sets or unsets the parish's
                           church), and where it stands when elsewhere. */}
                 <Show when={parishLinked() !== null || parishTyped().trim()}>
-                  <div class="flex flex-col gap-1 sm:col-span-2">
+                  <div class="fieldset sm:col-span-2">
                     <label class="label gap-2">
                       <input
                         type="checkbox"

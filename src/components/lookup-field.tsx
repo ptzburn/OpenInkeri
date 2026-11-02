@@ -119,6 +119,10 @@ export function LookupField(props: {
   id: number | null | undefined;
   lookup: Lookup;
   invalid: (field: string) => Fault;
+  /** Said under the input, in the field's small print. */
+  hint?: string;
+  /** The longest value the server takes; FIELD_MAX.text unless said otherwise. */
+  maxlength?: number;
   /** The wrapper's classes, e.g. a grid column span. */
   class?: string;
   /** Told the value as typed or picked and the row it links, for a form that follows them. */
@@ -213,7 +217,7 @@ export function LookupField(props: {
               box.active() === null ? undefined : box.ids.option(box.active()!)
             }
             autocomplete="off"
-            maxlength={FIELD_MAX.text}
+            maxlength={props.maxlength ?? FIELD_MAX.text}
             class="grow"
             aria-invalid={ariaInvalid(props.invalid(props.textName))}
             onInput={(e) => typed(e.currentTarget.value)}
@@ -276,6 +280,7 @@ export function LookupField(props: {
         {/* A sibling of the .validator, which shows it when the server refused the text. */}
         <FieldError fault={props.invalid(props.textName)} />
       </div>
+      <Show when={props.hint}>{(hint) => <p class="label whitespace-normal">{hint()}</p>}</Show>
       {/* The row linked, posted as the id. A spelling several rows share,
           none of them chosen: the choice among them, instead. */}
       <Show

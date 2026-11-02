@@ -5,6 +5,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@solidjs/testing-li
 import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import type { FormError } from '~/lib/form-error';
+import { CYRILLIC_NAME_PATTERN } from '~/lib/name-scripts';
 import { renderAt as renderPage } from '~/testing/render';
 
 // The records page through the real router, with getRecords answering from
@@ -738,6 +739,18 @@ describe('editing a baptism', () => {
     await waitFor(() => expect(field('members.0.relationText')).toBeTruthy());
     fireEvent.input(field('members.0.relationText'), { target: { value: 'Vaimo' } });
     await waitFor(() => expect(field('members.0.relationTermId')).toHaveValue('2'));
+  });
+
+  test('a new relation asks for its Russian wording, in Cyrillic', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?kind=households');
+    await waitFor(() => expect(field('members.0.relationText')).toBeTruthy());
+    // Typed in Latin letters: the Finnish wording, and the Russian one to give.
+    fireEvent.input(field('members.0.relationText'), { target: { value: 'Renki' } });
+    await waitFor(() => expect(field('members.0.relationNew.fi')).toHaveValue('Renki'));
+    const ru = field('members.0.relationNew.ru');
+    expect(ru).toBeRequired();
+    expect(ru).toHaveAttribute('pattern', CYRILLIC_NAME_PATTERN);
   });
 
   test('a name is split as it is typed, and the parts show on one line', async () => {

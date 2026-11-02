@@ -463,7 +463,7 @@ export default function RecordEditForm(props: {
                     ]}
                     invalid={invalid('multipleBirth')}
                   />
-                  <div class="flex flex-col justify-end gap-2 pb-2">
+                  <div class="fieldset flex flex-col justify-end gap-2 pb-2">
                     <Checkbox
                       name="illegitimate"
                       label={m.records_illegitimate()}
@@ -483,7 +483,7 @@ export default function RecordEditForm(props: {
                     value={r.death?.burialPlaceText}
                     invalid={invalid('burialPlaceText')}
                   />
-                  <div class="flex flex-col justify-end gap-2 pb-2">
+                  <div class="fieldset flex flex-col justify-end gap-2 pb-2">
                     <Checkbox
                       name="stillborn"
                       label={m.records_stillborn()}
@@ -657,7 +657,7 @@ function PersonFields(props: {
         );
       case 'hasWife':
         return (
-          <div class="flex flex-col justify-end pb-2">
+          <div class="fieldset flex flex-col justify-end pb-2">
             <Checkbox
               name={field('hasWife')}
               label={m.record_edit_has_wife()}

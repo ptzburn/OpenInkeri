@@ -73,6 +73,8 @@ function NameInputs(
           name={`${props.prefix}.nameRu`}
           label={labels().ru}
           value={props.values?.ru}
+          pattern={CYRILLIC_NAME_PATTERN}
+          error={m.form_name_ru_script()}
           required
           maxlength={FIELD_MAX.line}
           invalid={props.invalid(`${props.prefix}.nameRu`)}
@@ -92,6 +94,8 @@ function NameInputs(
           name={`${props.prefix}.nameFi`}
           label={labels().fi}
           value={props.values?.fi}
+          pattern={LATIN_NAME_PATTERN}
+          error={m.form_name_fi_script()}
           maxlength={FIELD_MAX.line}
           invalid={props.invalid(`${props.prefix}.nameFi`)}
           onInput={(value) => props.onInput?.('fi', value)}
@@ -217,7 +221,7 @@ export function NewClergyFields(props: NewRowProps) {
   );
 }
 
-/** A new household or farm relation: its wording in each language. */
+/** A new household or farm relation: its wording in each language, the Russian one required, in Cyrillic. */
 export function NewRelationFields(props: NewRowProps) {
   return (
     <Fields>
@@ -225,6 +229,9 @@ export function NewRelationFields(props: NewRowProps) {
         name={`${props.prefix}.ru`}
         label={m.form_name_ru()}
         value={inCyrillic(props.text) ? props.text : null}
+        pattern={CYRILLIC_NAME_PATTERN}
+        error={m.form_name_ru_script()}
+        required
         maxlength={FIELD_MAX.line}
         invalid={props.invalid(`${props.prefix}.ru`)}
       />
@@ -264,15 +271,17 @@ export function NewParishFields(props: NewRowProps & { church?: boolean; plain?:
         labels={{ ru: m.parish_new_name_ru(), fi: m.parish_new_name_fi() }}
       />
       <Show when={props.church ?? true}>
-        <label class="label gap-2 whitespace-normal sm:col-span-2">
-          <input
-            type="checkbox"
-            name={`${props.prefix}.church`}
-            checked
-            class="checkbox checkbox-sm"
-          />
-          {m.parish_new_church()}
-        </label>
+        <div class="fieldset sm:col-span-2">
+          <label class="label gap-2 whitespace-normal">
+            <input
+              type="checkbox"
+              name={`${props.prefix}.church`}
+              checked
+              class="checkbox checkbox-sm"
+            />
+            {m.parish_new_church()}
+          </label>
+        </div>
       </Show>
     </Fields>
   );
