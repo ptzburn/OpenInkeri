@@ -129,16 +129,32 @@ export default function Sidebar() {
   );
 }
 
-/** The header's button that folds the sidebar to its icons and back, from lg up (below, the sidebar is a drawer). */
-export function SidebarToggle(props: { collapsed: boolean; onToggle: () => void }) {
+/** A keyboard shortcut: as shown ("⌘B") and as aria-keyshortcuts says it ("Meta+B"). */
+export interface Shortcut {
+  label: string;
+  aria: string;
+}
+
+/**
+ * The header's button that folds the sidebar to its icons and back, from lg
+ * up (below, the sidebar is a drawer); its title names the `shortcut` that
+ * does the same, once the browser has said which.
+ */
+export function SidebarToggle(props: {
+  collapsed: boolean;
+  onToggle: () => void;
+  shortcut?: Shortcut | null;
+}) {
+  const label = () => (props.collapsed ? m.sidebar_expand() : m.sidebar_collapse());
   return (
     <button
       type="button"
       class="btn hidden shrink-0 btn-square btn-ghost lg:inline-flex"
       aria-expanded={props.collapsed ? 'false' : 'true'}
       aria-controls="app-nav"
-      aria-label={props.collapsed ? m.sidebar_expand() : m.sidebar_collapse()}
-      title={props.collapsed ? m.sidebar_expand() : m.sidebar_collapse()}
+      aria-label={label()}
+      aria-keyshortcuts={props.shortcut?.aria}
+      title={props.shortcut ? `${label()} (${props.shortcut.label})` : label()}
       onClick={() => props.onToggle()}
     >
       <Show when={props.collapsed} fallback={<Fold class="size-5" aria-hidden="true" />}>
