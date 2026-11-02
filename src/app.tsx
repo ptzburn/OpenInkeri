@@ -50,8 +50,8 @@ export default function App() {
               <div class="drawer-content flex min-h-dvh flex-col">
                 {/* Below lg the menu button and app name open the sidebar over
                   the page; from lg up a button in the same place folds the
-                  sidebar to its icons and back, and the sidebar shows the
-                  name itself, unless it is folded: then the header does. The breadcrumbs
+                  sidebar to its icons and back, and the name is the
+                  sidebar's alone (folded, not shown). The breadcrumbs
                   follow, taking the row's width (navbar-end only what its
                   buttons need); on a phone, a page with a page above shows
                   the way back to it in place of the name.
@@ -69,7 +69,7 @@ export default function App() {
                       <MenuIcon class="size-6" aria-hidden="true" />
                     </label>
                     <SidebarToggle collapsed={collapsed()} onToggle={toggleSidebar} />
-                    <span class="shrink-0 px-2 text-lg font-bold sidebar-expanded:hidden max-sm:group-has-[nav[data-back]]:hidden">
+                    <span class="shrink-0 px-2 text-lg font-bold lg:hidden max-sm:group-has-[nav[data-back]]:hidden">
                       {env.VITE_APP_NAME}
                     </span>
                     <Breadcrumbs />

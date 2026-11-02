@@ -32,8 +32,7 @@ export default function Sidebar() {
   return (
     <aside class="flex min-h-full w-64 flex-col border-r border-base-300 bg-base-200 sidebar-collapsed:w-14">
       {/* As tall as the header beside it (navbar: min-h-16), with the same
-          bottom border, so one line runs under both. Folded, it is empty:
-          the header shows the name. */}
+          bottom border, so one line runs under both. Folded, it is empty. */}
       <div class="flex min-h-16 items-center border-b border-base-300 px-6">
         <a href={paths()} class="text-xl font-bold sidebar-collapsed:hidden">
           {env.VITE_APP_NAME}
