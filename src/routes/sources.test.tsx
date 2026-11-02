@@ -61,7 +61,7 @@ vi.mock('~/data/parishes', () => ({
   ]),
 }));
 vi.mock('~/data/sources', async () => {
-  const { action } = await import('@solidjs/router');
+  const { formAction } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   return {
     getSources: vi.fn(async () => sources.list()),
@@ -83,12 +83,12 @@ vi.mock('~/data/sources', async () => {
           }
         : null;
     }),
-    saveSource: action(async (form: FormData) => {
+    saveSource: formAction(async (form: FormData) => {
       if (sources.failWith) throw sources.failWith;
       sources.saved.push(form);
       throw redirect('/sources');
     }, 'save-source'),
-    deleteSource: action(async (form: FormData) => {
+    deleteSource: formAction(async (form: FormData) => {
       sources.deleted.push(form);
       throw redirect('/sources');
     }, 'delete-source'),

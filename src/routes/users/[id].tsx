@@ -6,7 +6,7 @@ import {
   useSubmissions,
 } from '@solidjs/router';
 import { Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 import BackIcon from '~icons/ri/arrow-left-line';
 import CalendarIcon from '~icons/ri/calendar-line';
 import MailIcon from '~icons/ri/mail-line';

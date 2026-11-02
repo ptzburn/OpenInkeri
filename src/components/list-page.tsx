@@ -2,7 +2,7 @@ import { Title } from '@solidjs/meta';
 import { useIsRouting } from '@solidjs/router';
 import type { JSX } from '@solidjs/web';
 import { Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 import AddIcon from '~icons/ri/add-line';
 
 import { getCurrentUser } from '~/data/session';

@@ -11,7 +11,7 @@
 //     residences, that have that village as written but no place yet,
 //     unless another place has the same spelling (then which one is meant
 //     stays for an admin to pick).
-import { action, query } from '@solidjs/router';
+import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
 import { and, count, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import * as v from 'valibot';
@@ -370,7 +370,7 @@ const placeRefusals: Refusals = { missing: m.place_edit_missing, conflict: m.pla
  * Coordinates without a status count as approximate; no coordinates are
  * always unknown.
  */
-export const savePlace = action(async (formData: FormData) => {
+export const savePlace = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
@@ -633,7 +633,7 @@ const deletion = deletionForm(returnTo);
  * records, birthplaces or parish churches still link to it (the links would quietly go
  * blank), and, like a save, when the place changed since the page loaded it.
  */
-export const deletePlace = action(async (formData: FormData) => {
+export const deletePlace = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const input = parseDeletion(deletion, formData, m.place_delete_unconfirmed);

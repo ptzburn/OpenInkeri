@@ -105,7 +105,7 @@ const { parishes } = vi.hoisted(() => ({
   },
 }));
 vi.mock('~/data/parishes', async () => {
-  const { action } = await import('@solidjs/router');
+  const { formAction } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   return {
     getParishes: vi.fn(async () => [
@@ -133,12 +133,12 @@ vi.mock('~/data/parishes', async () => {
           }
         : null,
     ),
-    saveParish: action(async (form: FormData) => {
+    saveParish: formAction(async (form: FormData) => {
       parishes.saved.push(form);
       throw redirect('/places/parishes');
     }, 'save-parish'),
     // Like the server: a refusal throws its error; a delete redirects to the list.
-    deleteParish: action(async (form: FormData) => {
+    deleteParish: formAction(async (form: FormData) => {
       parishes.deleted.push(form);
       if (parishes.deleteFailsWith) throw parishes.deleteFailsWith;
       throw redirect('/places/parishes');
@@ -146,7 +146,7 @@ vi.mock('~/data/parishes', async () => {
   };
 });
 vi.mock('~/data/places', async () => {
-  const { action } = await import('@solidjs/router');
+  const { formAction } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   return {
     getPlaces: vi.fn(async () => places.list()),
@@ -188,7 +188,7 @@ vi.mock('~/data/places', async () => {
     ),
     // Like the server: a refusal throws its error; a save redirects to the
     // list with the search the form carried.
-    savePlace: action(async (form: FormData) => {
+    savePlace: formAction(async (form: FormData) => {
       places.saved.push(form);
       if (places.failWith) throw places.failWith;
       const q = form.get('returnQ');
@@ -198,7 +198,7 @@ vi.mock('~/data/places', async () => {
           : '/places/villages',
       );
     }, 'save-place'),
-    deletePlace: action(async (form: FormData) => {
+    deletePlace: formAction(async (form: FormData) => {
       places.deleted.push(form);
       const q = form.get('returnQ');
       throw redirect(

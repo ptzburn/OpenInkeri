@@ -4,7 +4,7 @@
 // list is for signed-in users; creating, editing and deleting sources is
 // for admins. A save writes the source and a change_log entry in one D1
 // batch.
-import { action, query } from '@solidjs/router';
+import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
 import { and, count, eq } from 'drizzle-orm';
 import * as v from 'valibot';
@@ -199,7 +199,7 @@ const sourceRefusals: Refusals = {
  * loaded); a parish not known yet is added when the form asks
  * (src/server/linked-rows.ts), with a locality of its name as its church.
  */
-export const saveSource = action(async (formData: FormData) => {
+export const saveSource = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
@@ -283,7 +283,7 @@ const deletion = deletionForm();
  * dialog, then redirects to the sources list. Refused while records
  * belong to it, and, like a save, when it changed since the page loaded it.
  */
-export const deleteSource = action(async (formData: FormData) => {
+export const deleteSource = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const { id, version } = parseDeletion(deletion, formData, m.source_delete_unconfirmed);

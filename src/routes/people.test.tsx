@@ -106,7 +106,7 @@ vi.mock('~/data/session', () => ({
   requireAdmin: vi.fn(async () => !!me.current?.isAdmin),
 }));
 vi.mock('~/data/people', async () => {
-  const { action } = await import('@solidjs/router');
+  const { formAction } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   const match = (search: string) =>
     people.rows.filter((r) =>
@@ -156,21 +156,21 @@ vi.mock('~/data/people', async () => {
           }
         : null,
     ),
-    savePerson: action(async (form: FormData) => {
+    savePerson: formAction(async (form: FormData) => {
       if (people.failWith) throw people.failWith;
       people.saved.push(form);
       throw redirect('/people/1');
     }, 'save-person'),
-    deletePerson: action(async () => {
+    deletePerson: formAction(async () => {
       throw redirect('/people');
     }, 'delete-person'),
-    linkPersona: action(async (form: FormData) => {
+    linkPersona: formAction(async (form: FormData) => {
       if (people.failWith) throw people.failWith;
       people.linked.push(form);
       const person = form.get('person') as string;
       throw redirect(`/people/${person === 'new' ? 1 : person}`);
     }, 'link-persona'),
-    unlinkPersona: action(async (form: FormData) => {
+    unlinkPersona: formAction(async (form: FormData) => {
       people.unlinked.push(form);
       throw redirect(`/people/${form.get('person') as string}`);
     }, 'unlink-persona'),

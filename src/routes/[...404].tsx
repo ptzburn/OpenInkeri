@@ -1,7 +1,7 @@
 import { Title } from '@solidjs/meta';
 import type { RouteDefinition } from '@solidjs/router';
 import { httpStatus } from '@solidjs/web';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';

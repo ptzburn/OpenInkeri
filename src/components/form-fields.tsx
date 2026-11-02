@@ -1,4 +1,4 @@
-import { type Action, useSubmissions } from '@solidjs/router';
+import { type FormAction, useSubmissions } from '@solidjs/router';
 import { For, Show, createMemo, untrack } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 
@@ -27,7 +27,7 @@ export type Fault = string | undefined;
  * as it starts.
  */
 export function useFormErrors<U>(
-  action: Action<[FormData], U>,
+  action: FormAction<[FormData], U>,
   isThisForm: (form: FormData) => boolean,
 ) {
   const submissions = useSubmissions(action, ([form]) => isThisForm(form));
@@ -49,7 +49,7 @@ export function useFormErrors<U>(
  * component body, with `done` only calling what that returned.
  */
 export function useFormDone<U>(
-  action: Action<[FormData], U>,
+  action: FormAction<[FormData], U>,
   isThisForm: (form: FormData) => boolean,
   done: (form: FormData) => void,
 ) {
@@ -61,7 +61,7 @@ export function useFormDone<U>(
 
 /** Like useFormDone, for a submission of this form that the server refused. */
 function useFormRefused<U>(
-  action: Action<[FormData], U>,
+  action: FormAction<[FormData], U>,
   isThisForm: (form: FormData) => boolean,
   refused: (form: FormData) => void,
 ) {
@@ -78,7 +78,7 @@ function useFormRefused<U>(
  * Call it in the component body: the hooks need an owner.
  */
 export function useEditForm<U>(
-  action: Action<[FormData], U>,
+  action: FormAction<[FormData], U>,
   id: () => number | undefined,
   saved: (form: FormData) => string,
 ) {
@@ -367,7 +367,7 @@ const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype
  * `deleted` as a toast on the page its action redirects to.
  */
 export function DeleteSection<U>(props: {
-  action: Action<[FormData], U>;
+  action: FormAction<[FormData], U>;
   id: number;
   version: number;
   title: string;

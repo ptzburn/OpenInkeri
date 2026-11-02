@@ -1,7 +1,7 @@
 import { Title } from '@solidjs/meta';
 import { type RouteDefinition, useSubmissions } from '@solidjs/router';
 import { For, Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 import CalendarIcon from '~icons/ri/calendar-line';
 import DeviceIcon from '~icons/ri/computer-line';
 import MailIcon from '~icons/ri/mail-line';
@@ -184,7 +184,7 @@ export default function Account() {
                                 {m.account_session_signed_in({
                                   date: formatDate(session().createdAt),
                                 })}
-                                <Show when={session().ipAddress}>{(ip) => ` · ${ip()}`}</Show>
+                                <Show when={session().ipAddress}>{(ip) => <> · {ip()}</>}</Show>
                               </div>
                             </div>
                             <Show

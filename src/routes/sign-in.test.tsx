@@ -13,11 +13,11 @@ import { renderAt } from '~/testing/render';
 const store = vi.hoisted(() => ({ providers: [] as AuthProvider[], unreachable: false }));
 
 vi.mock('~/data/session', async () => {
-  const { action, query } = await import('@solidjs/router');
+  const { formAction, query } = await import('@solidjs/router');
   return {
     getCurrentUser: query(async () => null, 'current-user'),
     getSignInProviders: query(async () => store.providers, 'sign-in-providers'),
-    signIn: action(async (_provider: AuthProvider, _form: FormData) => {
+    signIn: formAction(async (_provider: AuthProvider, _form: FormData) => {
       if (store.unreachable) throw new Error('Could not reach the sign-in service. Try again.');
     }, 'sign-in'),
   };

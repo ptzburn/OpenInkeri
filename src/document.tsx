@@ -1,6 +1,6 @@
 import type { ParentProps } from 'solid-js';
 import { HydrationScript } from '@solidjs/web';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 
 import { getLocale } from './paraglide/runtime.js';
 

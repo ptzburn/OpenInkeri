@@ -2,7 +2,7 @@ import { Title } from '@solidjs/meta';
 import { useSearchParams, useSubmissions } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createMemo } from 'solid-js';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 
 import AuthProviderIcon from '~/components/auth-provider-icon';
 import { signInContinueLabels } from '~/components/labels';

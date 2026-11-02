@@ -18,7 +18,7 @@
 // expires, within 5 minutes (session.cookieCache in src/server/auth.ts).
 // Input is validated with Valibot inside the 'use server' bodies only, which
 // keeps it off the client.
-import { action, query } from '@solidjs/router';
+import { formAction, query } from '@solidjs/router';
 import { respond } from '@solidjs/web';
 import * as v from 'valibot';
 
@@ -124,7 +124,7 @@ async function adminCall(what: string, call: () => Promise<unknown>): Promise<vo
 }
 
 /** Gives a user admin rights. */
-export const makeAdmin = action(async (id: string, _form: FormData) => {
+export const makeAdmin = formAction(async (id: string, _form: FormData) => {
   'use server';
   const userId = otherUser(id);
   await adminCall('Making an admin', () =>
@@ -133,7 +133,7 @@ export const makeAdmin = action(async (id: string, _form: FormData) => {
 }, 'make-admin');
 
 /** Takes a user's admin rights away. */
-export const removeAdmin = action(async (id: string, _form: FormData) => {
+export const removeAdmin = formAction(async (id: string, _form: FormData) => {
   'use server';
   const userId = otherUser(id);
   await adminCall('Removing an admin', () =>
@@ -145,7 +145,7 @@ export const removeAdmin = action(async (id: string, _form: FormData) => {
  * Bans a user, with an optional reason: the admin plugin ends their
  * sessions and refuses them a new one until they are unbanned.
  */
-export const banUser = action(async (id: string, form: FormData) => {
+export const banUser = formAction(async (id: string, form: FormData) => {
   'use server';
   const userId = otherUser(id);
   const parsed = v.safeParse(
@@ -162,7 +162,7 @@ export const banUser = action(async (id: string, form: FormData) => {
 }, 'ban-user');
 
 /** Lifts a user's ban. */
-export const unbanUser = action(async (id: string, _form: FormData) => {
+export const unbanUser = formAction(async (id: string, _form: FormData) => {
   'use server';
   const userId = otherUser(id);
   await adminCall('Unbanning a user', () =>
@@ -171,7 +171,7 @@ export const unbanUser = action(async (id: string, _form: FormData) => {
 }, 'unban-user');
 
 /** Ends every session a user has, on all their devices. */
-export const signOutUser = action(async (id: string, _form: FormData) => {
+export const signOutUser = formAction(async (id: string, _form: FormData) => {
   'use server';
   const userId = otherUser(id);
   await adminCall('Signing a user out', () =>

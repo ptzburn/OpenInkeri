@@ -316,7 +316,7 @@ vi.mock('~/data/people', () => ({
   }),
 }));
 vi.mock('~/data/records', async () => {
-  const { action } = await import('@solidjs/router');
+  const { formAction } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   // A row's names, in Russian only.
   const ru = (name: string) => ({ ru: name, fi: null });
@@ -361,14 +361,14 @@ vi.mock('~/data/records', async () => {
       ],
     })),
     // Like the server: a delete redirects to the list place the form carried.
-    deleteRecord: action(async (form: FormData) => {
+    deleteRecord: formAction(async (form: FormData) => {
       editing.deleted.push(form);
       throw redirect('/records?kind=deaths');
     }, 'delete-record'),
     // Like the server: a refusal throws its error; a save redirects to the
     // list place the form carried, and Save and add next to a new record
     // after it (a new household is 401 here).
-    saveRecord: action(async (form: FormData) => {
+    saveRecord: formAction(async (form: FormData) => {
       editing.saved.push(form);
       if (editing.failWith) throw editing.failWith;
       if (form.get('next') === 'on') {

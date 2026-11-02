@@ -1,6 +1,6 @@
 import { Title } from '@solidjs/meta';
 import type { JSX } from '@solidjs/web';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 import BackIcon from '~icons/ri/arrow-left-line';
 
 /**

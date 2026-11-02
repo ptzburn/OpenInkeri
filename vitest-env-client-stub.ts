@@ -1,4 +1,4 @@
-// Test stub for the plugin's `virtual:env/client` module (aliased in
+// Test stub for the plugin's `virtual:solid-env/client` module (aliased in
 // vite.config.ts's test block). The plugin validates the whole schema before
 // serving either env module, so component tests would need the server
 // secrets (absent in CI). This validates only the client half, from the same

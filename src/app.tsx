@@ -2,7 +2,7 @@ import { Title } from '@solidjs/meta';
 import { Loading, createSignal } from 'solid-js';
 import MenuIcon from '~icons/ri/menu-line';
 // Typed client env, validated and baked in at build time (see env.ts).
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 
 import LanguageSwitcher from './components/language-switcher';
 import Sidebar from './components/sidebar';

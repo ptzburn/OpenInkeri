@@ -3,7 +3,7 @@ import type { RouteProps } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import type { JSX } from '@solidjs/web';
 import { For, Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 import BackIcon from '~icons/ri/arrow-left-line';
 import EditIcon from '~icons/ri/pencil-line';
 

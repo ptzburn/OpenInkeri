@@ -9,7 +9,7 @@ import Unfold from '~icons/ri/menu-unfold-line';
 import Team from '~icons/ri/team-line';
 import Group from '~icons/ri/group-line';
 // Typed client env, validated and baked in at build time (see env.ts).
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 
 import AccountMenu from '~/components/account-menu';
 import { getCurrentUser } from '~/data/session';
