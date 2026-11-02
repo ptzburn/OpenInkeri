@@ -5,6 +5,7 @@ import 'server-only';
 import { respond } from '@solidjs/web';
 import * as v from 'valibot';
 
+import { parseCoordinates } from '~/lib/coordinates';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { parsePartialDate } from '~/lib/format';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
@@ -55,6 +56,14 @@ export const partialDate = v.pipe(
   v.transform(parsePartialDate),
   v.check((d) => d !== undefined),
   v.transform((d) => d ?? null),
+);
+
+/** Coordinates as a map or a search sets them ("59.613487, 30.22519"), null when empty. */
+export const coordinates = v.pipe(
+  v.optional(v.string(), ''),
+  v.transform(parseCoordinates),
+  v.check((c) => c !== undefined),
+  v.transform((c) => c ?? null),
 );
 
 /** A row id: a positive integer. */

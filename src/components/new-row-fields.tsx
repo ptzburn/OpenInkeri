@@ -1,12 +1,14 @@
 import type { JSX } from '@solidjs/web';
-import { Show } from 'solid-js';
+import { Show, createSignal } from 'solid-js';
 
 import { type Fault, FieldError, Select, TextInput } from '~/components/form-fields';
 import { placeKindLabels } from '~/components/labels';
 import { type Lookup, lookupRows } from '~/components/lookup-field';
+import PlaceLocator, { type Location } from '~/components/place-locator';
 import type { ParishOption } from '~/data/parishes';
 import { FIELD_MAX } from '~/lib/field-limits';
 import { type Names, localName, placeLabel } from '~/lib/format';
+import { type GazetteerHit, placeKindOf } from '~/lib/gazetteer';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN, matchesPattern } from '~/lib/name-scripts';
 import { type PlaceKind, placeKinds } from '~/lib/place-kinds';
 import { m } from '~/paraglide/messages.js';
@@ -38,7 +40,15 @@ const inLatin = (text: string) => matchesPattern(LATIN_NAME_PATTERN, text);
 // A row's names: the value as written as the one in its own alphabet,
 // hidden, and the other one to type. A value in neither alphabet (digits,
 // say) shows both, for the server's refusal to land somewhere visible.
-function NameInputs(props: NewRowProps & { labels?: NameLabels }) {
+// `values` fills the ones to type (a settlement found on the map), and
+// `onInput` hears them typed, for a form that follows them.
+function NameInputs(
+  props: NewRowProps & {
+    labels?: NameLabels;
+    values?: { ru: string | null; fi: string | null };
+    onInput?: (field: 'ru' | 'fi', value: string) => void;
+  },
+) {
   const russian = () => inCyrillic(props.text);
   const finnish = () => !russian() && inLatin(props.text);
   const labels = () => props.labels ?? { ru: m.form_name_ru(), fi: m.form_name_fi() };
@@ -56,10 +66,11 @@ function NameInputs(props: NewRowProps & { labels?: NameLabels }) {
         <TextInput
           name={`${props.prefix}.nameRu`}
           label={labels().ru}
-          value={null}
+          value={props.values?.ru}
           required
           maxlength={FIELD_MAX.line}
           invalid={props.invalid(`${props.prefix}.nameRu`)}
+          onInput={(value) => props.onInput?.('ru', value)}
         />
       </Show>
       <Show
@@ -74,9 +85,10 @@ function NameInputs(props: NewRowProps & { labels?: NameLabels }) {
         <TextInput
           name={`${props.prefix}.nameFi`}
           label={labels().fi}
-          value={null}
+          value={props.values?.fi}
           maxlength={FIELD_MAX.line}
           invalid={props.invalid(`${props.prefix}.nameFi`)}
+          onInput={(value) => props.onInput?.('fi', value)}
         />
       </Show>
     </>
@@ -100,40 +112,87 @@ function Fields(props: { plain?: boolean; children: JSX.Element }) {
 }
 
 /**
- * A new locality: its names, type and parish. `kind` is the type to start
- * from (a village, or a manor for an estate); `parishes` the choices of
- * parish, starting at `parishId` (the source's), or none when the parish is
- * fixed (a parish's own church).
+ * A new locality: its names, type, parish and where it stands. `kind` is
+ * the type to start from (a village, or a manor for an estate); `parishes`
+ * the choices of parish, starting at `parishId` (the source's), or none
+ * when the parish is fixed (a parish's own church). A settlement found on
+ * the locator's map fills the name to type, the type and, when there is a
+ * choice, the parish whose church is nearest, all still editable; and is
+ * handed on to `onFound`. A page that is a map itself (the parish's) finds
+ * the settlement in its own search, given as `start`, and sets `location`
+ * on its map.
  */
 export function NewPlaceFields(
   props: NewRowProps & {
     kind?: PlaceKind;
     parishes?: { id: number; name: Names }[];
     parishId?: number | null;
+    start?: GazetteerHit | null;
+    location?: Location;
+    onFound?: (hit: GazetteerHit) => void;
   },
 ) {
+  // What the fields show: as they start (from the settlement the page
+  // found, if any), then as typed or chosen (the fields report back, so a
+  // settlement found lands whatever they held).
+  const [names, setNames] = createSignal(
+    () => ({ ru: props.start?.nameRu ?? null, fi: props.start?.nameFi ?? null }),
+    { name: 'new-place-names' },
+  );
+  const [kind, setKind] = createSignal<PlaceKind>(
+    () => (props.start && placeKindOf(props.start.kind)) || props.kind || 'village',
+    { name: 'new-place-kind' },
+  );
+  const [parishId, setParishId] = createSignal(() => props.parishId ?? null, {
+    name: 'new-place-parish',
+  });
+  const found = (hit: GazetteerHit) => {
+    setNames((n) => ({ ru: hit.nameRu ?? n.ru, fi: hit.nameFi ?? n.fi }));
+    const placeKind = placeKindOf(hit.kind);
+    if (placeKind) setKind(placeKind);
+    if (hit.parish && props.parishes?.some((p) => p.id === hit.parish!.id)) {
+      setParishId(hit.parish.id);
+    }
+    props.onFound?.(hit);
+  };
   return (
     <Fields>
-      <NameInputs prefix={props.prefix} text={props.text} invalid={props.invalid} />
+      <NameInputs
+        prefix={props.prefix}
+        text={props.text}
+        invalid={props.invalid}
+        values={names()}
+        onInput={(field, value) => setNames((n) => ({ ...n, [field]: value }))}
+      />
       <Select
         name={`${props.prefix}.kind`}
         label={m.place_edit_kind()}
-        value={props.kind ?? 'village'}
+        value={kind()}
         options={placeKinds.map((k) => ({ value: k, label: placeKindLabels[k]() }))}
         invalid={props.invalid(`${props.prefix}.kind`)}
+        onChange={(value) => setKind(value as PlaceKind)}
       />
       <Show when={props.parishes}>
         {(parishes) => (
           <Select
             name={`${props.prefix}.parishId`}
             label={m.place_edit_parish()}
-            value={props.parishId}
+            value={parishId()}
             none={m.form_none()}
             options={parishes().map((p) => ({ value: p.id, label: localName(p.name) }))}
             invalid={props.invalid(`${props.prefix}.parishId`)}
+            onChange={(value) => setParishId(Number(value) || null)}
           />
         )}
       </Show>
+      <PlaceLocator
+        prefix={props.prefix}
+        name={props.text}
+        parishId={parishId()}
+        location={props.location}
+        invalid={props.invalid}
+        onFound={found}
+      />
     </Fields>
   );
 }
@@ -240,6 +299,9 @@ export const parishLookup = (
  * namesake; one not known yet can be added in the field. `added` says how:
  * its kind by the field's prefix (an estate is a manor), and the parishes to
  * choose from, starting at `parishId`; neither when the parish is fixed.
+ * `onFound` hears a settlement found on its map, for the form around; on a
+ * page that is a map, `start` is the settlement its search found and
+ * `location` what its map sets (see NewPlaceFields).
  */
 export const placeLookup = (
   places: { id: number; name: Names; parish: Names | null; spellings: string[] }[] | undefined,
@@ -248,6 +310,9 @@ export const placeLookup = (
     kind?: (prefix: string) => PlaceKind;
     parishes?: () => { id: number; name: Names }[];
     parishId?: () => number | null;
+    start?: () => GazetteerHit | null;
+    location?: Location;
+    onFound?: (hit: GazetteerHit) => void;
   } = {},
 ): Lookup =>
   lookupRows(places, placeLabel, {
@@ -259,7 +324,10 @@ export const placeLookup = (
         kind={added.kind?.(prefix)}
         parishes={added.parishes?.()}
         parishId={added.parishId?.()}
+        start={added.start?.()}
+        location={added.location}
         invalid={invalid}
+        onFound={added.onFound}
       />
     ),
   });

@@ -17,7 +17,6 @@ import { and, count, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
-import { parseCoordinates } from '~/lib/coordinates';
 import { type Names, byRussianName, namesOf, placeInUse } from '~/lib/format';
 import {
   type CoordinateStatus,
@@ -51,6 +50,7 @@ import {
 } from '~/server/edits';
 import {
   collapse,
+  coordinates,
   finnishName,
   line,
   listParam,
@@ -246,6 +246,7 @@ export interface PlaceMarker {
   name: Names;
   latitude: number;
   longitude: number;
+  parishId: number | null;
   parish: Names | null;
   church: { id: number; name: Names } | null;
 }
@@ -281,6 +282,7 @@ export const getPlaceMarkers = query(async (): Promise<PlaceMarker[]> => {
     name: namesOf(p),
     latitude: p.latitude!,
     longitude: p.longitude!,
+    parishId: p.parishId,
     parish: (p.parishId !== null && parishNames.get(p.parishId)) || null,
     church: churchOf.get(p.id) ?? null,
   }));
@@ -338,12 +340,7 @@ const form = v.object({
   parishCreate: createFlag,
   /** The box saying the parish church stands in this locality. */
   church: createFlag,
-  coordinates: v.pipe(
-    v.optional(v.string(), ''),
-    v.transform(parseCoordinates),
-    v.check((c) => c !== undefined),
-    v.transform((c) => c ?? null),
-  ),
+  coordinates,
   coordinateStatus: v.picklist(coordinateStatuses),
   note: text,
   // One spelling a line, as written in the sources.
@@ -403,15 +400,15 @@ export const savePlace = formAction(async (formData: FormData) => {
   // "Not located" unsets the coordinates (the form does that as the status
   // is chosen; this covers a form posted before JavaScript loaded), and no
   // coordinates means not located.
-  const coordinates = input.coordinateStatus === 'unknown' ? null : input.coordinates;
-  const coordinateStatus: CoordinateStatus = coordinates ? input.coordinateStatus : 'unknown';
+  const located = input.coordinateStatus === 'unknown' ? null : input.coordinates;
+  const coordinateStatus: CoordinateStatus = located ? input.coordinateStatus : 'unknown';
   const fields = {
     kind: input.kind,
     nameRu: input.nameRu,
     nameFi: input.nameFi,
     parishId,
-    latitude: coordinates?.lat ?? null,
-    longitude: coordinates?.lng ?? null,
+    latitude: located?.lat ?? null,
+    longitude: located?.lng ?? null,
     coordinateStatus,
     note: input.note,
   };

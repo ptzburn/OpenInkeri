@@ -1,5 +1,10 @@
 import { Show, createEffect, createSignal, onSettled, untrack } from 'solid-js';
-import type { GeoJSONSource, Map as MapLibreMap, Marker } from 'maplibre-gl';
+import type {
+  ExpressionSpecification,
+  GeoJSONSource,
+  Map as MapLibreMap,
+  Marker,
+} from 'maplibre-gl';
 // MapLibre finds its worker next to its own module, which bundling moves;
 // Vite builds the worker itself and hands over its URL.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
@@ -7,6 +12,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 import type { PlaceMarker } from '~/data/places';
 import { parseCoordinates } from '~/lib/coordinates';
+import { distanceKm } from '~/lib/gazetteer';
 import { localName } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
 
@@ -39,8 +45,10 @@ interface PlaceProperties {
   name: string;
   church: boolean;
   parish: string;
+  /** Outside the parish the map shows (`highlight`): drawn faint. */
+  faded: boolean;
 }
-const placesData = (markers: PlaceMarker[]): GeoData => ({
+const placesData = (markers: PlaceMarker[], highlight: number | null = null): GeoData => ({
   type: 'FeatureCollection',
   features: markers.map((p) => ({
     type: 'Feature',
@@ -50,6 +58,7 @@ const placesData = (markers: PlaceMarker[]): GeoData => ({
       church: p.church !== null,
       // A church's parish is the one it serves.
       parish: localName(p.church?.name ?? p.parish) ?? '',
+      faded: highlight !== null && p.parishId !== highlight && p.church?.id !== highlight,
     } satisfies PlaceProperties,
   })),
 });
@@ -90,10 +99,13 @@ function addPlaces(map: MapLibreMap, data: GeoData) {
     'text-anchor': 'top' as const,
     'text-optional': true,
   };
+  // A place outside the parish shown is drawn faint.
+  const opacity: ExpressionSpecification = ['case', ['get', 'faded'], 0.3, 1];
   const textPaint = {
     'text-color': '#1f2937',
     'text-halo-color': '#ffffff',
     'text-halo-width': 1.2,
+    'text-opacity': opacity,
   };
   map.addLayer({
     id: DOTS,
@@ -105,6 +117,8 @@ function addPlaces(map: MapLibreMap, data: GeoData) {
       'circle-color': '#4b5563',
       'circle-stroke-color': '#ffffff',
       'circle-stroke-width': 1.5,
+      'circle-opacity': opacity,
+      'circle-stroke-opacity': opacity,
     },
   });
   map.addLayer({
@@ -128,7 +142,7 @@ function addPlaces(map: MapLibreMap, data: GeoData) {
       'text-field': ['get', 'parish'],
       'text-offset': [0, 1.1],
     },
-    paint: textPaint,
+    paint: { ...textPaint, 'icon-opacity': opacity },
   });
 }
 
@@ -164,13 +178,50 @@ function webglSupported() {
 const styleFor = () =>
   getComputedStyle(document.documentElement).colorScheme === 'dark' ? STYLE.dark : STYLE.light;
 
+// What a MapForm's panel covers of the map, for the view to centre on the
+// rest: from lg up its column along the left edge (w-md, 28rem); below, the
+// search floating at the top and the collapsed sheet, a third of the height.
+function panelPadding(container: HTMLElement) {
+  const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+  return matchMedia('(min-width: 64rem)').matches
+    ? { left: 28 * rem, top: 0, right: 0, bottom: 0 }
+    : { left: 0, top: 4.5 * rem, right: 0, bottom: container.clientHeight / 3 };
+}
+
+// How far from its church a parish's localities are taken to lie: farther,
+// they are likely misplaced, and fitting them would show half the country.
+const PARISH_REACH_KM = 40;
+
+/** A parish's localities within reach of its church (or of their middle, without one). */
+function parishCore(places: PlaceMarker[], parishId: number) {
+  const median = (values: number[]) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)];
+  const middle = places.find((p) => p.church?.id === parishId) ?? {
+    latitude: median(places.map((p) => p.latitude)),
+    longitude: median(places.map((p) => p.longitude)),
+  };
+  return places.filter((p) => distanceKm(middle, p) <= PARISH_REACH_KM);
+}
+
+/** The box around the points, as MapLibre takes it: [[west, south], [east, north]]. */
+function boundsOf(points: { latitude: number; longitude: number }[]) {
+  const lngs = points.map((p) => p.longitude);
+  const lats = points.map((p) => p.latitude);
+  return [
+    [Math.min(...lngs), Math.min(...lats)],
+    [Math.max(...lngs), Math.max(...lats)],
+  ] as [[number, number], [number, number]];
+}
+
 /**
  * A map to pick a locality's coordinates on: a click sets them, the marker
  * drags, and coordinates typed in the field move the marker. `value` is the
  * field's text ("59.613487, 30.22519"); `onPick` gets what the map chose.
  * The localities already known (`markers`) show as dots around it, parish
- * churches among them; without coordinates the view starts at `focus` (the
- * parish church) if there is one, else over Ingria.
+ * churches among them, those outside the parish `highlight` faint; without
+ * coordinates the view starts at `focus` (the parish church) if there is
+ * one, else over Ingria; and with a parish to highlight, it then fits that
+ * parish's localities. Under a MapForm's panel (`panel`) the view centres on
+ * the part of the map in sight.
  * MapLibre needs the browser (and WebGL), so it loads after the page
  * settles, only here; without WebGL the map says so and the field is all.
  */
@@ -178,7 +229,11 @@ export default function LocationPicker(props: {
   value: string;
   onPick: (lat: number, lng: number) => void;
   markers?: PlaceMarker[];
+  /** The parish whose localities are drawn plain, the others faint; none: all plain. */
+  highlight?: number | null;
   focus?: Point | null;
+  /** A MapForm's panel lies over the map. */
+  panel?: boolean;
   /** The box's classes, its height above all (h-72 unless said otherwise); MapLibre follows the box as it resizes. */
   class?: string;
 }) {
@@ -227,6 +282,12 @@ export default function LocationPicker(props: {
         zoom: at ? PLACE_ZOOM : focus ? PARISH_ZOOM : INGRIA.zoom,
         attributionControl: { compact: true },
       });
+      if (untrack(() => props.panel)) {
+        const covered = created;
+        const cover = () => covered.setPadding(panelPadding(covered.getContainer()));
+        cover();
+        covered.on('resize', cover);
+      }
       created.addControl(new NavigationControl({ showCompass: false }), 'top-right');
       // The dots go on with each style, the theme switch's included.
       const withPlaces = created;
@@ -304,12 +365,26 @@ export default function LocationPicker(props: {
     },
     { name: 'map-marker' },
   );
-  // The known localities, as given and whenever they change.
+  // The known localities, as given and whenever they (or the parish shown)
+  // change. The parish shown is fitted in view once, when the map has no
+  // coordinates of its own to show.
+  let fitted = false;
   createEffect(
-    () => ({ map: map(), markers: props.markers ?? [] }),
-    ({ map, markers }) => {
-      places = placesData(markers);
+    () => ({
+      map: map(),
+      markers: props.markers ?? [],
+      highlight: props.highlight ?? null,
+      located: !!coordinates(),
+    }),
+    ({ map, markers, highlight, located }) => {
+      places = placesData(markers, highlight);
       void (map?.getSource(PLACES) as GeoJSONSource | undefined)?.setData(places);
+      if (!map || fitted || highlight === null || located) return;
+      const parish = markers.filter((p) => p.parishId === highlight || p.church?.id === highlight);
+      const core = parishCore(parish, highlight);
+      if (core.length < 2) return;
+      fitted = true;
+      map.fitBounds(boundsOf(core), { padding: 48, duration: 0, maxZoom: PLACE_ZOOM });
     },
     { name: 'map-places' },
   );

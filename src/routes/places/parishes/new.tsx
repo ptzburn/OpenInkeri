@@ -1,8 +1,9 @@
 import { defineFileRoute } from '@solidjs/router/fs';
 import { Show, createMemo } from 'solid-js';
 
-import EditPage from '~/components/edit-page';
+import { MapPage } from '~/components/edit-page';
 import ParishEditForm from '~/components/parish-edit-form';
+import { getPlaceMarkers, getPlaceOptions } from '~/data/places';
 import { requireAdmin } from '~/data/session';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -17,17 +18,21 @@ const crumbs: Crumbs = () => [
 
 export const route = defineFileRoute('/places/parishes/new', {
   info: { crumbs },
-  preload: () => void requireAdmin(),
+  preload: () => {
+    void requireAdmin();
+    void getPlaceOptions();
+    void getPlaceMarkers();
+  },
 });
 
 export default function NewParish() {
   const allowed = createMemo(() => requireAdmin(), { name: 'parish-new-admin' });
 
   return (
-    <EditPage title={m.parish_new_title()}>
+    <MapPage title={m.parish_new_title()}>
       <Show when={allowed()}>
-        <ParishEditForm cancelHref={paths.places.parishes()} />
+        <ParishEditForm title={m.parish_new_title()} cancelHref={paths.places.parishes()} />
       </Show>
-    </EditPage>
+    </MapPage>
   );
 }

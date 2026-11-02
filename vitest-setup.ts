@@ -3,7 +3,8 @@
 import '@testing-library/jest-dom/vitest';
 
 // jsdom has no showModal()/close() on <dialog> (and no invoker commands), so
-// the delete confirmation's fallback click handlers open and close it here.
+// the delete confirmation's fallback click handlers open and close it here;
+// a close fires the close event, as in a browser.
 // The server tests run in node, with no DOM at all.
 if (
   typeof HTMLDialogElement !== 'undefined' &&
@@ -17,7 +18,9 @@ if (
     },
     close: {
       value(this: HTMLDialogElement) {
+        if (!this.open) return;
         this.open = false;
+        this.dispatchEvent(new Event('close'));
       },
     },
   });

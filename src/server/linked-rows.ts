@@ -14,7 +14,7 @@ import { type PlaceKind, placeKinds } from '~/lib/place-kinds';
 import { rowsSpelled, spellingIndex, spellingsOf } from '~/lib/spellings';
 import { db } from '~/server/database';
 import { changeLog, clergy, parish, place, placeAlias, term } from '~/server/database/schema';
-import { finnishName, line, optionalId, parseForm, russianName } from '~/server/forms';
+import { coordinates, finnishName, line, optionalId, parseForm, russianName } from '~/server/forms';
 
 /** The box that asks for a new row: posted as 'on' when ticked, not at all otherwise. */
 export const createFlag = v.optional(v.literal('on'));
@@ -31,6 +31,9 @@ export const newPlace = {
   nameFi: finnishName(),
   kind: v.optional(v.picklist(placeKinds), 'village'),
   parishId: optionalId,
+  /** Where it stands, when located on the map (NewPlaceFields' dialog). */
+  coordinates,
+  coordinateStatus: v.optional(v.picklist(['approximate', 'verified']), 'approximate'),
 };
 export const newClergy = { nameRu: russianName(), nameFi: finnishName() };
 export const newRelation = { ru: russianName(), fi: line(), en: line() };
@@ -136,14 +139,30 @@ export async function insertPlace(
 }
 
 /**
- * A locality named in a form. The value as written becomes one of its
- * spellings when it is neither of its names, so records keep linking to it.
+ * A locality named in a form, located when the form says where it stands
+ * (approximately unless said otherwise). The value as written becomes one
+ * of its spellings when it is neither of its names, so records keep
+ * linking to it.
  */
 export async function createPlace(
-  fields: { nameRu: string; nameFi: string | null; kind: PlaceKind; parishId: number | null },
+  input: {
+    nameRu: string;
+    nameFi: string | null;
+    kind: PlaceKind;
+    parishId: number | null;
+    coordinates?: { lat: number; lng: number } | null;
+    coordinateStatus?: 'approximate' | 'verified';
+  },
   by: By,
   asWritten: string | null = null,
 ): Promise<Created> {
+  const { coordinates: at, coordinateStatus, ...named } = input;
+  const fields = {
+    ...named,
+    latitude: at?.lat ?? null,
+    longitude: at?.lng ?? null,
+    coordinateStatus: at ? (coordinateStatus ?? 'approximate') : ('unknown' as const),
+  };
   const id = await insertPlace(fields, by);
   const spellings =
     asWritten && asWritten !== fields.nameRu && asWritten !== fields.nameFi ? [asWritten] : [];

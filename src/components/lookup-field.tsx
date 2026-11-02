@@ -71,6 +71,29 @@ interface Match {
   spelling: string;
 }
 
+// The rows a spelling of which contains the text, each with that spelling.
+const matching = (lookup: Lookup, text: string): Match[] => {
+  const key = foldForSearch(text);
+  if (!key) return [];
+  const rows: Match[] = [];
+  for (const option of lookup.options) {
+    const spelling = option.spellings.find((s) => foldForSearch(s).includes(key));
+    if (spelling !== undefined) rows.push({ option, spelling });
+  }
+  return rows;
+};
+
+/**
+ * Whether a lookup's field, holding `text` linked to `id`, shows the fields
+ * of a row to add: the lookup allows it and no spelling contains the text.
+ * Not before: while rows match what is typed so far, the dropdown has them.
+ */
+export const addsRow = (lookup: Lookup, text: string, id: number | null) =>
+  !!lookup.create &&
+  !!text.trim() &&
+  !lookup.options.some((o) => o.value === id) &&
+  !matching(lookup, text).length;
+
 // The names a lookup's field posts beside the value: "placeText" → "placeCreate", "placeNew".
 const createName = (textName: string) => textName.replace(/Text$/, 'Create');
 const newPrefix = (textName: string) => textName.replace(/Text$/, 'New');
@@ -115,19 +138,7 @@ export function LookupField(props: {
   const undecided = () => named().length > 1 && !named().includes(id() ?? 0);
   const several = () => props.lookup.options.filter((o) => named().includes(o.value));
   // The rows a spelling of which contains the text, each with that spelling.
-  const found = createMemo(
-    (): Match[] => {
-      const key = foldForSearch(text());
-      if (!key) return [];
-      const rows: Match[] = [];
-      for (const option of props.lookup.options) {
-        const spelling = option.spellings.find((s) => foldForSearch(s).includes(key));
-        if (spelling !== undefined) rows.push({ option, spelling });
-      }
-      return rows;
-    },
-    { name: 'lookup-found' },
-  );
+  const found = createMemo(() => matching(props.lookup, text()), { name: 'lookup-found' });
   // What the dropdown offers: the rows found (none when the text is in no
   // spelling); every row, by its first name, when nothing is typed or the
   // field was opened to browse.
@@ -141,8 +152,8 @@ export function LookupField(props: {
         : found(),
     { name: 'lookup-matches' },
   );
-  // A value no spelling contains, where a row can be added: its fields show.
-  // Not before: while rows match what is typed so far, the dropdown has them.
+  // A value no spelling contains, where a row can be added: its fields show
+  // (addsRow, over the rows found already).
   const unknown = () => !!props.lookup.create && !!text().trim() && !found().length && !linked();
   const typedText = () => text().trim();
   // The spelling is worth showing when the row's name doesn't contain it.
