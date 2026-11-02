@@ -12,6 +12,7 @@ import Group from '~icons/ri/group-line';
 import { env } from 'virtual:solid-env/client';
 
 import AccountMenu from '~/components/account-menu';
+import Logo from '~/components/logo';
 import { getCurrentUser } from '~/data/session';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
@@ -32,10 +33,16 @@ export default function Sidebar() {
   return (
     <aside class="flex min-h-full w-64 flex-col border-r border-base-300 bg-base-200 sidebar-collapsed:w-14">
       {/* As tall as the header beside it (navbar: min-h-16), with the same
-          bottom border, so one line runs under both. Folded, it is empty. */}
-      <div class="flex min-h-16 items-center border-b border-base-300 px-6">
-        <a href={paths()} class="text-xl font-bold sidebar-collapsed:hidden">
-          {env.VITE_APP_NAME}
+          bottom border, so one line runs under both. Folded, the mark alone,
+          centred. */}
+      <div class="flex min-h-16 items-center border-b border-base-300 px-5 sidebar-collapsed:justify-center sidebar-collapsed:px-0">
+        <a
+          href={paths()}
+          class="flex items-center gap-2.5 text-xl font-bold"
+          aria-label={env.VITE_APP_NAME}
+        >
+          <Logo class="size-7 shrink-0" />
+          <span class="sidebar-collapsed:hidden">{env.VITE_APP_NAME}</span>
         </a>
       </div>
       {/* The router marks a link data-active on its page and the pages under

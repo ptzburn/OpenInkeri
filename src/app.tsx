@@ -6,6 +6,7 @@ import { env } from 'virtual:solid-env/client';
 
 import Breadcrumbs from './components/breadcrumbs';
 import LanguageSwitcher from './components/language-switcher';
+import Logo from './components/logo';
 import Sidebar, { SidebarToggle } from './components/sidebar';
 import ThemeSwitcher from './components/theme-switcher';
 import { ToastProvider } from './components/toaster';
@@ -69,7 +70,8 @@ export default function App() {
                       <MenuIcon class="size-6" aria-hidden="true" />
                     </label>
                     <SidebarToggle collapsed={collapsed()} onToggle={toggleSidebar} />
-                    <span class="shrink-0 px-2 text-lg font-bold lg:hidden max-sm:group-has-[nav[data-back]]:hidden">
+                    <span class="flex shrink-0 items-center gap-2 px-2 text-lg font-bold lg:hidden max-sm:group-has-[nav[data-back]]:hidden">
+                      <Logo class="size-6" />
                       {env.VITE_APP_NAME}
                     </span>
                     <Breadcrumbs />
