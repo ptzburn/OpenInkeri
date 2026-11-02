@@ -16,6 +16,7 @@ import { type Lookup, LookupField, addsRow, namedRow } from '~/components/lookup
 import MapForm from '~/components/map-form';
 import { placeLookup } from '~/components/new-row-fields';
 import { createLocation } from '~/components/place-locator';
+import LeaveGuard from '~/components/leave-guard';
 import { type ParishEditData, deleteParish, getParishEdit, saveParish } from '~/data/parishes';
 import { getPlaceMarkers, getPlaceOptions } from '~/data/places';
 import type { GazetteerHit } from '~/lib/gazetteer';
@@ -218,6 +219,7 @@ export default function ParishEditForm(props: {
               action={saveParish}
               class="group grid content-start gap-x-4 sm:grid-cols-2"
             >
+              <LeaveGuard />
               <input type="hidden" name="id" value={p.id || ''} />
               <input type="hidden" name="version" value={p.version} />
               <NamePair

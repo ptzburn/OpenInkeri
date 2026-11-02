@@ -741,6 +741,49 @@ describe('/places/parishes', () => {
     await waitFor(() => expect(screen.queryByText(/has no position/)).toBeNull());
   });
 
+  test('leaving with unsaved changes asks first; untouched, it leaves', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/5/edit');
+    await waitFor(() => expect(field('nameRu')).toHaveValue('Губаницы'));
+    const crumb = () => screen.getByRole('link', { name: 'Parishes' });
+
+    // A change: the dialog stops the way out; Stay keeps the page as typed.
+    fireEvent.input(field('note'), { target: { value: 'Не сохранено' } });
+    fireEvent.click(crumb());
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved changes' });
+    expect(window.location.pathname).toBe('/places/parishes/5/edit');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
+    expect(dialog).not.toHaveAttribute('open');
+    expect(field('note')).toHaveValue('Не сохранено');
+
+    // Undone, it is no change: the link leaves.
+    fireEvent.input(field('note'), { target: { value: '' } });
+    fireEvent.click(crumb());
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+  });
+
+  test('leaving without saving goes on, once chosen', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/5/edit');
+    await waitFor(() => expect(field('nameRu')).toHaveValue('Губаницы'));
+    fireEvent.input(field('nameFi'), { target: { value: 'Kupanitsa' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Parishes' }));
+    const dialog = screen.getByRole('dialog', { name: 'Unsaved changes', hidden: true });
+    await waitFor(() => expect(dialog).toHaveAttribute('open'));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Leave without saving' }));
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+  });
+
+  test('a save leaves without asking', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/5/edit');
+    await waitFor(() => expect(field('nameRu')).toHaveValue('Губаницы'));
+    fireEvent.input(field('note'), { target: { value: 'Сохранено' } });
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+    expect(parishes.saved).toHaveLength(1);
+  });
+
   test('deleting a parish posts its id and version once confirmed', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/5/edit');

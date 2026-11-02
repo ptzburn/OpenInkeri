@@ -23,6 +23,7 @@ import {
   recordStatusLabels,
   sexLabels,
 } from '~/components/labels';
+import LeaveGuard from '~/components/leave-guard';
 import { PARTIAL_DATE_PATTERN, formatPartialDate, localName, localTerm } from '~/lib/format';
 import {
   type RecordEditData,
@@ -243,6 +244,7 @@ export default function RecordEditForm(props: {
           </Show>
           {/* While a save is in flight the router marks the form aria-busy. */}
           <form method="post" action={saveRecord} class="group flex max-w-5xl flex-col gap-6">
+            <LeaveGuard />
             <input type="hidden" name="returnKind" value={props.returnTo.kind ?? ''} />
             <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
             <input type="hidden" name="returnPage" value={props.returnTo.page ?? ''} />
