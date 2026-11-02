@@ -6,7 +6,7 @@ import { afterEach, describe, expect, test, vi } from 'vite-plus/test';
 
 import { Router } from '~/router';
 
-import Sidebar from './sidebar';
+import Sidebar, { SidebarToggle } from './sidebar';
 
 vi.mock('~/data/session', () => ({
   getCurrentUser: vi.fn(async () => ({
@@ -25,9 +25,9 @@ vi.mock('~/data/theme', () => ({
   saveTheme: vi.fn(),
 }));
 
-function renderAt(url: string, collapsed = false, onToggle = () => {}) {
+function renderAt(url: string) {
   window.history.replaceState(null, '', url);
-  render(() => <Router>{() => <Sidebar collapsed={collapsed} onToggle={onToggle} />}</Router>);
+  render(() => <Router>{() => <Sidebar />}</Router>);
 }
 
 const link = (name: string) => screen.findByRole('link', { name });
@@ -80,7 +80,7 @@ describe('<Sidebar />', () => {
 
   test('the fold button says what it does and tells the app; folded links keep their names as tips', async () => {
     let toggles = 0;
-    renderAt('/', false, () => toggles++);
+    render(() => <SidebarToggle collapsed={false} onToggle={() => toggles++} />);
     const fold = screen.getByRole('button', { name: 'Collapse menu' });
     expect(fold).toHaveAttribute('aria-expanded', 'true');
     expect(fold).toHaveAttribute('aria-controls', 'app-nav');
@@ -88,11 +88,14 @@ describe('<Sidebar />', () => {
     expect(toggles).toBe(1);
     cleanup();
 
-    renderAt('/', true);
+    render(() => <SidebarToggle collapsed onToggle={() => {}} />);
     expect(screen.getByRole('button', { name: 'Expand menu' })).toHaveAttribute(
       'aria-expanded',
       'false',
     );
+    cleanup();
+
+    renderAt('/');
     expect(await link('Records')).toHaveAttribute('data-tip', 'Records');
     expect(await link('Home')).toHaveClass('sidebar-collapsed:tooltip');
   });

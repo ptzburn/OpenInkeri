@@ -23,33 +23,21 @@ const folded = 'sidebar-collapsed:tooltip sidebar-collapsed:tooltip-right';
 // The drawer's sidebar: the app name, the navigation and, at the bottom,
 // the account corner. Links for signed-in users, or for admins, stay hidden
 // from everyone else; the pages and server functions guard themselves anyway.
-// From lg up a button folds it to its icons (`collapsed`, kept by App).
-export default function Sidebar(props: { collapsed: boolean; onToggle: () => void }) {
+// From lg up the header's first button folds it to its icons (App keeps the
+// choice).
+export default function Sidebar() {
   const user = createMemo(() => getCurrentUser(), { name: 'sidebar-user' });
   const inPlaces = useMatch(() => '/places/*');
 
   return (
     <aside class="flex min-h-full w-64 flex-col border-r border-base-300 bg-base-200 sidebar-collapsed:w-14">
       {/* As tall as the header beside it (navbar: min-h-16), with the same
-          bottom border, so one line runs under both. Folded, only the fold
-          button is left, centred. */}
-      <div class="flex min-h-16 items-center justify-between border-b border-base-300 pr-2 pl-6 sidebar-collapsed:justify-center sidebar-collapsed:px-0">
+          bottom border, so one line runs under both. Folded, it is empty:
+          the header shows the name. */}
+      <div class="flex min-h-16 items-center border-b border-base-300 px-6">
         <a href={paths()} class="text-xl font-bold sidebar-collapsed:hidden">
           {env.VITE_APP_NAME}
         </a>
-        <button
-          type="button"
-          class="btn hidden btn-square btn-ghost btn-sm lg:inline-flex"
-          aria-expanded={props.collapsed ? 'false' : 'true'}
-          aria-controls="app-nav"
-          aria-label={props.collapsed ? m.sidebar_expand() : m.sidebar_collapse()}
-          title={props.collapsed ? m.sidebar_expand() : m.sidebar_collapse()}
-          onClick={() => props.onToggle()}
-        >
-          <Show when={props.collapsed} fallback={<Fold class="size-5" aria-hidden="true" />}>
-            <Unfold class="size-5" aria-hidden="true" />
-          </Show>
-        </button>
       </div>
       {/* The router marks a link data-active on its page and the pages under
           it (Home only on itself), so Users stays lit on /users/:id. */}
@@ -132,5 +120,24 @@ export default function Sidebar(props: { collapsed: boolean; onToggle: () => voi
         <AccountMenu />
       </div>
     </aside>
+  );
+}
+
+/** The header's button that folds the sidebar to its icons and back, from lg up (below, the sidebar is a drawer). */
+export function SidebarToggle(props: { collapsed: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      class="btn hidden shrink-0 btn-square btn-ghost lg:inline-flex"
+      aria-expanded={props.collapsed ? 'false' : 'true'}
+      aria-controls="app-nav"
+      aria-label={props.collapsed ? m.sidebar_expand() : m.sidebar_collapse()}
+      title={props.collapsed ? m.sidebar_expand() : m.sidebar_collapse()}
+      onClick={() => props.onToggle()}
+    >
+      <Show when={props.collapsed} fallback={<Fold class="size-5" aria-hidden="true" />}>
+        <Unfold class="size-5" aria-hidden="true" />
+      </Show>
+    </button>
   );
 }

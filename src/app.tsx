@@ -6,7 +6,7 @@ import { env } from 'virtual:solid-env/client';
 
 import Breadcrumbs from './components/breadcrumbs';
 import LanguageSwitcher from './components/language-switcher';
-import Sidebar from './components/sidebar';
+import Sidebar, { SidebarToggle } from './components/sidebar';
 import ThemeSwitcher from './components/theme-switcher';
 import { ToastProvider } from './components/toaster';
 import { getSidebarCollapsed, saveSidebarCollapsed } from './data/sidebar';
@@ -49,8 +49,9 @@ export default function App() {
               />
               <div class="drawer-content flex min-h-dvh flex-col">
                 {/* Below lg the menu button and app name open the sidebar over
-                  the page; from lg up the sidebar shows the name itself,
-                  unless it is folded: then the header does. The breadcrumbs
+                  the page; from lg up a button in the same place folds the
+                  sidebar to its icons and back, and the sidebar shows the
+                  name itself, unless it is folded: then the header does. The breadcrumbs
                   follow, taking the row's width (navbar-end only what its
                   buttons need); on a phone, a page with a page above shows
                   the way back to it in place of the name.
@@ -67,6 +68,7 @@ export default function App() {
                     >
                       <MenuIcon class="size-6" aria-hidden="true" />
                     </label>
+                    <SidebarToggle collapsed={collapsed()} onToggle={toggleSidebar} />
                     <span class="shrink-0 px-2 text-lg font-bold sidebar-expanded:hidden max-sm:group-has-[nav[data-back]]:hidden">
                       {env.VITE_APP_NAME}
                     </span>
@@ -99,7 +101,7 @@ export default function App() {
                 }}
               >
                 <label for="app-drawer" aria-label={m.app_close_menu()} class="drawer-overlay" />
-                <Sidebar collapsed={collapsed()} onToggle={toggleSidebar} />
+                <Sidebar />
               </div>
             </div>
           </ToastProvider>
