@@ -213,6 +213,19 @@ function boundsOf(points: { latitude: number; longitude: number }[]) {
   ] as [[number, number], [number, number]];
 }
 
+/** Where the marker `match` picks stands, for the view to go to; null when none does. */
+export function pointOf(
+  markers: PlaceMarker[] | undefined,
+  match: (marker: PlaceMarker) => boolean,
+): Point | null {
+  const found = markers?.find(match);
+  return found ? { lat: found.latitude, lng: found.longitude } : null;
+}
+
+/** Where a parish's church stands among the markers: where a map starts for a locality in it. */
+export const churchPoint = (markers: PlaceMarker[] | undefined, parishId: number | null) =>
+  pointOf(markers, (marker) => marker.church?.id === parishId);
+
 /**
  * A map to pick a locality's coordinates on: a click sets them, the marker
  * drags, and coordinates typed in the field move the marker. `value` is the

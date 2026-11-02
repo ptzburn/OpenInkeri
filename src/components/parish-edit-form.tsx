@@ -11,7 +11,7 @@ import {
   postedName,
   useEditForm,
 } from '~/components/form-fields';
-import LocationPicker from '~/components/location-picker';
+import LocationPicker, { pointOf } from '~/components/location-picker';
 import { type Lookup, LookupField, addsRow, namedRow } from '~/components/lookup-field';
 import MapForm from '~/components/map-form';
 import { placeLookup } from '~/components/new-row-fields';
@@ -171,8 +171,8 @@ export default function ParishEditForm(props: {
         );
         // The church linked, on the map: where the view goes.
         const church = () => {
-          const at = (markers() ?? []).find((n) => n.id === churchLinked());
-          return at ? { lat: at.latitude, lng: at.longitude } : null;
+          const linked = churchLinked();
+          return pointOf(markers(), (n) => n.id === linked);
         };
         const found = (hit: GazetteerHit) => {
           if (hit.nameRu && !nameRu().trim()) setNameRu(hit.nameRu);

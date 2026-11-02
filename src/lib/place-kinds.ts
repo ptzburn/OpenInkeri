@@ -7,6 +7,10 @@
 // baptismLocations in ./record-kinds.ts).
 export const placeKinds = ['village', 'manor', 'town', 'other'] as const;
 export const coordinateStatuses = ['verified', 'approximate', 'unknown'] as const;
+// How sure a place's coordinates are, once it has them: a map's centre or a
+// hand's placing (approximate), or checked against sources (verified).
+export const locatedStatuses = ['approximate', 'verified'] as const;
 
 export type PlaceKind = (typeof placeKinds)[number];
 export type CoordinateStatus = (typeof coordinateStatuses)[number];
+export type LocatedStatus = (typeof locatedStatuses)[number];

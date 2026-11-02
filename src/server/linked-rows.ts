@@ -10,7 +10,12 @@ import 'server-only';
 import { eq } from 'drizzle-orm';
 import * as v from 'valibot';
 
-import { type PlaceKind, placeKinds } from '~/lib/place-kinds';
+import {
+  type CoordinateStatus,
+  type PlaceKind,
+  coordinateStatuses,
+  placeKinds,
+} from '~/lib/place-kinds';
 import { rowsSpelled, spellingIndex, spellingsOf } from '~/lib/spellings';
 import { db } from '~/server/database';
 import { changeLog, clergy, parish, place, placeAlias, term } from '~/server/database/schema';
@@ -33,7 +38,7 @@ export const newPlace = {
   parishId: optionalId,
   /** Where it stands, when located on the map (NewPlaceFields' dialog). */
   coordinates,
-  coordinateStatus: v.optional(v.picklist(['approximate', 'verified']), 'approximate'),
+  coordinateStatus: v.optional(v.picklist(coordinateStatuses), 'approximate'),
 };
 export const newClergy = { nameRu: russianName(), nameFi: finnishName() };
 export const newRelation = { ru: russianName(), fi: line(), en: line() };
@@ -151,17 +156,20 @@ export async function createPlace(
     kind: PlaceKind;
     parishId: number | null;
     coordinates?: { lat: number; lng: number } | null;
-    coordinateStatus?: 'approximate' | 'verified';
+    coordinateStatus?: CoordinateStatus;
   },
   by: By,
   asWritten: string | null = null,
 ): Promise<Created> {
   const { coordinates: at, coordinateStatus, ...named } = input;
+  // "Not located" unsets the coordinates, and none means not located (as
+  // savePlace has it).
+  const located = coordinateStatus === 'unknown' ? null : at;
   const fields = {
     ...named,
-    latitude: at?.lat ?? null,
-    longitude: at?.lng ?? null,
-    coordinateStatus: at ? (coordinateStatus ?? 'approximate') : ('unknown' as const),
+    latitude: located?.lat ?? null,
+    longitude: located?.lng ?? null,
+    coordinateStatus: located ? (coordinateStatus ?? 'approximate') : ('unknown' as const),
   };
   const id = await insertPlace(fields, by);
   const spellings =

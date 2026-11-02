@@ -3,7 +3,7 @@ import { defineFileRoute } from '@solidjs/router/fs';
 import { Show, createMemo } from 'solid-js';
 
 import EditPage from '~/components/edit-page';
-import RecordEditForm from '~/components/record-edit-form';
+import RecordEditForm, { listPlaceOf } from '~/components/record-edit-form';
 import { getRecordEditOptions } from '~/data/records';
 import { requireAdmin } from '~/data/session';
 import { isRecordKind } from '~/lib/record-kinds';
@@ -21,12 +21,7 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 const crumbs: Crumbs = ({ query }) => [
   {
     label: m.records_title(),
-    href: paths.records({
-      kind: query.kind,
-      q: query.q,
-      page: query.page,
-      source: query.source,
-    }),
+    href: paths.records(listPlaceOf(query)),
   },
   { label: m.record_new_title() },
 ];
@@ -43,12 +38,7 @@ export const route = defineFileRoute('/records/new', {
 export default function NewRecord() {
   const [search] = useSearchParams(paths.records.new);
   const allowed = createMemo(() => requireAdmin(), { name: 'record-new-admin' });
-  const listPlace = () => ({
-    kind: search.kind,
-    q: search.q,
-    page: search.page,
-    source: search.source,
-  });
+  const listPlace = () => listPlaceOf(search);
   const listHref = () => paths.records(listPlace());
 
   return (

@@ -3,7 +3,7 @@ import { defineFileRoute } from '@solidjs/router/fs';
 import { Show } from 'solid-js';
 
 import { MapPage } from '~/components/edit-page';
-import PlaceEditForm from '~/components/place-edit-form';
+import PlaceEditForm, { villageListPlaceOf } from '~/components/place-edit-form';
 import { getParishOptions } from '~/data/parishes';
 import { getPlaceEdit, getPlaceMarkers } from '~/data/places';
 import { idParam, stringParams } from '~/lib/route-params';
@@ -15,10 +15,7 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 // others home). The list's ?q= and ?parish= ride along, so saving or
 // cancelling returns to the same list.
 const crumbs: Crumbs = ({ query }) => [
-  {
-    label: m.villages_title(),
-    href: paths.places.villages({ q: query.q, parish: query.parish }),
-  },
+  { label: m.villages_title(), href: paths.places.villages(villageListPlaceOf(query)) },
   { label: m.place_edit_title() },
 ];
 
@@ -37,7 +34,8 @@ export const route = defineFileRoute('/places/villages/:id/edit', {
 
 export default function EditVillage(props: RouteProps<'/places/villages/:id/edit'>) {
   const [search] = useSearchParams(paths.places.villages);
-  const listHref = () => paths.places.villages({ q: search.q, parish: search.parish });
+  const listPlace = () => villageListPlaceOf(search);
+  const listHref = () => paths.places.villages(listPlace());
 
   return (
     <MapPage title={m.place_edit_title()}>
@@ -46,7 +44,7 @@ export default function EditVillage(props: RouteProps<'/places/villages/:id/edit
           <PlaceEditForm
             title={m.place_edit_title()}
             id={id()}
-            returnTo={{ q: search.q, parish: search.parish }}
+            returnTo={listPlace()}
             cancelHref={listHref()}
           />
         )}
