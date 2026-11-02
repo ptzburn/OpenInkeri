@@ -8,11 +8,26 @@ import { getRecordEdit, getRecordEditOptions } from '~/data/records';
 import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Admins only: getRecordEdit redirects anyone else (signed out to sign-in,
 // others home). The list's ?kind=, ?q=, ?page= and ?source= ride along, so
 // saving or cancelling returns to the same place in the list.
+const crumbs: Crumbs = ({ query }) => [
+  {
+    label: m.records_title(),
+    href: paths.records({
+      kind: query.kind,
+      q: query.q,
+      page: query.page,
+      source: query.source,
+    }),
+  },
+  { label: m.record_edit_title() },
+];
+
 export const route = defineFileRoute('/records/:id/edit', {
+  info: { crumbs },
   search: stringParams('kind', 'q', 'page', 'source'),
   preload: ({ params }) => {
     const id = idParam(params.id);

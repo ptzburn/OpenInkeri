@@ -1,6 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "app_open_menu": "Open menu",
+  "breadcrumbs_label": "Breadcrumbs",
   "app_close_menu": "Close menu",
   "toast_close": "Close",
   "app_loading": "Loading",
@@ -422,7 +423,6 @@
   "people_col_name": "Name",
   "people_col_lifespan": "Lived",
   "people_col_mentions": "Mentions",
-  "person_back": "All people",
   "person_missing": "This person doesn't exist.",
   "person_edit": "Edit person",
   "person_family": "Family",
@@ -459,7 +459,6 @@
   "person_role_member": "Household member",
   "person_role_taxpayer": "Taxpayer",
   "link_title": "Link to a person",
-  "link_back": "Back to the record",
   "link_new_text": "If this person isn't here yet, make them from this mention: the name, sex and dates come from the record.",
   "link_new": "New person from this mention",
   "link_existing": "Or pick someone already here",

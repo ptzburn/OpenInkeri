@@ -219,6 +219,9 @@ describe('a person', () => {
     me.current = { isAdmin: false };
     renderAt('/people/1');
     await screen.findByRole('heading', { level: 1, name: 'Maria Juhontytär' });
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumbs' }));
+    expect(crumbs.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people');
+    expect(crumbs.getByText('Maria Juhontytär')).toHaveAttribute('aria-current', 'page');
     expect(screen.getByText('Мария Иванова')).toBeInTheDocument();
     expect(screen.getByText('Из Горок.')).toBeInTheDocument();
     // A linked relative is a link; an unlinked one is marked.
@@ -281,6 +284,9 @@ describe('a person', () => {
     me.current = { isAdmin: false };
     renderAt('/people/99');
     expect(await screen.findByText("This person doesn't exist.")).toBeInTheDocument();
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumbs' }));
+    expect(crumbs.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people');
+    expect(crumbs.queryByText("This person doesn't exist.")).toBeNull();
   });
 
   test('opening a person from the list causes no diagnostics', async () => {
@@ -337,10 +343,14 @@ describe('linking a mention', () => {
     me.current = { isAdmin: true };
     renderAt('/people/link/30');
     await screen.findByRole('heading', { level: 1, name: 'Link to a person' });
-    expect(screen.getByRole('link', { name: 'Back to the record' })).toHaveAttribute(
+    // The breadcrumbs lead back through the record the mention is in.
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumbs' }));
+    expect(crumbs.getByRole('link', { name: 'Records' })).toHaveAttribute('href', '/records');
+    expect(crumbs.getByRole('link', { name: 'Edit record' })).toHaveAttribute(
       'href',
       '/records/8/edit',
     );
+    expect(crumbs.getByText('Link to a person')).toHaveAttribute('aria-current', 'page');
     fireEvent.click(screen.getByRole('button', { name: 'New person from this mention' }));
     await waitFor(() => expect(window.location.pathname).toBe('/people/1'));
     expect(people.linked[0].get('persona')).toBe('30');

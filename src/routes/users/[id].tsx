@@ -19,11 +19,22 @@ import { formatDate } from '~/lib/format';
 import { banUser, getUser, makeAdmin, removeAdmin, signOutUser, unbanUser } from '~/data/users';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // The preload starts the fetch as navigation begins, and doubles as the
 // page's single-flight manifest: after an admin action here, the action's
 // response carries the user's refreshed badges.
+// The user's name, from the query the page reads; the list keeps its search.
+const crumbs: Crumbs = async ({ params, query }) => {
+  const user = params.id ? await getUser(params.id) : null;
+  return [
+    { label: m.users_title(), href: paths.users({ q: query.q }) },
+    ...(user ? [{ label: user.name }] : []),
+  ];
+};
+
 export const route = {
+  info: { crumbs },
   preload: ({ params }) => void getUser(params.id!),
 } satisfies RouteDefinition;
 

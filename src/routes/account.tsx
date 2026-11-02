@@ -24,11 +24,15 @@ import type { AuthProvider } from '~/lib/auth-providers';
 import type { ActionError } from '~/lib/form-error';
 import { describeUserAgent, formatDate } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // The preload starts the read as navigation begins, and doubles as the
 // page's single-flight manifest: after an action here, the server reruns it
 // to put the refreshed data on the action response itself.
+const crumbs: Crumbs = () => [{ label: m.account_title() }];
+
 export const route = {
+  info: { crumbs },
   preload: () => {
     void getAccount();
     // Not read on this page: listed so a rename refreshes the sidebar's

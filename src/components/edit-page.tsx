@@ -1,15 +1,14 @@
 import { Title } from '@solidjs/meta';
 import type { JSX } from '@solidjs/web';
 import { env } from 'virtual:solid-env/client';
-import BackIcon from '~icons/ri/arrow-left-line';
 
 /**
  * An admin's edit (or new) page: the tab title, the heading, the form.
  * Nothing here is conditional: a `<Show>` that rendered nothing ahead of the
  * heading put hydration off for everything after it, and a page loaded
  * directly kept its server-rendered form without its behaviour (the map
- * never appeared). A page without a Cancel in its form puts a BackLink in
- * its content instead.
+ * never appeared). A page without a Cancel in its form leads back through
+ * the header's breadcrumbs.
  */
 export default function EditPage(props: { title: string; children: JSX.Element }) {
   return (
@@ -33,15 +32,5 @@ export function MapPage(props: { title: string; children: JSX.Element }) {
       <Title>{`${props.title} - ${env.VITE_APP_NAME}`}</Title>
       {props.children}
     </main>
-  );
-}
-
-/** A link back from a page with no Cancel: the link page, a row that isn't there. */
-export function BackLink(props: { href: string; label: string }) {
-  return (
-    <a href={props.href} class="btn self-start btn-ghost btn-sm">
-      <BackIcon class="size-4" aria-hidden="true" />
-      {props.label}
-    </a>
   );
 }

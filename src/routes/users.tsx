@@ -9,6 +9,7 @@ import { stringParams } from '~/lib/route-params';
 import { getUsers } from '~/data/users';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Admins only: getUsers redirects a signed-out visitor to /sign-in and a
 // signed-in non-admin home (src/data/users.ts), and the section shows nothing
@@ -16,7 +17,10 @@ import { paths } from '~/router';
 //
 // ?q= holds the list's search, so a search survives reloads, can be shared,
 // and stays put while you open users from its results.
+const crumbs: Crumbs = () => [{ label: m.users_title() }];
+
 export const route = defineFileRoute('/users', {
+  info: { crumbs },
   search: stringParams('q'),
   preload: ({ location }) => {
     const q = location.query.q;

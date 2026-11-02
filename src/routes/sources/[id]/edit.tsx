@@ -9,10 +9,17 @@ import { getSourceEdit } from '~/data/sources';
 import { idParam } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Admins only: getSourceEdit redirects anyone else (signed out to sign-in,
 // others home).
+const crumbs: Crumbs = () => [
+  { label: m.sources_title(), href: paths.sources() },
+  { label: m.source_edit_title() },
+];
+
 export const route = defineFileRoute('/sources/:id/edit', {
+  info: { crumbs },
   preload: ({ params }) => {
     const id = idParam(params.id);
     if (id) {

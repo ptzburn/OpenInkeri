@@ -9,11 +9,21 @@ import { getPlaceEdit, getPlaceMarkers } from '~/data/places';
 import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Admins only: getPlaceEdit redirects anyone else (signed out to sign-in,
 // others home). The list's ?q= and ?parish= ride along, so saving or
 // cancelling returns to the same list.
+const crumbs: Crumbs = ({ query }) => [
+  {
+    label: m.villages_title(),
+    href: paths.places.villages({ q: query.q, parish: query.parish }),
+  },
+  { label: m.place_edit_title() },
+];
+
 export const route = defineFileRoute('/places/villages/:id/edit', {
+  info: { crumbs },
   search: stringParams('q', 'parish'),
   preload: ({ params }) => {
     const id = idParam(params.id);

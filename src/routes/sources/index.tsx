@@ -18,11 +18,15 @@ import ListPage, {
 import { type SourceRow, getSources } from '~/data/sources';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Signed-in users only: getSources redirects a signed-out visitor to
 // sign-in (src/data/sources.ts). A few dozen sources at most: no search and
 // no pages.
+const crumbs: Crumbs = () => [{ label: m.sources_title() }];
+
 export const route = defineFileRoute('/sources/', {
+  info: { crumbs },
   preload: () => void getSources(),
 });
 

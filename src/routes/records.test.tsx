@@ -863,11 +863,13 @@ describe('editing a baptism', () => {
     expect(field('date').nextElementSibling).toHaveTextContent('Check this value.');
   });
 
-  test('Cancel returns to the list as it was, unsaved; there is no other way back', async () => {
+  test('Cancel and the breadcrumbs return to the list as it was, unsaved', async () => {
     await openMaria();
     const back = `/records?q=${encodeURIComponent('мария')}`;
     expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute('href', back);
-    expect(screen.queryByRole('link', { name: 'Back to records' })).toBeNull();
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumbs' }));
+    expect(crumbs.getByRole('link', { name: 'Records' })).toHaveAttribute('href', back);
+    expect(crumbs.getByText('Edit record')).toHaveAttribute('aria-current', 'page');
     expect(editing.saved).toEqual([]);
   });
 
