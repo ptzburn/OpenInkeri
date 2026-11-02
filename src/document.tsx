@@ -1,6 +1,6 @@
 import type { ParentProps } from 'solid-js';
 import { HydrationScript } from '@solidjs/web';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 
 import { getLocale } from './paraglide/runtime.js';
 
@@ -15,7 +15,12 @@ export default function Document(props: ParentProps) {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        {/* The mark (src/components/logo.tsx): SVG where browsers take it,
+            the .ico (16, 32, 48 px) elsewhere, and a full-bleed square for
+            iOS home screens, which round it themselves. */}
+        <link rel="icon" href="/favicon.ico" sizes="48x48" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <title>{env.VITE_APP_NAME}</title>
         <HydrationScript />
       </head>

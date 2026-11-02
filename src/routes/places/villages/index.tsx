@@ -25,12 +25,16 @@ import { stringParams } from '~/lib/route-params';
 import { foldForSearch } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Signed-in users only: getPlaces redirects a signed-out visitor to sign-in
 // (src/data/places.ts). ?q= is the search and ?parish= narrows the list to
 // one parish (the parishes list links there), so both survive reloads, can
 // be shared, and come back after editing a village.
+const crumbs: Crumbs = () => [{ label: m.villages_title() }];
+
 export const route = defineFileRoute('/places/villages/', {
+  info: { crumbs },
   search: stringParams('q', 'parish'),
   preload: () => void getPlaces(),
 });
@@ -97,7 +101,7 @@ export default function Villages() {
           {(parish) => (
             <>
               <input type="hidden" name="parish" value={parish()} />
-              <span class="badge gap-1 badge-soft badge-primary">
+              <span class="badge gap-1 badge-soft">
                 {m.villages_parish_filter({ parish: parishName() })}
                 <a
                   href={paths.places.villages({ q: search.q })}

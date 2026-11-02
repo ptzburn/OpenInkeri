@@ -22,3 +22,7 @@ if (
     },
   });
 }
+
+// jsdom's window.scrollTo only logs "Not implemented"; the router calls it
+// on every navigation to restore the scroll position.
+if (typeof window !== 'undefined') window.scrollTo = () => {};

@@ -117,7 +117,7 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
                 </select>
                 <FieldError fault={invalid('kind')} />
                 <Show when={s.records > 0}>
-                  <span class="label">{m.source_kind_locked()}</span>
+                  <span class="label whitespace-normal">{m.source_kind_locked()}</span>
                 </Show>
               </label>
               <LookupField

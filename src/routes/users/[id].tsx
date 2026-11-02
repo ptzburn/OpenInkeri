@@ -6,7 +6,7 @@ import {
   useSubmissions,
 } from '@solidjs/router';
 import { Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 import BackIcon from '~icons/ri/arrow-left-line';
 import CalendarIcon from '~icons/ri/calendar-line';
 import MailIcon from '~icons/ri/mail-line';
@@ -19,11 +19,22 @@ import { formatDate } from '~/lib/format';
 import { banUser, getUser, makeAdmin, removeAdmin, signOutUser, unbanUser } from '~/data/users';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // The preload starts the fetch as navigation begins, and doubles as the
 // page's single-flight manifest: after an admin action here, the action's
 // response carries the user's refreshed badges.
+// The user's name, from the query the page reads; the list keeps its search.
+const crumbs: Crumbs = async ({ params, query }) => {
+  const user = params.id ? await getUser(params.id) : null;
+  return [
+    { label: m.users_title(), href: paths.users({ q: query.q }) },
+    ...(user ? [{ label: user.name }] : []),
+  ];
+};
+
 export const route = {
+  info: { crumbs },
   preload: ({ params }) => void getUser(params.id!),
 } satisfies RouteDefinition;
 
@@ -92,9 +103,9 @@ function UserAdmin(props: {
           )}
         </Show>
         <Show when={signOut()?.result}>
-          <p role="status" class="text-sm text-success">
+          <div role="status" class="alert alert-success alert-soft">
             {m.user_signed_out_everywhere()}
-          </p>
+          </div>
         </Show>
       </div>
 

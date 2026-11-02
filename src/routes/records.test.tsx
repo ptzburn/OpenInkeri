@@ -316,7 +316,7 @@ vi.mock('~/data/people', () => ({
   }),
 }));
 vi.mock('~/data/records', async () => {
-  const { action } = await import('@solidjs/router');
+  const { formAction } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   // A row's names, in Russian only.
   const ru = (name: string) => ({ ru: name, fi: null });
@@ -361,14 +361,14 @@ vi.mock('~/data/records', async () => {
       ],
     })),
     // Like the server: a delete redirects to the list place the form carried.
-    deleteRecord: action(async (form: FormData) => {
+    deleteRecord: formAction(async (form: FormData) => {
       editing.deleted.push(form);
       throw redirect('/records?kind=deaths');
     }, 'delete-record'),
     // Like the server: a refusal throws its error; a save redirects to the
     // list place the form carried, and Save and add next to a new record
     // after it (a new household is 401 here).
-    saveRecord: action(async (form: FormData) => {
+    saveRecord: formAction(async (form: FormData) => {
       editing.saved.push(form);
       if (editing.failWith) throw editing.failWith;
       if (form.get('next') === 'on') {
@@ -863,11 +863,13 @@ describe('editing a baptism', () => {
     expect(field('date').nextElementSibling).toHaveTextContent('Check this value.');
   });
 
-  test('Cancel returns to the list as it was, unsaved; there is no other way back', async () => {
+  test('Cancel and the breadcrumbs return to the list as it was, unsaved', async () => {
     await openMaria();
     const back = `/records?q=${encodeURIComponent('мария')}`;
     expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute('href', back);
-    expect(screen.queryByRole('link', { name: 'Back to records' })).toBeNull();
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumbs' }));
+    expect(crumbs.getByRole('link', { name: 'Records' })).toHaveAttribute('href', back);
+    expect(crumbs.getByText('Edit record')).toHaveAttribute('aria-current', 'page');
     expect(editing.saved).toEqual([]);
   });
 

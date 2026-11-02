@@ -1,9 +1,11 @@
 // The route tests' page: the app's router at a URL, with its server
-// functions mocked by the test, under a Loading boundary like the app's
-// and, for the pages with forms, the toaster their saves report to.
+// functions mocked by the test, the header's breadcrumbs, the page under a
+// Loading boundary like the app's and, for the pages with forms, the
+// toaster their saves report to.
 import { Loading } from 'solid-js';
 import { render } from '@solidjs/testing-library';
 
+import Breadcrumbs from '~/components/breadcrumbs';
 import { ToastProvider } from '~/components/toaster';
 import { Router } from '~/router';
 
@@ -15,10 +17,14 @@ export function renderAt(url: string, options: { toasts?: boolean } = {}) {
       {(props) =>
         options.toasts ? (
           <ToastProvider>
+            <Breadcrumbs />
             <Loading fallback="Loading">{props.children}</Loading>
           </ToastProvider>
         ) : (
-          <Loading fallback="Loading">{props.children}</Loading>
+          <>
+            <Breadcrumbs />
+            <Loading fallback="Loading">{props.children}</Loading>
+          </>
         )
       }
     </Router>

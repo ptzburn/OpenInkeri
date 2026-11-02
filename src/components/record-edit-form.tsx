@@ -790,7 +790,7 @@ function DateInput(props: {
 
 function Checkbox(props: { name: string; label: string; checked: boolean }) {
   return (
-    <label class="label cursor-pointer gap-2">
+    <label class="label gap-2">
       <input
         type="checkbox"
         name={props.name}

@@ -10,6 +10,7 @@ import { isRecordKind } from '~/lib/record-kinds';
 import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Admins only: the form starts empty, so requireAdmin is the page's read
 // and guard (signed out to sign-in, others home). saveRecord checks again.
@@ -17,7 +18,21 @@ import { paths } from '~/router';
 // new record's type, the source the one it starts in, and cancelling
 // returns to the same place in the list. ?after= is the record saved just
 // before with Save and add next, which the new one follows on its page.
+const crumbs: Crumbs = ({ query }) => [
+  {
+    label: m.records_title(),
+    href: paths.records({
+      kind: query.kind,
+      q: query.q,
+      page: query.page,
+      source: query.source,
+    }),
+  },
+  { label: m.record_new_title() },
+];
+
 export const route = defineFileRoute('/records/new', {
+  info: { crumbs },
   search: stringParams('kind', 'q', 'page', 'source', 'after'),
   preload: () => {
     void requireAdmin();

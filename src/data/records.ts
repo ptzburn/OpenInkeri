@@ -11,7 +11,7 @@
 // (~/lib/record-people), and goes to D1 as one batch (one transaction) with
 // a change_log entry holding the record before and after. record.raw, the
 // row as first transcribed, is never edited.
-import { action, query } from '@solidjs/router';
+import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
 import { and, count, eq, inArray, sql } from 'drizzle-orm';
 import * as v from 'valibot';
@@ -832,7 +832,7 @@ async function createLinked(entries: Record<string, unknown>, input: Values, by:
  * given a name where there was none is added (in a list, as many as the
  * form brings).
  */
-export const saveRecord = action(async (formData: FormData) => {
+export const saveRecord = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
@@ -1238,7 +1238,7 @@ const deletion = deletionForm({
  * records list it came from. change_log keeps the record as it was. Refused,
  * like a save, when it changed since the page loaded it.
  */
-export const deleteRecord = action(async (formData: FormData) => {
+export const deleteRecord = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const input = parseDeletion(deletion, formData, m.record_delete_unconfirmed);

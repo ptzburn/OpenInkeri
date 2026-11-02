@@ -17,11 +17,15 @@ import PlacesTabs from '~/components/places-tabs';
 import { type ParishRow, getParishes } from '~/data/parishes';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Signed-in users only: getParishes redirects a signed-out visitor to
 // sign-in (src/data/parishes.ts). A few dozen parishes at most: no search
 // and no pages.
+const crumbs: Crumbs = () => [{ label: m.parishes_title() }];
+
 export const route = defineFileRoute('/places/parishes/', {
+  info: { crumbs },
   preload: () => void getParishes(),
 });
 

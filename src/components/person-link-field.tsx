@@ -32,11 +32,11 @@ export default function PersonLinkField(props: { prefix: string }) {
     <details class="text-sm sm:col-span-2 lg:col-span-4">
       <summary class="cursor-pointer">{m.record_edit_link_person()}</summary>
       <div class="mt-2 flex flex-col gap-2">
-        <label class="label cursor-pointer gap-2">
+        <label class="label gap-2">
           <input type="radio" name={name()} value="" checked class="radio radio-sm" />
           {m.record_edit_person_none()}
         </label>
-        <label class="label cursor-pointer gap-2">
+        <label class="label gap-2">
           <input type="radio" name={name()} value="new" class="radio radio-sm" />
           {m.link_new()}
         </label>
@@ -61,7 +61,7 @@ export default function PersonLinkField(props: { prefix: string }) {
             >
               <For each={found()?.people ?? []}>
                 {(row) => (
-                  <label class="label cursor-pointer gap-2">
+                  <label class="label gap-2">
                     <input type="radio" name={name()} value={row.id} class="radio radio-sm" />
                     <span class="font-medium">{localName(row.name)}</span>
                     <span class="text-base-content/60 tabular-nums">

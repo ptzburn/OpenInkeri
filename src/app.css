@@ -9,8 +9,8 @@
 
 /* From lg up the sidebar folds to its icons: App marks the drawer
    data-sidebar="collapsed" or "expanded" (src/data/sidebar.ts keeps the
-   choice), and these variants style what is inside it either way. Below lg
-   the sidebar is a drawer over the page, never folded, so neither applies. */
+   choice), and this variant styles what is inside it folded. Below lg the
+   sidebar is a drawer over the page, never folded, so it doesn't apply. */
 @custom-variant sidebar-collapsed {
   @media (width >= 64rem) {
     &:where([data-sidebar='collapsed'] *) {
@@ -18,16 +18,11 @@
     }
   }
 }
-@custom-variant sidebar-expanded {
-  @media (width >= 64rem) {
-    &:where([data-sidebar='expanded'] *) {
-      @slot;
-    }
-  }
-}
 
 /* While a form's action runs, the router marks the form aria-busy: dim its
-   buttons and ignore clicks, so a second submit can't start. */
+   buttons and ignore clicks, so a second submit can't start. A button
+   outside its form (form="…") does the same through group-has-[form[aria-busy]]
+   utilities (FormActions). */
 form[aria-busy] button {
   opacity: 0.6;
   pointer-events: none;

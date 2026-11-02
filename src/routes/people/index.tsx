@@ -11,6 +11,7 @@ import { getPeople } from '~/data/people';
 import { stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 const pageNumber = (page: string | undefined) => Number(page) || 1;
 
@@ -18,7 +19,10 @@ const pageNumber = (page: string | undefined) => Number(page) || 1;
 // (src/data/people.ts). ?q= is the search and ?page= the page, so both
 // survive reloads and can be shared. People are made from mentions in the
 // record form, so there is no Add button here.
+const crumbs: Crumbs = () => [{ label: m.people_title() }];
+
 export const route = defineFileRoute('/people/', {
+  info: { crumbs },
   search: stringParams('q', 'page'),
   preload: ({ location }) => {
     const { q, page } = location.query;

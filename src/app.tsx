@@ -2,10 +2,12 @@ import { Title } from '@solidjs/meta';
 import { Loading, createSignal } from 'solid-js';
 import MenuIcon from '~icons/ri/menu-line';
 // Typed client env, validated and baked in at build time (see env.ts).
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 
+import Breadcrumbs from './components/breadcrumbs';
 import LanguageSwitcher from './components/language-switcher';
-import Sidebar from './components/sidebar';
+import Logo from './components/logo';
+import Sidebar, { SidebarToggle } from './components/sidebar';
 import ThemeSwitcher from './components/theme-switcher';
 import { ToastProvider } from './components/toaster';
 import { getSidebarCollapsed, saveSidebarCollapsed } from './data/sidebar';
@@ -48,26 +50,33 @@ export default function App() {
               />
               <div class="drawer-content flex min-h-dvh flex-col">
                 {/* Below lg the menu button and app name open the sidebar over
-                  the page; from lg up the sidebar shows the name itself,
-                  unless it is folded: then the header does.
+                  the page; from lg up a button in the same place folds the
+                  sidebar to its icons and back, and the name is the
+                  sidebar's alone (folded, not shown). The breadcrumbs
+                  follow, taking the row's width (navbar-end only what its
+                  buttons need); on a phone, a page with a page above shows
+                  the way back to it in place of the name.
                   Sticky to the top as the page scrolls (the page is the
                   scroller: drawer-content has no overflow of its own); its
                   z-index stays under the drawer's 10, so the opened sidebar
                   still covers it. */}
                 <header class="navbar sticky top-0 z-5 border-b border-base-300 bg-base-100">
-                  <div class="navbar-start">
+                  <div class="group navbar-start w-auto min-w-0 flex-1">
                     <label
                       for="app-drawer"
                       aria-label={m.app_open_menu()}
-                      class="btn btn-square btn-ghost lg:hidden"
+                      class="btn drawer-button btn-square btn-ghost lg:hidden"
                     >
                       <MenuIcon class="size-6" aria-hidden="true" />
                     </label>
-                    <span class="px-2 text-lg font-bold sidebar-expanded:hidden">
+                    <SidebarToggle collapsed={collapsed()} onToggle={toggleSidebar} />
+                    <span class="flex shrink-0 items-center gap-2 px-2 text-lg font-bold lg:hidden max-sm:group-has-[nav[data-back]]:hidden">
+                      <Logo class="size-6" />
                       {env.VITE_APP_NAME}
                     </span>
+                    <Breadcrumbs />
                   </div>
-                  <div class="navbar-end">
+                  <div class="navbar-end w-auto shrink-0">
                     <LanguageSwitcher />
                     <ThemeSwitcher />
                   </div>
@@ -88,13 +97,13 @@ export default function App() {
               {/* Following a link closes the drawer on small screens. Folded,
                 the links' tooltips reach out past the sidebar. */}
               <div
-                class="drawer-side z-10 sidebar-collapsed:overflow-visible"
+                class="drawer-side sidebar-collapsed:overflow-visible"
                 onClick={(event) => {
                   if ((event.target as Element).closest('a')) drawer!.checked = false;
                 }}
               >
                 <label for="app-drawer" aria-label={m.app_close_menu()} class="drawer-overlay" />
-                <Sidebar collapsed={collapsed()} onToggle={toggleSidebar} />
+                <Sidebar />
               </div>
             </div>
           </ToastProvider>

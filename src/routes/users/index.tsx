@@ -1,7 +1,7 @@
 import { Title } from '@solidjs/meta';
 import type { RouteDefinition } from '@solidjs/router';
 import { For, createMemo } from 'solid-js';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 
 import type { QueryData } from '~/lib/query-data';
 import UserAvatar from '~/components/user-avatar';

@@ -3,7 +3,7 @@
 // forms post to them before JavaScript loads. They call better-auth directly
 // through auth.api.*; Solid's server-function CSRF check guards them. The
 // account page's own reads and writes are in ./account.ts.
-import { action, query } from '@solidjs/router';
+import { formAction, query } from '@solidjs/router';
 import { getRequestEvent, redirect, respond } from '@solidjs/web';
 
 import type { AuthProvider } from '~/lib/auth-providers';
@@ -60,7 +60,7 @@ export const getSignInProviders = query(async (): Promise<AuthProvider[]> => {
  * binds the provider (signIn.with(provider)); it travels in the action URL,
  * so anyone can send any value, and it is checked against the offered ones.
  */
-export const signIn = action(async (provider: AuthProvider, _form: FormData) => {
+export const signIn = formAction(async (provider: AuthProvider, _form: FormData) => {
   'use server';
   return startSignIn(provider, paths());
 }, 'sign-in');
@@ -70,7 +70,7 @@ export const signIn = action(async (provider: AuthProvider, _form: FormData) => 
  * account needs a session from the last day. The page offers the providers
  * linked to the account (getAccount's providers).
  */
-export const signInAgain = action(async (provider: AuthProvider, _form: FormData) => {
+export const signInAgain = formAction(async (provider: AuthProvider, _form: FormData) => {
   'use server';
   return startSignIn(provider, paths.account());
 }, 'sign-in-again');
@@ -105,7 +105,7 @@ async function startSignIn(provider: AuthProvider, callbackURL: string): Promise
   throw redirect(url);
 }
 
-export const signOut = action(async () => {
+export const signOut = formAction(async () => {
   'use server';
   const { headers } = await auth.api.signOut({ headers: requestHeaders(), returnHeaders: true });
   forwardCookies(headers);

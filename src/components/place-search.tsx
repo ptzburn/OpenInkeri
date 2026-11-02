@@ -109,8 +109,9 @@ export default function PlaceSearch(props: {
       role="option"
       aria-selected={box.isActive(option.index) ? 'true' : 'false'}
     >
-      <button
-        type="button"
+      {/* Not a button: an option's content is presentational, and the
+          input's keys move through the list (aria-activedescendant). */}
+      <span
         class={{ 'menu-active': box.isActive(option.index) }}
         onClick={() => box.pick(option.hit)}
       >
@@ -160,13 +161,13 @@ export default function PlaceSearch(props: {
           </span>
           <Show when={option.hit.existing}>
             {(existing) => (
-              <span class="text-xs font-medium text-warning">
+              <span class="badge badge-sm badge-warning">
                 {m.place_search_existing({ name: localName(existing().name) })}
               </span>
             )}
           </Show>
         </span>
-      </button>
+      </span>
     </li>
   );
 
@@ -230,29 +231,29 @@ export default function PlaceSearch(props: {
               >
                 <For each={found()}>{(hit, index) => <Option hit={hit} index={index()} />}</For>
                 {/* The whole map's hits follow the gazetteer's; a map search
-                    that fails says so here and leaves them. */}
+                    that fails says so under the list and leaves them. */}
                 <Show when={mapSearch()}>
-                  <Errored
-                    fallback={
-                      <li class="menu-disabled">
-                        <p role="alert" class="text-error">
-                          {m.place_search_map_failed()}
-                        </p>
-                      </li>
-                    }
-                  >
+                  <Errored fallback={null}>
                     <For each={foundOnMap()}>
                       {(hit, index) => <Option hit={hit} index={found().length + index()} />}
                     </For>
-                    <Show when={!mapPending() && !foundOnMap().length}>
-                      <li class="menu-disabled">
-                        <p>{m.place_search_map_none()}</p>
-                      </li>
-                    </Show>
                   </Errored>
                 </Show>
               </ul>
               <div class="flex flex-col gap-2 border-t border-base-300 p-3 text-sm">
+                <Show when={mapSearch()}>
+                  <Errored
+                    fallback={
+                      <p role="alert" class="text-error">
+                        {m.place_search_map_failed()}
+                      </p>
+                    }
+                  >
+                    <Show when={!mapPending() && !foundOnMap().length}>
+                      <p class="text-base-content/60">{m.place_search_map_none()}</p>
+                    </Show>
+                  </Errored>
+                </Show>
                 <Show when={!pending() && !found().length}>
                   <p class="text-base-content/60">{m.place_search_none()}</p>
                 </Show>

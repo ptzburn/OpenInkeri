@@ -8,7 +8,7 @@ import { drizzleAdapter } from '@better-auth/drizzle-adapter/relations-v2';
 import { type BetterAuthOptions, betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { waitUntil } from 'cloudflare:workers';
-import { env } from 'virtual:env/server';
+import { env } from 'virtual:solid-env/server';
 
 import { AUTH_PROVIDERS, type AuthProvider } from '~/lib/auth-providers';
 

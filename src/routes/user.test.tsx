@@ -32,10 +32,10 @@ vi.mock('~/data/session', async () => {
   return { getCurrentUser: query(async () => null, 'current-user') };
 });
 vi.mock('~/data/users', async () => {
-  const { action, query } = await import('@solidjs/router');
+  const { formAction, query } = await import('@solidjs/router');
   // Each action edits the stored user, or fails once when asked to.
   const change = (name: string, edit: (form: FormData) => void) =>
-    action(async (id: string, form: FormData) => {
+    formAction(async (id: string, form: FormData) => {
       if (store.failNext) {
         store.failNext = false;
         throw new Error('That did not work. Try again.');

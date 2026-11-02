@@ -26,6 +26,7 @@ import { type RecordRow, getRecords } from '~/data/records';
 import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 const pageNumber = (page: string | undefined) => Number(page) || 1;
 // Baptisms unless ?kind= names another kind.
@@ -36,7 +37,10 @@ const kindOf = (kind: string | undefined): RecordKind => (isRecordKind(kind) ? k
 // source of that kind the list is narrowed to (the sources list links
 // there), ?q= the search and ?page= the page, so all survive reloads and
 // can be shared.
+const crumbs: Crumbs = () => [{ label: m.records_title() }];
+
 export const route = defineFileRoute('/records/', {
+  info: { crumbs },
   search: stringParams('kind', 'q', 'page', 'source'),
   preload: ({ location }) => {
     const { kind, q, page, source } = location.query;
@@ -132,7 +136,7 @@ export default function Records() {
       <Show when={list()?.source}>
         {(source) => (
           <div class="flex flex-wrap items-center gap-2">
-            <span class="badge gap-1 badge-soft badge-primary">
+            <span class="badge gap-1 badge-soft">
               {m.records_source({ title: source().title })}
             </span>
             <a href={paths.records({ kind: search.kind, q: search.q })} class="link text-sm">

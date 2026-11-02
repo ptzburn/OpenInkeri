@@ -5,7 +5,7 @@ import AddIcon from '~icons/ri/user-add-line';
 import LinkIcon from '~icons/ri/link';
 
 import type { QueryData } from '~/lib/query-data';
-import EditPage, { BackLink } from '~/components/edit-page';
+import EditPage from '~/components/edit-page';
 import { useFormErrors } from '~/components/form-fields';
 import { personaRoleLabels, recordKindLabels } from '~/components/labels';
 import PeopleTable from '~/components/people-table';
@@ -15,11 +15,29 @@ import { formatPartialDate, localName } from '~/lib/format';
 import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Admins only: getLinkCandidates redirects anyone else. The record form
 // links here from each saved mention. ?q= searches the people to link to;
 // without it the mention's given name does.
+// Through the record the mention is in, from the query the page reads;
+// without the mention, through the people.
+const crumbs: Crumbs = async ({ params, query }) => {
+  const id = idParam(params.persona);
+  const data = id ? await getLinkCandidates(id, query.q ?? '') : null;
+  return [
+    ...(data
+      ? [
+          { label: m.records_title(), href: paths.records() },
+          { label: m.record_edit_title(), href: paths.records(data.mention.recordId).edit() },
+        ]
+      : [{ label: m.people_title(), href: paths.people() }]),
+    { label: m.link_title() },
+  ];
+};
+
 export const route = defineFileRoute('/people/link/:persona', {
+  info: { crumbs },
   search: stringParams('q'),
   preload: ({ params, location }) => {
     const id = idParam(params.persona);
@@ -40,15 +58,9 @@ export default function LinkMention(props: RouteProps<'/people/link/:persona'>) 
   );
   const { error } = useFormErrors(linkPersona, (form) => form.get('persona') === String(id()));
   const searchFor = (value: string) => setSearch({ q: value || undefined }, { replace: true });
-  // Back to the record the mention is in.
-  const backHref = () => {
-    const mention = data()?.mention;
-    return mention ? paths.records(mention.recordId).edit() : paths.people();
-  };
 
   return (
     <EditPage title={m.link_title()}>
-      <BackLink href={backHref()} label={m.link_back()} />
       <Show when={data()} fallback={<p>{m.person_link_missing()}</p>}>
         {(d) => (
           <div class="flex max-w-4xl flex-col gap-6">
@@ -79,10 +91,7 @@ export default function LinkMention(props: RouteProps<'/people/link/:persona'>) 
                     <input type="hidden" name="persona" value={d().mention.personaId} />
                     <input type="hidden" name="person" value="new" />
                     <p class="text-sm text-base-content/70">{m.link_new_text()}</p>
-                    <button
-                      type="submit"
-                      class="btn self-start btn-primary group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-                    >
+                    <button type="submit" class="btn self-start btn-primary">
                       <AddIcon class="size-4" aria-hidden="true" />
                       {m.link_new()}
                     </button>
@@ -115,10 +124,7 @@ export default function LinkMention(props: RouteProps<'/people/link/:persona'>) 
                             <form method="post" action={linkPersona} class="group">
                               <input type="hidden" name="persona" value={d().mention.personaId} />
                               <input type="hidden" name="person" value={row.id} />
-                              <button
-                                type="submit"
-                                class="btn btn-xs group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-                              >
+                              <button type="submit" class="btn btn-xs">
                                 <LinkIcon class="size-4" aria-hidden="true" />
                                 {m.link_to_this()}
                               </button>

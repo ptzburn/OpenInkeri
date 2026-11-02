@@ -8,7 +8,7 @@
 // Input is validated with Valibot inside the 'use server' bodies only: the
 // compiler leaves those bodies (and imports only they use) out of the
 // browser's copy of this module, so Valibot stays off the client.
-import { action, query } from '@solidjs/router';
+import { formAction, query } from '@solidjs/router';
 import { getRequestEvent, redirect, respond } from '@solidjs/web';
 import { isAPIError } from 'better-auth/api';
 import * as v from 'valibot';
@@ -114,7 +114,7 @@ export const getAccount = query(async (): Promise<AccountData> => {
 }, 'account');
 
 /** Renames the signed-in user; nobody can rename anyone else. */
-export const renameMe = action(async (form: FormData) => {
+export const renameMe = formAction(async (form: FormData) => {
   'use server';
   const user = signedIn();
   const parsed = v.safeParse(
@@ -152,7 +152,7 @@ export const renameMe = action(async (form: FormData) => {
  * Looking it up needs what listing does: a session from the last day.
  * A device can stay signed in for up to the cookie cache's 5 minutes.
  */
-export const revokeSession = action(async (id: string, _form: FormData) => {
+export const revokeSession = formAction(async (id: string, _form: FormData) => {
   'use server';
   signedIn();
   if (typeof id !== 'string' || id === getRequestEvent()!.locals.sessionId) return;
@@ -171,7 +171,7 @@ export const revokeSession = action(async (id: string, _form: FormData) => {
  * Signs every device but this one out. better-auth asks only for a valid
  * session here; the page shows the button only beside the list, though.
  */
-export const revokeOtherSessions = action(async () => {
+export const revokeOtherSessions = formAction(async () => {
   'use server';
   signedIn();
   await auth.api.revokeOtherSessions({ headers: requestHeaders() });
@@ -188,7 +188,7 @@ export interface DeleteAccountError extends ActionError {
  * better-auth refuses a session older than a day (the page then offers to
  * sign in again), and the hook in src/server/auth.ts refuses the last admin.
  */
-export const deleteAccount = action(async (form: FormData) => {
+export const deleteAccount = formAction(async (form: FormData) => {
   'use server';
   signedIn();
   const fail = (error: DeleteAccountError, status: number) => respond(error, { status });

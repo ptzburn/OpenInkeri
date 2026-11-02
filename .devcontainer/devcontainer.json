@@ -20,7 +20,7 @@
     "CLAUDE_CONFIG_DIR": "/home/node/.claude"
   },
   "postCreateCommand": "sudo chown -R node:node /home/node/.claude /home/node/.config/gh /home/node/.cache/ms-playwright && (gh auth setup-git || true) && pnpm install && pnpm exec playwright install --with-deps chromium",
-  "appPort": [3060, 4983],
+  "appPort": [3060, "4984:4983"],
   "customizations": {
     "vscode": {
       "extensions": ["VoidZero.vite-plus-extension-pack", "bradlc.vscode-tailwindcss"],

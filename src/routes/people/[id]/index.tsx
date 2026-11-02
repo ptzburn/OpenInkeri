@@ -3,8 +3,7 @@ import type { RouteProps } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import type { JSX } from '@solidjs/web';
 import { For, Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
-import BackIcon from '~icons/ri/arrow-left-line';
+import { env } from 'virtual:solid-env/client';
 import EditIcon from '~icons/ri/pencil-line';
 
 import type { QueryData } from '~/lib/query-data';
@@ -25,12 +24,24 @@ import type { MatchReason } from '~/lib/person-match';
 import { idParam } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Signed-in users only: getPerson redirects a signed-out visitor to sign-in.
 // Admins also get Edit, each mention's record and Unlink, and the possible
 // mentions to link; the server functions check the role again, so this only
 // decides what is offered.
+// The person's name, from the query the page reads.
+const crumbs: Crumbs = async ({ params }) => {
+  const id = idParam(params.id);
+  const person = id ? await getPerson(id) : null;
+  return [
+    { label: m.people_title(), href: paths.people() },
+    ...(person ? [{ label: localName(person.name) }] : []),
+  ];
+};
+
 export const route = defineFileRoute('/people/:id/', {
+  info: { crumbs },
   preload: ({ params }) => {
     const id = idParam(params.id);
     // The suggestions too, so they arrive with the page (empty for all but
@@ -54,10 +65,6 @@ export default function Person(props: RouteProps<'/people/:id/'>) {
 
   return (
     <main class="flex min-w-0 flex-1 flex-col gap-6 p-4 lg:p-8">
-      <a href={paths.people()} class="btn self-start btn-ghost btn-sm">
-        <BackIcon class="size-4" aria-hidden="true" />
-        {m.person_back()}
-      </a>
       <Show when={person()} fallback={<p>{m.person_missing()}</p>}>
         {(p) => (
           <div
@@ -130,10 +137,7 @@ export default function Person(props: RouteProps<'/people/:id/'>) {
                             <form method="post" action={unlinkPersona} class="group">
                               <input type="hidden" name="persona" value={mention().personaId} />
                               <input type="hidden" name="person" value={p().id} />
-                              <button
-                                type="submit"
-                                class="btn btn-ghost btn-xs group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-                              >
+                              <button type="submit" class="btn btn-ghost btn-xs">
                                 {m.person_unlink()}
                               </button>
                             </form>
@@ -294,10 +298,7 @@ function SuggestionRow(props: { suggestion: PersonSuggestion; personId: number }
         <form method="post" action={linkPersona} class="group">
           <input type="hidden" name="persona" value={props.suggestion.mention.personaId} />
           <input type="hidden" name="person" value={props.personId} />
-          <button
-            type="submit"
-            class="btn btn-xs btn-primary group-aria-busy:pointer-events-none group-aria-busy:opacity-60"
-          >
+          <button type="submit" class="btn btn-xs">
             {m.link_to_this()}
           </button>
         </form>

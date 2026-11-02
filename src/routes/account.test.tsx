@@ -14,23 +14,23 @@ import { renderAt } from '~/testing/render';
 const store = vi.hoisted(() => ({ account: undefined as unknown as AccountData }));
 
 vi.mock('~/data/session', async () => {
-  const { action, query } = await import('@solidjs/router');
+  const { formAction, query } = await import('@solidjs/router');
   return {
     getCurrentUser: query(async () => null, 'current-user'),
-    signInAgain: action(async () => {}, 'sign-in-again'),
+    signInAgain: formAction(async () => {}, 'sign-in-again'),
   };
 });
 vi.mock('~/data/account', async () => {
-  const { action, query } = await import('@solidjs/router');
+  const { formAction, query } = await import('@solidjs/router');
   const done = async () => {};
   return {
     getAccount: query(async () => structuredClone(store.account), 'account'),
-    revokeSession: action(async (id: string, _form: FormData) => {
+    revokeSession: formAction(async (id: string, _form: FormData) => {
       store.account.sessions = store.account.sessions!.filter((session) => session.id !== id);
     }, 'revoke-session'),
-    renameMe: action(done, 'rename-me'),
-    revokeOtherSessions: action(done, 'revoke-other-sessions'),
-    deleteAccount: action(done, 'delete-account'),
+    renameMe: formAction(done, 'rename-me'),
+    revokeOtherSessions: formAction(done, 'revoke-other-sessions'),
+    deleteAccount: formAction(done, 'delete-account'),
   };
 });
 

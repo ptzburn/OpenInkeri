@@ -1,6 +1,6 @@
 import { Title } from '@solidjs/meta';
 import MapIcon from '~icons/ri/map-2-line';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 
 import { m } from '~/paraglide/messages.js';
 

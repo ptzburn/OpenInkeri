@@ -5,7 +5,7 @@
 // that name them. Reading people is for signed-in users; creating, editing,
 // deleting, linking and unlinking are for admins, and each writes a
 // change_log entry with the change.
-import { action, query } from '@solidjs/router';
+import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
 import { and, count, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import * as v from 'valibot';
@@ -511,7 +511,7 @@ const personRefusals: Refusals = { missing: m.person_missing, conflict: m.person
  * names are empty, and when the person changed since the page loaded them.
  * (People are created from a mention, by linkPersona.)
  */
-export const savePerson = action(async (formData: FormData) => {
+export const savePerson = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const { id, version, ...fields } = parseOrRefuse(form, Object.fromEntries(formData));
@@ -543,7 +543,7 @@ const deletion = deletionForm();
  * unlinked (on delete set null); change_log keeps which they were. Refused,
  * like a save, when the person changed since the page loaded them.
  */
-export const deletePerson = action(async (formData: FormData) => {
+export const deletePerson = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const { id, version } = parseDeletion(deletion, formData, m.person_delete_unconfirmed);
@@ -576,7 +576,7 @@ const linking = v.object({
  * when the person already has a mention in the same record: one record
  * names one person once.
  */
-export const linkPersona = action(async (formData: FormData) => {
+export const linkPersona = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const parsed = v.safeParse(linking, Object.fromEntries(formData));
@@ -642,7 +642,7 @@ const unlinking = v.object({
  * redirects to the person's page. Nothing changes when the mention isn't
  * linked to that person any more.
  */
-export const unlinkPersona = action(async (formData: FormData) => {
+export const unlinkPersona = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const parsed = v.safeParse(unlinking, Object.fromEntries(formData));

@@ -55,6 +55,8 @@ function PageLink(props: {
       fallback={
         <span
           class="join-item btn btn-disabled btn-sm"
+          role="button"
+          tabindex="-1"
           aria-disabled="true"
           aria-label={props.label}
         >

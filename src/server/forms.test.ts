@@ -8,7 +8,8 @@ describe('refuse', () => {
   test('answers with the error and status, and no X-Revalidate header', () => {
     const refused = refuse({ message: 'Check the marked fields.', fields: { nameRu: '' } }, 400);
 
-    expect(isResponseEnvelope(refused)).toBe(true);
+    // Typed as the error it carries; at runtime it is the envelope.
+    if (!isResponseEnvelope(refused)) throw new Error('refuse() returned no envelope');
     expect(refused.value).toEqual({ message: 'Check the marked fields.', fields: { nameRu: '' } });
     const response = refused.response!;
     expect(response.status).toBe(400);

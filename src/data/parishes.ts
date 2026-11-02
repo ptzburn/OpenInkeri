@@ -2,7 +2,7 @@
 // queries, like ./places.ts. The list is for signed-in users; creating and
 // editing parishes is for admins. A save writes the parish and a change_log
 // entry in one D1 batch.
-import { action, query } from '@solidjs/router';
+import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
 import { and, count, eq, isNotNull } from 'drizzle-orm';
 import * as v from 'valibot';
@@ -186,7 +186,7 @@ const parishRefusals: Refusals = {
  * before JavaScript loaded); one not known yet is added in this parish when
  * the form asks (src/server/linked-rows.ts).
  */
-export const saveParish = action(async (formData: FormData) => {
+export const saveParish = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
@@ -260,7 +260,7 @@ const deletion = deletionForm();
  * keys set null), so they move elsewhere first. Also refused, like a save,
  * when the parish changed since the page loaded it.
  */
-export const deleteParish = action(async (formData: FormData) => {
+export const deleteParish = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const { id, version } = parseDeletion(deletion, formData, m.parish_delete_unconfirmed);

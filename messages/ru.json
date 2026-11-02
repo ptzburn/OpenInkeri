@@ -1,6 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "app_open_menu": "Открыть меню",
+  "breadcrumbs_label": "Путь к странице",
   "app_close_menu": "Закрыть меню",
   "toast_close": "Закрыть",
   "app_loading": "Загрузка",
@@ -434,7 +435,6 @@
   "people_col_name": "Имя",
   "people_col_lifespan": "Годы жизни",
   "people_col_mentions": "Упоминания",
-  "person_back": "Все люди",
   "person_missing": "Такого человека нет.",
   "person_edit": "Изменить человека",
   "person_family": "Семья",
@@ -473,7 +473,6 @@
   "person_role_member": "Член семьи",
   "person_role_taxpayer": "Налогоплательщик",
   "link_title": "Связать с человеком",
-  "link_back": "К записи",
   "link_new_text": "Если этого человека здесь ещё нет, создайте его из этого упоминания: имя, пол и даты возьмутся из записи.",
   "link_new": "Новый человек из этого упоминания",
   "link_existing": "Или выберите уже существующего",

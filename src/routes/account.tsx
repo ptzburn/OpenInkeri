@@ -1,7 +1,7 @@
 import { Title } from '@solidjs/meta';
 import { type RouteDefinition, useSubmissions } from '@solidjs/router';
 import { For, Show, createMemo, isPending } from 'solid-js';
-import { env } from 'virtual:env/client';
+import { env } from 'virtual:solid-env/client';
 import CalendarIcon from '~icons/ri/calendar-line';
 import DeviceIcon from '~icons/ri/computer-line';
 import MailIcon from '~icons/ri/mail-line';
@@ -24,11 +24,15 @@ import type { AuthProvider } from '~/lib/auth-providers';
 import type { ActionError } from '~/lib/form-error';
 import { describeUserAgent, formatDate } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
+import type { Crumbs } from '~/lib/breadcrumbs';
 
 // The preload starts the read as navigation begins, and doubles as the
 // page's single-flight manifest: after an action here, the server reruns it
 // to put the refreshed data on the action response itself.
+const crumbs: Crumbs = () => [{ label: m.account_title() }];
+
 export const route = {
+  info: { crumbs },
   preload: () => {
     void getAccount();
     // Not read on this page: listed so a rename refreshes the sidebar's
@@ -184,7 +188,7 @@ export default function Account() {
                                 {m.account_session_signed_in({
                                   date: formatDate(session().createdAt),
                                 })}
-                                <Show when={session().ipAddress}>{(ip) => ` · ${ip()}`}</Show>
+                                <Show when={session().ipAddress}>{(ip) => <> · {ip()}</>}</Show>
                               </div>
                             </div>
                             <Show
