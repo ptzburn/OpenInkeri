@@ -481,6 +481,10 @@
   "lookup_create_clergy": "Add as a new clergyman",
   "lookup_create_relation": "Add as a new relation",
   "lookup_create_parish": "Add as a new parish",
+  "lookup_locate": "Locate on map",
+  "lookup_locate_change": "Change",
+  "lookup_locate_title": "Where {name} stands",
+  "lookup_locate_done": "Done",
   "record_edit_split_correct": "Correct the split",
   "record_edit_split_corrected": "Corrected by hand",
   "record_edit_split_none": "not split into parts"

@@ -1,5 +1,4 @@
-import { For, Show, createMemo, createSignal } from 'solid-js';
-import RemoveIcon from '~icons/ri/delete-bin-line';
+import { Show, createMemo, createSignal } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
@@ -14,12 +13,13 @@ import {
   postedName,
   useEditForm,
 } from '~/components/form-fields';
-import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
+import { placeKindLabels } from '~/components/labels';
 import { type Lookup, LookupField, namedRow } from '~/components/lookup-field';
 import LocationPicker from '~/components/location-picker';
+import { LocationLine } from '~/components/place-locator';
 import { parishLookup } from '~/components/new-row-fields';
 import PlaceSearch from '~/components/place-search';
-import { formatCoordinates, parseCoordinates } from '~/lib/coordinates';
+import { formatCoordinates } from '~/lib/coordinates';
 import { type GazetteerHit, placeKindOf } from '~/lib/gazetteer';
 import { type CoordinateStatus, type PlaceKind, placeKinds } from '~/lib/place-kinds';
 import { getParishOptions } from '~/data/parishes';
@@ -276,71 +276,18 @@ export default function PlaceEditForm(props: {
                     <input type="hidden" name="coordinateStatus" value={coordinateStatus()} />
 
                     {/* Where the place stands, as the map or the search set
-                      it: the coordinates, how sure they are (approximate: a
-                      map's centre or a hand's placing; verified: checked
-                      against sources), and a button that removes the marker.
-                      Without coordinates the place counts as not located
-                      (the server does the same). */}
-                    <div class="fieldset">
-                      <span class="fieldset-legend">{m.place_edit_location()}</span>
-                      <Show
-                        when={parseCoordinates(coordinates())}
-                        fallback={
-                          <p class="py-1 text-sm text-base-content/60">
-                            {m.place_edit_coordinates_none()}
-                          </p>
-                        }
-                      >
-                        <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-                          <span class="grow text-sm tabular-nums">{coordinates()}</span>
-                          {/* The status and the button wrap together, to the right. */}
-                          <div class="ml-auto flex items-center gap-2">
-                            <div
-                              class="join"
-                              role="group"
-                              aria-label={m.place_edit_coordinate_status()}
-                            >
-                              <For each={['approximate', 'verified'] as const}>
-                                {(status) => (
-                                  <button
-                                    type="button"
-                                    class={[
-                                      'btn join-item btn-xs',
-                                      { 'btn-active': coordinateStatus() === status },
-                                    ]}
-                                    aria-pressed={coordinateStatus() === status ? 'true' : 'false'}
-                                    onClick={() => setCoordinateStatus(status)}
-                                  >
-                                    {coordinateStatusLabels[status]()}
-                                  </button>
-                                )}
-                              </For>
-                            </div>
-                            <div
-                              class="tooltip tooltip-left"
-                              data-tip={m.place_edit_remove_marker()}
-                            >
-                              <button
-                                type="button"
-                                class="btn btn-square btn-ghost btn-xs"
-                                aria-label={m.place_edit_remove_marker()}
-                                onClick={() => {
-                                  setCoordinates('');
-                                  setCoordinateStatus('unknown');
-                                }}
-                              >
-                                <RemoveIcon class="size-4" aria-hidden="true" />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </Show>
-                      <Show when={invalid('coordinates') !== undefined}>
-                        <p class="text-sm text-error">
-                          {invalid('coordinates') || m.form_field_invalid()}
-                        </p>
-                      </Show>
-                    </div>
+                      it. Without coordinates the place counts as not
+                      located (the server does the same). */}
+                    <LocationLine
+                      coordinates={coordinates()}
+                      status={coordinateStatus()}
+                      onStatus={setCoordinateStatus}
+                      onRemove={() => {
+                        setCoordinates('');
+                        setCoordinateStatus('unknown');
+                      }}
+                      fault={invalid('coordinates')}
+                    />
 
                     <div class="grid content-start gap-x-4 sm:grid-cols-2">
                       <NamePair

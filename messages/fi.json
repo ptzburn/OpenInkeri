@@ -481,6 +481,10 @@
   "lookup_create_clergy": "Lisää uutena pappina",
   "lookup_create_relation": "Lisää uutena suhteena",
   "lookup_create_parish": "Lisää uutena seurakuntana",
+  "lookup_locate": "Merkitse kartalle",
+  "lookup_locate_change": "Muuta",
+  "lookup_locate_title": "Missä {name} sijaitsee",
+  "lookup_locate_done": "Valmis",
   "record_edit_split_correct": "Korjaa jako",
   "record_edit_split_corrected": "Korjattu käsin",
   "record_edit_split_none": "ei jaettu osiin"

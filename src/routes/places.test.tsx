@@ -621,6 +621,45 @@ describe('/places/parishes', () => {
     expect(saved.get('churchNew.nameRu')).toBe('Тест');
   });
 
+  test('a new church locality is located on a map, its settlement naming the parish too', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/places/parishes/new');
+    await waitFor(() => expect(field('churchText')).toBeInTheDocument());
+    fireEvent.input(field('churchText'), { target: { value: 'Губаницы' } });
+    await waitFor(() => expect(field('churchNew.nameRu')).toHaveValue('Губаницы'));
+    // Not located yet: nothing posted but the status.
+    expect(field('churchNew.coordinates')).toHaveValue('');
+    fireEvent.click(screen.getByRole('button', { name: 'Locate on map' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Where Губаницы stands' });
+    const search = within(dialog).getByRole('combobox', { name: 'Find the locality' });
+    fireEvent.input(search, { target: { value: 'kupa' } });
+    const option = await within(dialog).findByRole('option', { name: /Губаницы/ });
+    fireEvent.click(within(option).getByText('Губаницы'));
+
+    // The locality takes its Finnish name and position; the parish, still
+    // unnamed, takes both names.
+    await waitFor(() =>
+      expect(field('churchNew.coordinates')).toHaveValue('59.4880048, 29.5348549'),
+    );
+    expect(field('churchNew.coordinateStatus')).toHaveValue('approximate');
+    expect(field('churchNew.nameFi')).toHaveValue('Kupanitsa');
+    expect(field('nameRu')).toHaveValue('Губаницы');
+    expect(field('nameFi')).toHaveValue('Kupanitsa');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Verified' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(dialog).not.toHaveAttribute('open'));
+    expect(screen.getByRole('button', { name: 'Change' })).toBeInTheDocument();
+
+    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
+    const [saved] = parishes.saved;
+    expect(saved.get('nameRu')).toBe('Губаницы');
+    expect(saved.get('churchNew.nameFi')).toBe('Kupanitsa');
+    expect(saved.get('churchNew.coordinates')).toBe('59.4880048, 29.5348549');
+    expect(saved.get('churchNew.coordinateStatus')).toBe('verified');
+  });
+
   test('deleting a parish posts its id and version once confirmed', async () => {
     me.current = { isAdmin: true };
     renderAt('/places/parishes/5/edit');

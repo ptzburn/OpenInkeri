@@ -495,6 +495,10 @@
   "lookup_create_clergy": "Добавить как нового священнослужителя",
   "lookup_create_relation": "Добавить как новое отношение",
   "lookup_create_parish": "Добавить как новый приход",
+  "lookup_locate": "Отметить на карте",
+  "lookup_locate_change": "Изменить",
+  "lookup_locate_title": "Где находится {name}",
+  "lookup_locate_done": "Готово",
   "record_edit_split_correct": "Исправить разбивку",
   "record_edit_split_corrected": "Исправлено вручную",
   "record_edit_split_none": "не разбито на части"

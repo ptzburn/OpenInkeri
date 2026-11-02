@@ -1,4 +1,4 @@
-import { Show, createMemo } from 'solid-js';
+import { Show, createMemo, createSignal } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
@@ -33,7 +33,7 @@ const blank: ParishEditData = {
  * The admin's form for one parish, or for a new one without `id`: its names,
  * the locality its church stands in and a note. The locality is typed by
  * name and linked to the one it names; one not known yet can be added in
- * its field (LookupField), in this parish. It posts to the saveParish action
+ * its field (LookupField), in this parish, and located on a map there. It posts to the saveParish action
  * (and works before JavaScript loads); a save redirects to the parishes
  * list, and Cancel goes to `cancelHref`. A save the server refuses keeps the
  * form as typed, says why and marks the fields at fault. A save is confirmed
@@ -59,66 +59,87 @@ export default function ParishEditForm(props: { id?: number; cancelHref: string 
       return props.id ? m.parish_saved({ name }) : m.parish_created({ name });
     },
   );
-  // The church's choices: every locality, with its parish when it isn't its
-  // namesake; a new one can be added here, in this parish.
-  const churchLookup = createMemo((): Lookup => placeLookup(places(), invalid), {
-    name: 'parish-church-lookup',
-  });
-
   return (
     // Keyed: each parish (and each fresh read of it) gets a fresh form.
     <Show when={parish()} keyed fallback={<p>{m.parish_edit_missing()}</p>}>
-      {(p) => (
-        <>
-          {/* While a save is in flight the router marks the form aria-busy. */}
-          <form method="post" action={saveParish} class="group flex max-w-3xl flex-col gap-6">
-            <input type="hidden" name="id" value={p.id || ''} />
-            <input type="hidden" name="version" value={p.version} />
+      {(p) => {
+        // The names as loaded, then as typed: a settlement found for a new
+        // church fills the ones still empty (a parish is named after its
+        // church village as a rule).
+        const [nameRu, setNameRu] = createSignal(p.nameRu, { name: 'parish-name-ru' });
+        const [nameFi, setNameFi] = createSignal(p.nameFi, { name: 'parish-name-fi' });
+        // The church's choices: every locality, with its parish when it isn't
+        // its namesake; a new one can be added here, in this parish, and
+        // located on a map.
+        const churchLookup = createMemo(
+          (): Lookup =>
+            placeLookup(places(), invalid, {
+              onFound: (hit) => {
+                if (hit.nameRu && !nameRu().trim()) setNameRu(hit.nameRu);
+                if (hit.nameFi && !nameFi()?.trim()) setNameFi(hit.nameFi);
+              },
+            }),
+          { name: 'parish-church-lookup' },
+        );
+        return (
+          <>
+            {/* While a save is in flight the router marks the form aria-busy. */}
+            <form method="post" action={saveParish} class="group flex max-w-3xl flex-col gap-6">
+              <input type="hidden" name="id" value={p.id || ''} />
+              <input type="hidden" name="version" value={p.version} />
 
-            <div class="grid gap-x-4 sm:grid-cols-2">
-              <NamePair nameRu={p.nameRu} nameFi={p.nameFi} invalid={invalid} />
-              <div class="sm:col-span-2">
-                <LookupField
-                  textName="churchText"
-                  idName="churchPlaceId"
-                  label={m.parish_church()}
-                  text={namedRow(places(), p.churchPlaceId)}
-                  id={p.churchPlaceId}
-                  lookup={churchLookup()}
+              <div class="grid gap-x-4 sm:grid-cols-2">
+                <NamePair
+                  nameRu={nameRu()}
+                  nameFi={nameFi()}
                   invalid={invalid}
+                  onInput={(field, value) =>
+                    field === 'nameRu' ? setNameRu(value) : setNameFi(value)
+                  }
                 />
-                <p class="label">{m.parish_church_hint()}</p>
+                <div class="sm:col-span-2">
+                  <LookupField
+                    textName="churchText"
+                    idName="churchPlaceId"
+                    label={m.parish_church()}
+                    text={namedRow(places(), p.churchPlaceId)}
+                    id={p.churchPlaceId}
+                    lookup={churchLookup()}
+                    invalid={invalid}
+                  />
+                  <p class="label">{m.parish_church_hint()}</p>
+                </div>
+                <TextArea
+                  name="note"
+                  label={m.form_note()}
+                  value={p.note}
+                  rows={4}
+                  maxlength={FIELD_MAX.text}
+                  invalid={invalid('note')}
+                  class="sm:col-span-2"
+                />
               </div>
-              <TextArea
-                name="note"
-                label={m.form_note()}
-                value={p.note}
-                rows={4}
-                maxlength={FIELD_MAX.text}
-                invalid={invalid('note')}
-                class="sm:col-span-2"
-              />
-            </div>
 
-            <FormActions
-              error={error()}
-              cancelHref={props.cancelHref}
-              class="border-t border-base-300 pt-4"
-            />
-          </form>
-          <Show when={p.id}>
-            <DeleteSection
-              action={deleteParish}
-              id={p.id}
-              version={p.version}
-              title={m.parish_delete()}
-              text={m.parish_delete_text()}
-              inUse={parishInUse(p)}
-              deleted={m.parish_deleted({ name: localName(namesOf(p)) })}
-            />
-          </Show>
-        </>
-      )}
+              <FormActions
+                error={error()}
+                cancelHref={props.cancelHref}
+                class="border-t border-base-300 pt-4"
+              />
+            </form>
+            <Show when={p.id}>
+              <DeleteSection
+                action={deleteParish}
+                id={p.id}
+                version={p.version}
+                title={m.parish_delete()}
+                text={m.parish_delete_text()}
+                inUse={parishInUse(p)}
+                deleted={m.parish_deleted({ name: localName(namesOf(p)) })}
+              />
+            </Show>
+          </>
+        );
+      }}
     </Show>
   );
 }
