@@ -256,15 +256,6 @@
   "villages_no_match": "Haulla ”{search}” ei löytynyt paikkakuntia.",
   "villages_empty": "Paikkakuntia ei ole vielä.",
   "villages_add": "Lisää paikkakunta",
-  "villages_col_name": "Nimi",
-  "villages_col_ru": "Venäjäksi",
-  "villages_col_fi": "Suomeksi",
-  "villages_col_kind": "Tyyppi",
-  "villages_col_parish": "Seurakunta",
-  "villages_col_spellings": "Vaihtoehtoiset kirjoitusasut",
-  "villages_col_records": "Merkinnät",
-  "villages_col_coordinates": "Sijainti",
-  "villages_show_on_map": "Näytä kartalla",
   "villages_unlinked_title": "Ei liitetty paikkakuntaan",
   "villages_unlinked_hint": "Merkintöjen paikat, joiden kirjoitusasua ei ole yhdelläkään paikkakunnalla. Lisää kirjoitusasu paikkakunnalle, niin merkinnät liitetään siihen.",
   "place_kind_village": "Kylä",
@@ -313,7 +304,7 @@
   "map_popup_parish": "Seurakunta: {parish}",
   "map_popup_church": "Seurakunnan kirkko: {parish}",
   "place_edit_spellings": "Vaihtoehtoiset kirjoitusasut",
-  "place_edit_spellings_hint": "Yksi riville. Merkinnät, joiden paikka on kirjoitettu uudella tavalla ja joilla ei vielä ole paikkakuntaa, liitetään tähän.",
+  "place_edit_spellings_hint": "Merkinnät, joiden paikka on kirjoitettu uudella tavalla ja joilla ei vielä ole paikkakuntaa, liitetään tähän.",
   "place_edit_spellings_too_long": "Kukin kirjoitusasu on enintään {max} merkkiä.",
   "place_edit_conflict": "Joku muu muutti paikkakuntaa sillä välin. Lataa sivu uudelleen nähdäksesi muutokset.",
   "place_edit_missing": "Paikkakuntaa ei ole enää.",
@@ -360,9 +351,6 @@
   "parishes_title": "Seurakunnat",
   "parishes_add": "Lisää seurakunta",
   "parishes_empty": "Seurakuntia ei ole vielä.",
-  "parishes_col_villages": "Paikkakunnat",
-  "parishes_col_sources": "Lähteet",
-  "parishes_show_villages": "Seurakunnan {parish} paikkakunnat",
   "parish_edit_open": "Muokkaa seurakuntaa",
   "parish_edit_title": "Muokkaa seurakuntaa",
   "parish_new_title": "Uusi seurakunta",
@@ -505,21 +493,27 @@
   "record_edit_split_correct": "Korjaa jako",
   "record_edit_split_corrected": "Korjattu käsin",
   "record_edit_split_none": "ei jaettu osiin",
-  "places_view_label": "Näkymä",
-  "places_view_map": "Kartta",
-  "places_view_table": "Taulukko",
   "villages_sheet": "Paikkakuntien luettelo",
-  "villages_map_hint": "Napsauta pistettä löytääksesi sen luettelosta tai riviä löytääksesi sen kartalta.",
   "parishes_sheet": "Seurakuntien luettelo",
-  "parishes_map_hint": "Valitse seurakunta luettelosta tai piste kartalta, niin sen paikkakunnat näkyvät.",
-  "villages_records_count": [
+  "villages_also_written": "Myös kirjoitusasu ”{spelling}”",
+  "parishes_not_on_map": "Ei kartalla",
+  "places_shown_of": "{shown} / {total}",
+  "parishes_search_label": "Hae seurakuntia",
+  "parishes_search_placeholder": "Nimi venäjäksi tai suomeksi",
+  "parishes_no_match": "Haulla ”{search}” ei löytynyt seurakuntia.",
+  "parishes_show_localities": [
     {
       "declarations": ["input count", "local countPlural = count: plural"],
       "selectors": ["countPlural"],
       "match": {
-        "countPlural=one": "{count} merkintä",
-        "countPlural=*": "{count} merkintää"
+        "countPlural=one": "Näytä sen paikkakunta",
+        "countPlural=*": "Näytä sen {count} paikkakuntaa"
       }
     }
-  ]
+  ],
+  "places_row_actions": "Toiminnot",
+  "form_list_add": "Lisää",
+  "form_list_remove": "Poista ”{value}”",
+  "form_list_repeated": "”{value}” on jo listalla.",
+  "place_edit_spelling_new": "Uusi kirjoitusasu"
 }

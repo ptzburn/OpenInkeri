@@ -2,38 +2,31 @@ import { useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createMemo, createSignal } from 'solid-js';
 import CloseIcon from '~icons/ri/close-line';
-import MapIcon from '~icons/ri/map-pin-2-line';
 
 import type { QueryData } from '~/lib/query-data';
-import EditLinkCell from '~/components/edit-link-cell';
 import { MapPage } from '~/components/edit-page';
-import ListPage, {
-  ActionsHeader,
-  AddLink,
-  ListBody,
-  NameHeaders,
-  TableBox,
-  useCanEdit,
-  useListBusy,
-} from '~/components/list-page';
+import { ListBody, useCanEdit, useListBusy } from '~/components/list-page';
 import MapPanel from '~/components/map-panel';
 import SearchBox from '~/components/search-box';
 import { coordinateStatusLabels, placeKindLabels } from '~/components/labels';
-import PlacesTabs from '~/components/places-tabs';
 import {
   MapListFoot,
   MapListHead,
   MapListRow,
-  PlacesMap,
-  ViewSwitch,
+  type RowActions,
+  RowNames,
   scrollToRow,
-  usePlacesView,
-} from '~/components/places-view';
-import { finnishNamesShown, localName } from '~/lib/format';
-import { mapLink } from '~/lib/coordinates';
-import { type PlaceRow, getPlaceMarkers, getPlaces } from '~/data/places';
-import { getPlacesView } from '~/data/places-view';
-import type { PlacesView } from '~/lib/places-view';
+  usePlacesMap,
+} from '~/components/places-map';
+import { byLocalName, localName, namesOf } from '~/lib/format';
+import {
+  type PlaceRow,
+  deletePlace,
+  getPlaceMarkers,
+  getPlaceTotals,
+  getPlaces,
+} from '~/data/places';
+import { DeleteDialog } from '~/components/form-fields';
 import { stringParams } from '~/lib/route-params';
 import { foldForSearch } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
@@ -43,17 +36,16 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 // Signed-in users only: getPlaces redirects a signed-out visitor to sign-in
 // (src/data/places.ts). ?q= is the search and ?parish= narrows the list to
 // one parish (the parishes list links there), so both survive reloads, can
-// be shared, and come back after editing a village. The list shows as the
-// panel of a map or as a table, as the reader chose last (its cookie).
+// be shared, and come back after editing a village.
 const crumbs: Crumbs = () => [{ label: m.villages_title() }];
 
 export const route = defineFileRoute('/places/villages/', {
   info: { crumbs },
   search: stringParams('q', 'parish'),
   preload: () => {
-    void getPlacesView();
     void getPlaces();
     void getPlaceMarkers();
+    void getPlaceTotals();
   },
 });
 
@@ -64,19 +56,28 @@ const matches = (place: PlaceRow, folded: string) =>
     (name) => !!name && foldForSearch(name).includes(folded),
   );
 
-/** What both views show: the list, as the search and the parish narrow it. */
-function useVillages() {
+/**
+ * The localities: the map is the page, the list its panel (MapPanel). A row
+ * picked flies the map to its locality; a dot clicked picks its row, and a
+ * row pointed at names its dot. The search narrows the dots too and frames
+ * them; the parish filter draws its parish plain and the others faint.
+ */
+export default function Villages() {
   const [search, setSearch] = useSearchParams(paths.places.villages);
   const list = createMemo((): Promise<QueryData<typeof getPlaces>> => getPlaces(), {
     name: 'villages-list',
   });
   const parishId = () => Number(search.parish) || null;
+  // Every place, by the name the list shows.
+  const sorted = createMemo(() => [...(list()?.places ?? [])].sort(byLocalName), {
+    name: 'villages-sorted',
+  });
+  const folded = () => foldForSearch(search.q ?? '');
   // The places the search matches, in any parish: the map's dots.
   const matching = createMemo(
     () => {
-      const folded = foldForSearch(search.q ?? '');
-      const all = list()?.places ?? [];
-      return folded ? all.filter((p) => matches(p, folded)) : all;
+      const key = folded();
+      return key ? sorted().filter((p) => matches(p, key)) : sorted();
     },
     { name: 'villages-matching' },
   );
@@ -88,179 +89,130 @@ function useVillages() {
     },
     { name: 'villages-shown' },
   );
+  // The search's matches, for the map to keep their dots alone.
+  const only = createMemo(() => (search.q ? new Set(matching().map((p) => p.id)) : null), {
+    name: 'villages-map-only',
+  });
   // The filtered parish's name, from any of its places.
   const parishName = () => {
     const parish = parishId();
     const place = parish ? list()?.places.find((p) => p.parishId === parish) : undefined;
     return localName(place?.parish ?? null) || (search.parish ?? '');
   };
+  // The list shows less than all of it: a search or a parish narrows it.
+  const narrowed = () => !!search.q || !!search.parish;
   // Where the edit pages return to: this list as it is now.
   const listPlace = () => ({ q: search.q, parish: search.parish });
-  return {
-    search,
-    // A search goes in the URL in place of the current entry.
-    searchFor: (value: string) => setSearch({ q: value || undefined }, { replace: true }),
-    list,
-    parishId,
-    matching,
-    shown,
-    parishName,
-    listPlace,
-    busy: useListBusy(list),
-    canEdit: useCanEdit('villages-me'),
-  };
-}
-type Villages = ReturnType<typeof useVillages>;
-
-export default function VillagesPage() {
-  const villages = useVillages();
-  const [view, setView] = usePlacesView();
-  return (
-    <Show when={view() === 'table'} fallback={<VillagesMap villages={villages} onView={setView} />}>
-      <VillagesTable villages={villages} onView={setView} />
-    </Show>
-  );
-}
-
-/** The search, with the parish filter it carries along and how many it shows. */
-function VillagesSearch(props: { villages: Villages }) {
-  const v = () => props.villages;
-  return (
-    <SearchBox
-      value={v().search.q}
-      onSearch={(value) => v().searchFor(value)}
-      name="villages-search-input"
-      label={m.villages_search_label()}
-      placeholder={m.villages_search_placeholder()}
-      class="flex flex-wrap items-center gap-2"
-      inputClass="max-w-md"
-    >
-      <Show when={v().search.parish}>
-        {(parish) => (
-          <>
-            <input type="hidden" name="parish" value={parish()} />
-            <span class="badge gap-1 badge-soft">
-              {m.villages_parish_filter({ parish: v().parishName() })}
-              <a
-                href={paths.places.villages({ q: v().search.q })}
-                aria-label={m.villages_clear_filter()}
-                title={m.villages_clear_filter()}
-              >
-                <CloseIcon class="size-4" aria-hidden="true" />
-              </a>
-            </span>
-          </>
-        )}
-      </Show>
-      <span class="badge badge-sm">{v().shown().length}</span>
-    </SearchBox>
-  );
-}
-
-/** For admins: the spellings to add to a village, so their records link. */
-function UnlinkedSpellings(props: { villages: Villages }) {
-  const list = () => props.villages.list();
-  return (
-    <Show when={props.villages.canEdit() && list()?.unlinked.length}>
-      <details class="collapse-arrow collapse max-w-xl border border-base-300 bg-base-100">
-        <summary class="collapse-title font-semibold">
-          {m.villages_unlinked_title()}{' '}
-          <span class="badge badge-sm">
-            {list()?.unlinked.reduce((sum, u) => sum + u.records, 0)}
-          </span>
-        </summary>
-        <div class="collapse-content flex flex-col gap-3 text-sm">
-          <p class="text-base-content/70">{m.villages_unlinked_hint()}</p>
-          <ul class="flex flex-wrap gap-2">
-            {/* Keyed by text: a reload after a save returns new objects. */}
-            <For each={list()?.unlinked ?? []} keyed={(u) => u.text}>
-              {(u) => (
-                <li class="badge gap-1 badge-outline">
-                  {u().text}
-                  <span class="text-base-content/60">{u().records}</span>
-                </li>
-              )}
-            </For>
-          </ul>
-        </div>
-      </details>
-    </Show>
-  );
-}
-
-const emptyText = (villages: Villages) =>
-  villages.search.q ? m.villages_no_match({ search: villages.search.q }) : m.villages_empty();
-
-/**
- * The map view: the map is the page, the list its panel (MapPanel). A row
- * picked flies the map to its locality; a dot clicked picks its row, and a
- * row pointed at names its dot. The search narrows the dots too and frames
- * them; the parish filter draws its parish plain and the others faint.
- */
-function VillagesMap(props: { villages: Villages; onView: (view: PlacesView) => void }) {
-  const v = () => props.villages;
+  const busy = useListBusy(list);
+  const canEdit = useCanEdit('villages-me');
   const [selected, setSelected] = createSignal<number | null>(null, { name: 'villages-selected' });
   const [pointed, setPointed] = createSignal<number | null>(null, { name: 'villages-pointed' });
-  // The search's matches, for the map to keep their dots alone.
-  const only = createMemo(
-    () =>
-      v().search.q
-        ? new Set(
-            v()
-              .matching()
-              .map((p) => p.id),
-          )
-        : null,
-    { name: 'villages-map-only' },
-  );
   let rows: HTMLUListElement | undefined;
+  // The locality an admin asked to delete, which the one dialog confirms.
+  const [deleting, setDeleting] = createSignal<PlaceRow | null>(null, {
+    name: 'villages-deleting',
+  });
+  let deleteDialog: HTMLDialogElement | undefined;
+  const askDelete = (place: PlaceRow) => {
+    setDeleting(place);
+    deleteDialog?.showModal();
+  };
+
+  // Only localities here: parish churches are drawn as the localities they are.
+  usePlacesMap({
+    plain: true,
+    get only() {
+      return only();
+    },
+    get highlight() {
+      return parishId();
+    },
+    get target() {
+      return selected();
+    },
+    get pointed() {
+      return pointed();
+    },
+    onSelect: (marker) => {
+      setSelected(marker.id);
+      scrollToRow(rows, marker.id);
+    },
+  });
+
+  // A search goes in the URL in place of the current entry.
+  const searchFor = (value: string) => setSearch({ q: value || undefined }, { replace: true });
 
   return (
     <MapPage title={m.villages_title()}>
       <MapPanel
         title={m.villages_title()}
         sheet={m.villages_sheet()}
-        hint={`${m.villages_map_hint()} ${m.place_edit_map_legend()}`}
-        map={(mapClass) => (
-          <PlacesMap
-            class={mapClass}
-            only={only()}
-            highlight={v().parishId()}
-            target={selected()}
-            pointed={pointed()}
-            onSelect={(marker) => {
-              setSelected(marker.id);
-              scrollToRow(rows, marker.id);
-            }}
-          />
-        )}
         head={
-          <MapListHead current="villages" onView={props.onView}>
-            <VillagesSearch villages={v()} />
+          <MapListHead current="villages">
+            {/* The search form carries the parish filter along. */}
+            <SearchBox
+              value={search.q}
+              onSearch={searchFor}
+              name="villages-search-input"
+              label={m.villages_search_label()}
+              placeholder={m.villages_search_placeholder()}
+            >
+              <Show when={search.parish}>
+                {(parish) => <input type="hidden" name="parish" value={parish()} />}
+              </Show>
+            </SearchBox>
+            {/* The parish the list is narrowed to, which can be let go of. */}
+            <Show when={search.parish}>
+              <span class="badge gap-1 self-start badge-soft">
+                {m.villages_parish_filter({ parish: parishName() })}
+                <a
+                  href={paths.places.villages({ q: search.q })}
+                  aria-label={m.villages_clear_filter()}
+                  title={m.villages_clear_filter()}
+                >
+                  <CloseIcon class="size-4" aria-hidden="true" />
+                </a>
+              </span>
+            </Show>
+            {/* How many of all a search or a parish leaves, said to screen
+                readers as it changes; empty while the list is whole. */}
+            <p class="sr-only" aria-live="polite">
+              {narrowed()
+                ? m.places_shown_of({ shown: shown().length, total: list()?.places.length ?? 0 })
+                : ''}
+            </p>
           </MapListHead>
         }
         foot={
-          v().canEdit() ? (
-            <MapListFoot
-              href={paths.places.villages.new(v().listPlace())}
-              label={m.villages_add()}
-            />
+          canEdit() ? (
+            <MapListFoot href={paths.places.villages.new(listPlace())} label={m.villages_add()} />
           ) : undefined
         }
         bodyClass="gap-4 p-2"
       >
-        <ListBody busy={v().busy()} count={v().shown().length} empty={emptyText(v())}>
+        <ListBody
+          busy={busy()}
+          count={shown().length}
+          empty={search.q ? m.villages_no_match({ search: search.q }) : m.villages_empty()}
+        >
           <ul ref={(el) => (rows = el)} class="list">
-            <For each={v().shown()} keyed={(place) => place.id}>
+            <For each={shown()} keyed={(place) => place.id}>
               {(place) => (
                 <PlaceListRow
                   place={place()}
+                  search={folded()}
+                  showParish={!parishId()}
                   selected={selected() === place().id}
                   onSelect={() => setSelected(place().id)}
                   onPoint={(on) => setPointed(on ? place().id : null)}
-                  editHref={
-                    v().canEdit()
-                      ? paths.places.villages(place().id).edit(v().listPlace())
+                  actions={
+                    canEdit()
+                      ? {
+                          editHref: paths.places.villages(place().id).edit(listPlace()),
+                          edit: m.place_edit_open(),
+                          delete: m.place_delete(),
+                          onDelete: () => askDelete(place()),
+                        }
                       : undefined
                   }
                 />
@@ -268,160 +220,104 @@ function VillagesMap(props: { villages: Villages; onView: (view: PlacesView) => 
             </For>
           </ul>
         </ListBody>
-        <UnlinkedSpellings villages={v()} />
+
+        {/* For admins: the spellings to add to a village, so their records link. */}
+        <Show when={canEdit() && list()?.unlinked.length}>
+          <details class="collapse-arrow collapse max-w-xl border border-base-300 bg-base-100">
+            <summary class="collapse-title font-semibold">
+              {m.villages_unlinked_title()}{' '}
+              <span class="badge badge-sm">
+                {list()?.unlinked.reduce((sum, u) => sum + u.records, 0)}
+              </span>
+            </summary>
+            <div class="collapse-content flex flex-col gap-3 text-sm">
+              <p class="text-base-content/70">{m.villages_unlinked_hint()}</p>
+              <ul class="flex flex-wrap gap-2">
+                {/* Keyed by text: a reload after a save returns new objects. */}
+                <For each={list()?.unlinked ?? []} keyed={(u) => u.text}>
+                  {(u) => (
+                    <li class="badge gap-1 badge-outline">
+                      {u().text}
+                      <span class="text-base-content/60">{u().records}</span>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </div>
+          </details>
+        </Show>
+        {/* One confirmation for the list, for the row whose menu asked. The
+            delete returns to the list as it is, like a save. */}
+        <Show when={canEdit()}>
+          <DeleteDialog
+            action={deletePlace}
+            id={deleting()?.id ?? 0}
+            version={deleting()?.version ?? 0}
+            title={m.place_delete()}
+            text={m.place_delete_text()}
+            deleted={m.place_deleted({ name: localName(namesOf(deleting()) ?? null) })}
+            ref={(el) => (deleteDialog = el)}
+          >
+            <input type="hidden" name="returnQ" value={search.q ?? ''} />
+            <input type="hidden" name="returnParish" value={search.parish ?? ''} />
+          </DeleteDialog>
+        </Show>
       </MapPanel>
     </MapPage>
   );
 }
 
-/** A locality in the map view's list: its names, type, parish, records and spellings. */
+/**
+ * A locality in the list, on one line where it fits: its names, its type
+ * when it isn't a village, a mark when the map can't show it, and its
+ * parish unless the list is narrowed to one. A search that found it only by
+ * a spelling of it (`search`, folded) shows that spelling under it.
+ */
 function PlaceListRow(props: {
   place: PlaceRow;
+  search: string;
+  showParish: boolean;
   selected: boolean;
   onSelect: () => void;
   onPoint: (on: boolean) => void;
-  editHref?: string;
+  actions?: RowActions;
 }) {
-  // The spellings that differ from the name itself.
-  const spellings = () => props.place.spellings.filter((s) => s !== props.place.nameRu);
   const located = () => props.place.latitude !== null && props.place.longitude !== null;
+  const matched = () => {
+    const key = props.search;
+    const { nameRu, nameFi } = props.place;
+    if (!key || [nameRu, nameFi].some((name) => name && foldForSearch(name).includes(key))) {
+      return undefined;
+    }
+    return props.place.spellings.find((s) => foldForSearch(s).includes(key));
+  };
   return (
     <MapListRow
       id={props.place.id}
       selected={props.selected}
       onSelect={props.onSelect}
       onPoint={props.onPoint}
-      editHref={props.editHref}
-      editLabel={m.place_edit_open()}
+      actions={props.actions}
     >
-      <span>
-        <span class="font-medium">{props.place.nameRu}</span>
-        <Show when={finnishNamesShown() && props.place.nameFi}>
-          {(fi) => <span class="text-base-content/60"> · {fi()}</span>}
+      <RowNames names={namesOf(props.place)}>
+        <Show when={props.place.kind !== 'village'}>
+          <span class="badge badge-ghost badge-xs">{placeKindLabels[props.place.kind]()}</span>
         </Show>
-      </span>
-      <span class="text-xs text-base-content/60">
-        {[
-          placeKindLabels[props.place.kind](),
-          localName(props.place.parish),
-          m.villages_records_count({ count: props.place.records }),
-        ]
-          .filter(Boolean)
-          .join(' · ')}
-        {/* Not on the map: said, as the map can't show it. */}
+        {/* Not on the map: picking it moves nothing there. */}
         <Show when={!located()}>
-          {' · '}
-          <span class="text-warning">{coordinateStatusLabels.unknown()}</span>
+          <span class="text-xs text-warning">{coordinateStatusLabels.unknown()}</span>
         </Show>
-      </span>
-      <Show when={spellings().length}>
-        <span class="flex flex-wrap gap-1 pt-0.5">
-          <For each={spellings()}>
-            {(s) => <span class="badge badge-ghost badge-xs whitespace-nowrap">{s}</span>}
-          </For>
-        </span>
+        <Show when={props.showParish && localName(props.place.parish)}>
+          {(parish) => <span class="text-xs text-base-content/60">{parish()}</span>}
+        </Show>
+      </RowNames>
+      <Show when={matched()}>
+        {(spelling) => (
+          <span class="text-xs text-base-content/60">
+            {m.villages_also_written({ spelling: spelling() })}
+          </span>
+        )}
       </Show>
     </MapListRow>
-  );
-}
-
-/** The table view: every column, the coordinates linking out to a map. */
-function VillagesTable(props: { villages: Villages; onView: (view: PlacesView) => void }) {
-  const v = () => props.villages;
-  return (
-    <ListPage
-      title={m.villages_title()}
-      heading={m.places_title()}
-      aside={
-        <div class="ml-auto flex items-center gap-2">
-          <ViewSwitch view="table" onView={(view) => props.onView(view)} />
-          <Show when={v().canEdit()}>
-            <AddLink href={paths.places.villages.new(v().listPlace())} label={m.villages_add()} />
-          </Show>
-        </div>
-      }
-    >
-      <PlacesTabs current="villages" />
-      <VillagesSearch villages={v()} />
-
-      <ListBody busy={v().busy()} count={v().shown().length} empty={emptyText(v())}>
-        <TableBox>
-          <thead>
-            <tr>
-              <NameHeaders />
-              <th>{m.villages_col_kind()}</th>
-              <th>{m.villages_col_parish()}</th>
-              <th>{m.villages_col_spellings()}</th>
-              <th class="text-right">{m.villages_col_records()}</th>
-              <th>{m.villages_col_coordinates()}</th>
-              <ActionsHeader when={v().canEdit()} />
-            </tr>
-          </thead>
-          <tbody>
-            <For each={v().shown()} keyed={(place) => place.id}>
-              {(place) => (
-                <PlaceTableRow
-                  place={place()}
-                  editHref={
-                    v().canEdit()
-                      ? paths.places.villages(place().id).edit(v().listPlace())
-                      : undefined
-                  }
-                />
-              )}
-            </For>
-          </tbody>
-        </TableBox>
-      </ListBody>
-
-      <UnlinkedSpellings villages={v()} />
-    </ListPage>
-  );
-}
-
-function PlaceTableRow(props: { place: PlaceRow; editHref?: string }) {
-  // The spellings that differ from the name itself.
-  const spellings = () => props.place.spellings.filter((s) => s !== props.place.nameRu);
-  return (
-    <tr>
-      <td>
-        <span class="font-medium">{props.place.nameRu}</span>
-      </td>
-      <Show when={finnishNamesShown()}>
-        <td>{props.place.nameFi}</td>
-      </Show>
-      <td>{placeKindLabels[props.place.kind]()}</td>
-      <td>{localName(props.place.parish)}</td>
-      <td>
-        <ul class="flex flex-wrap gap-1">
-          <For each={spellings()}>
-            {(s) => <li class="badge badge-ghost badge-sm whitespace-nowrap">{s}</li>}
-          </For>
-        </ul>
-      </td>
-      <td class="text-right tabular-nums">{props.place.records}</td>
-      <td class="whitespace-nowrap">
-        <Show
-          when={props.place.latitude !== null && props.place.longitude !== null}
-          fallback={
-            <span class="text-base-content/50">
-              {coordinateStatusLabels[props.place.coordinateStatus]()}
-            </span>
-          }
-        >
-          <a
-            href={mapLink(props.place.latitude!, props.place.longitude!)}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="link inline-flex items-center gap-1"
-            title={m.villages_show_on_map()}
-          >
-            <MapIcon class="size-4" aria-hidden="true" />
-            {coordinateStatusLabels[props.place.coordinateStatus]()}
-          </a>
-        </Show>
-      </td>
-      <EditLinkCell href={props.editHref} label={m.place_edit_open()} />
-    </tr>
   );
 }

@@ -49,6 +49,8 @@ import {
 // circular (see AccountData in ./account.ts).
 export interface ParishRow {
   id: number;
+  /** As loaded, for a delete from the list to be refused once the parish changed. */
+  version: number;
   nameRu: string;
   nameFi: string | null;
   note: string | null;
@@ -83,7 +85,9 @@ export const getParishes = query(async (): Promise<ParishRow[]> => {
   'use server';
   signedIn();
   const [parishes, places, sources] = await Promise.all([
-    db.query.parish.findMany({ columns: { id: true, nameRu: true, nameFi: true, note: true } }),
+    db.query.parish.findMany({
+      columns: { id: true, version: true, nameRu: true, nameFi: true, note: true },
+    }),
     db
       .select({ parishId: place.parishId, n: count() })
       .from(place)

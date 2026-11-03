@@ -78,6 +78,8 @@ import {
 // circular (see AccountData in ./account.ts).
 export interface PlaceRow {
   id: number;
+  /** As loaded, for a delete from the list to be refused once the place changed. */
+  version: number;
   kind: PlaceKind;
   nameRu: string;
   nameFi: string | null;
@@ -132,6 +134,7 @@ export const getPlaces = query(async (): Promise<PlaceListData> => {
     db.query.place.findMany({
       columns: {
         id: true,
+        version: true,
         kind: true,
         nameRu: true,
         nameFi: true,
@@ -171,6 +174,17 @@ export const getPlaces = query(async (): Promise<PlaceListData> => {
       .sort((a, b) => b.records - a.records || a.text.localeCompare(b.text, 'ru')),
   };
 }, 'places');
+
+/** How many localities and parishes there are: the places tabs' totals. */
+export const getPlaceTotals = query(async (): Promise<{ localities: number; parishes: number }> => {
+  'use server';
+  signedIn();
+  const [[localities], [parishes]] = await Promise.all([
+    db.select({ n: count() }).from(place),
+    db.select({ n: count() }).from(parish),
+  ]);
+  return { localities: localities.n, parishes: parishes.n };
+}, 'place-totals');
 
 async function loadPlace(id: number) {
   return db.query.place.findFirst({

@@ -41,6 +41,18 @@ const PLACES = 'places';
 const DOTS = `${PLACES}-dots`;
 const CHURCHES = `${PLACES}-churches`;
 const CHURCH_ICON = 'church';
+const HALO = `${PLACES}-halo`;
+// The place the map names (pointed at, here or in a list, or picked): a
+// feature state, so only its dot is drawn anew.
+const ACCENT = '#2563eb';
+const accented: ExpressionSpecification = ['boolean', ['feature-state', 'accent'], false];
+
+/**
+ * A marker on the map: a locality as recorded, or (`estimated`) a parish
+ * the parishes map places amid its localities, having no church locality.
+ */
+export type MapMarker = PlaceMarker & { estimated?: boolean };
+
 interface PlaceProperties {
   id: number;
   name: string;
@@ -48,16 +60,19 @@ interface PlaceProperties {
   parish: string;
   /** Outside the parish the map shows (`highlight`): drawn faint. */
   faded: boolean;
+  /** A parish placed amid its localities: drawn fainter, and named alone. */
+  estimated: boolean;
 }
-const propertiesOf = (p: PlaceMarker, highlight: number | null): PlaceProperties => ({
+const propertiesOf = (p: MapMarker, highlight: number | null): PlaceProperties => ({
   id: p.id,
   name: localName(p.name),
   church: p.church !== null,
   // A church's parish is the one it serves.
   parish: localName(p.church?.name ?? p.parish) ?? '',
   faded: highlight !== null && p.parishId !== highlight && p.church?.id !== highlight,
+  estimated: !!p.estimated,
 });
-const placesData = (markers: PlaceMarker[], highlight: number | null = null): GeoData => ({
+const placesData = (markers: MapMarker[], highlight: number | null = null): GeoData => ({
   type: 'FeatureCollection',
   features: markers.map((p) => ({
     type: 'Feature',
@@ -95,7 +110,8 @@ function addPlaces(map: MapLibreMap, data: GeoData) {
     const { image, pixelRatio } = churchIcon();
     map.addImage(CHURCH_ICON, image, { pixelRatio });
   }
-  map.addSource(PLACES, { type: 'geojson', data });
+  // By the locality's id, for its feature state.
+  map.addSource(PLACES, { type: 'geojson', data, promoteId: 'id' });
   const text = {
     'text-font': ['Noto Sans Regular'],
     'text-size': 11,
@@ -110,16 +126,30 @@ function addPlaces(map: MapLibreMap, data: GeoData) {
     'text-halo-width': 1.2,
     'text-opacity': opacity,
   };
+  // A glow under the place named, its dot or its cross.
+  map.addLayer({
+    id: HALO,
+    type: 'circle',
+    source: PLACES,
+    paint: {
+      'circle-radius': ['case', accented, 15, 0],
+      'circle-color': ACCENT,
+      'circle-opacity': 0.2,
+      'circle-stroke-color': ACCENT,
+      'circle-stroke-width': ['case', accented, 2, 0],
+      'circle-stroke-opacity': 0.7,
+    },
+  });
   map.addLayer({
     id: DOTS,
     type: 'circle',
     source: PLACES,
     filter: ['!', ['get', 'church']],
     paint: {
-      'circle-radius': 4,
-      'circle-color': '#4b5563',
+      'circle-radius': ['case', accented, 7, 4],
+      'circle-color': ['case', accented, ACCENT, '#4b5563'],
       'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1.5,
+      'circle-stroke-width': ['case', accented, 2, 1.5],
       'circle-opacity': opacity,
       'circle-stroke-opacity': opacity,
     },
@@ -145,7 +175,11 @@ function addPlaces(map: MapLibreMap, data: GeoData) {
       'text-field': ['get', 'parish'],
       'text-offset': [0, 1.1],
     },
-    paint: { ...textPaint, 'icon-opacity': opacity },
+    // A parish placed amid its localities is fainter than one at its church.
+    paint: {
+      ...textPaint,
+      'icon-opacity': ['case', accented, 1, ['get', 'faded'], 0.3, ['get', 'estimated'], 0.5, 1],
+    },
   });
 }
 
@@ -155,7 +189,7 @@ function describePlace(properties: PlaceProperties) {
   const name = document.createElement('strong');
   name.textContent = properties.name;
   box.appendChild(name);
-  if (properties.parish) {
+  if (properties.parish && !properties.estimated) {
     const line = document.createElement('div');
     line.className = 'text-xs opacity-70';
     line.textContent = properties.church
@@ -181,12 +215,15 @@ function webglSupported() {
 const styleFor = () =>
   getComputedStyle(document.documentElement).colorScheme === 'dark' ? STYLE.dark : STYLE.light;
 
+// Tailwind's lg breakpoint, where the panel becomes a column beside the map.
+const LG = '(min-width: 64rem)';
+
 // What a MapForm's panel covers of the map, for the view to centre on the
 // rest: from lg up its column along the left edge (w-md, 28rem); below, the
 // search floating at the top and the collapsed sheet, a third of the height.
 function panelPadding(container: HTMLElement) {
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-  return matchMedia('(min-width: 64rem)').matches
+  return matchMedia(LG).matches
     ? { left: 28 * rem, top: 0, right: 0, bottom: 0 }
     : { left: 0, top: 4.5 * rem, right: 0, bottom: container.clientHeight / 3 };
 }
@@ -195,8 +232,14 @@ function panelPadding(container: HTMLElement) {
 // they are likely misplaced, and fitting them would show half the country.
 const PARISH_REACH_KM = 40;
 
-/** A parish's localities within reach of its church (or of their middle, without one). */
-function parishCore(places: PlaceMarker[], parishId: number) {
+/**
+ * A parish's markers among `markers` (its localities, and its church) within
+ * reach of its church, or of their middle without one: what a map frames to
+ * show the parish.
+ */
+export function parishPoints(markers: MapMarker[], parishId: number) {
+  const places = markers.filter((p) => p.parishId === parishId || p.church?.id === parishId);
+  if (!places.length) return [];
   const median = (values: number[]) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)];
   const middle = places.find((p) => p.church?.id === parishId) ?? {
     latitude: median(places.map((p) => p.latitude)),
@@ -205,13 +248,24 @@ function parishCore(places: PlaceMarker[], parishId: number) {
   return places.filter((p) => distanceKm(middle, p) <= PARISH_REACH_KM);
 }
 
+// Of this many points or more, the box around them leaves out the outermost
+// twentieth on each side of each axis: a few strays (a locality recorded in
+// Helsinki) don't pull the view out to take them in.
+const TRIM_FROM = 20;
+const TRIM = 0.05;
+
 /** The box around the points, as MapLibre takes it: [[west, south], [east, north]]. */
 function boundsOf(points: { latitude: number; longitude: number }[]) {
-  const lngs = points.map((p) => p.longitude);
-  const lats = points.map((p) => p.latitude);
+  const span = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const cut = sorted.length >= TRIM_FROM ? Math.floor(sorted.length * TRIM) : 0;
+    return [sorted[cut], sorted[sorted.length - 1 - cut]];
+  };
+  const [west, east] = span(points.map((p) => p.longitude));
+  const [south, north] = span(points.map((p) => p.latitude));
   return [
-    [Math.min(...lngs), Math.min(...lats)],
-    [Math.max(...lngs), Math.max(...lats)],
+    [west, south],
+    [east, north],
   ] as [[number, number], [number, number]];
 }
 
@@ -235,14 +289,13 @@ export const churchPoint = (markers: PlaceMarker[] | undefined, parishId: number
  * The localities already known (`markers`) show as dots around it, parish
  * churches among them, those outside the parish `highlight` faint; without
  * coordinates the view starts at `focus` (the parish church) if there is
- * one, else over Ingria; and with a parish to highlight, it then fits that
- * parish's localities (again whenever it changes). Under a MapPanel
- * (`panel`) the view centres on the part of the map in sight.
+ * one, else over Ingria, and frames `frame` (a list's dots, a parish's
+ * localities) whenever those points change. Under a MapPanel (`panel`) the
+ * view centres on the part of the map in sight.
  *
  * Without `onPick` the map only shows (the places lists): a click on a dot
- * names it and hands it to `onSelect`, `pointed` names a dot pointed at
- * elsewhere (its row), and with `fit` the view frames the dots whenever
- * they change (a search's matches).
+ * names it and hands it to `onSelect`, and `pointed` names a dot pointed at
+ * elsewhere (its row).
  * MapLibre needs the browser (and WebGL), so it loads after the page
  * settles, only here; without WebGL the map says so and the field is all.
  */
@@ -252,7 +305,7 @@ export default function LocationPicker(props: {
   onPick?: (lat: number, lng: number) => void;
   /** Told the locality whose dot was clicked. */
   onSelect?: (id: number) => void;
-  markers?: PlaceMarker[];
+  markers?: MapMarker[];
   /** The parish whose localities are drawn plain, the others faint; none: all plain. */
   highlight?: number | null;
   focus?: Point | null;
@@ -260,8 +313,8 @@ export default function LocationPicker(props: {
   target?: number | null;
   /** A locality pointed at elsewhere (its row in a list): its dot is named, the view stays. */
   pointed?: number | null;
-  /** Frame the markers in view whenever they change. */
-  fit?: boolean;
+  /** The points the view frames whenever they change, while the map has no coordinates of its own. */
+  frame?: MapMarker[];
   /** A MapPanel lies over the map. */
   panel?: boolean;
   /** The box's classes, its height above all (h-72 unless said otherwise); MapLibre follows the box as it resizes. */
@@ -272,8 +325,9 @@ export default function LocationPicker(props: {
   const [unsupported, setUnsupported] = createSignal(false, { name: 'map-unsupported' });
   let marker: Marker | undefined;
   // Names a known locality in the popup, as pointing at its dot does; set once the map is up.
-  let namePlace: ((place: PlaceMarker) => void) | undefined;
+  let namePlace: ((place: MapMarker) => void) | undefined;
   let unname: (() => void) | undefined;
+  let reaccent: (() => void) | undefined;
   // The dots' data as last given, for a style (re)load to draw.
   let places = placesData([]);
   const coordinates = () => parseCoordinates(props.value ?? '') ?? null;
@@ -315,6 +369,19 @@ export default function LocationPicker(props: {
         zoom: at ? PLACE_ZOOM : focus ? PARISH_ZOOM : INGRIA.zoom,
         attributionControl: { compact: true },
       });
+      // Below lg the attribution starts folded to its "i" (a tap opens it):
+      // the map is small there, and the panel's sheet covers much of it.
+      // MapLibre's compact attribution starts open; once its style has given
+      // the attributions, it doesn't open again by itself.
+      if (!matchMedia(LG).matches) {
+        const small = created;
+        small.once('load', () =>
+          small
+            .getContainer()
+            .querySelector('.maplibregl-ctrl-attrib')
+            ?.classList.remove('maplibregl-compact-show'),
+        );
+      }
       if (untrack(() => props.panel)) {
         const covered = created;
         const cover = () => covered.setPadding(panelPadding(covered.getContainer()));
@@ -324,28 +391,48 @@ export default function LocationPicker(props: {
       created.addControl(new NavigationControl({ showCompass: false }), 'top-right');
       // The dots go on with each style, the theme switch's included.
       const withPlaces = created;
-      withPlaces.on('style.load', () => addPlaces(withPlaces, places));
+      withPlaces.on('style.load', () => {
+        addPlaces(withPlaces, places);
+        reaccent?.();
+      });
       // A dot under the pointer names its locality (a tap does the same, and
       // places nothing: the locality is there already); the pointer says it
       // is something to point at.
       const withPopup = created;
       const popup = new Popup({ closeButton: false, closeOnClick: false, offset: 10 });
+      // The place the popup names is accented, until it closes.
+      let accent: number | null = null;
+      const setAccent = (id: number | null) => {
+        if (!withPopup.getSource(PLACES)) return;
+        if (accent !== null)
+          withPopup.setFeatureState({ source: PLACES, id: accent }, { accent: false });
+        accent = id;
+        if (id !== null) withPopup.setFeatureState({ source: PLACES, id }, { accent: true });
+      };
+      popup.on('close', () => setAccent(null));
+      // A new style's dots start plain: the accent goes on them again.
+      reaccent = () => {
+        const id = accent;
+        accent = null;
+        setAccent(id);
+      };
       const under = (point: { x: number; y: number }) =>
         withPopup.getLayer(DOTS)
           ? withPopup.queryRenderedFeatures([point.x, point.y], { layers: [DOTS, CHURCHES] })
           : [];
       const name = (feature: ReturnType<typeof under>[number]) => {
         const [lng, lat] = (feature.geometry as { coordinates: [number, number] }).coordinates;
-        popup
-          .setLngLat([lng, lat])
-          .setDOMContent(describePlace(feature.properties as PlaceProperties))
-          .addTo(withPopup);
+        const properties = feature.properties as PlaceProperties;
+        popup.setLngLat([lng, lat]).setDOMContent(describePlace(properties)).addTo(withPopup);
+        setAccent(properties.id);
       };
-      namePlace = (place) =>
+      namePlace = (place) => {
         popup
           .setLngLat([place.longitude, place.latitude])
           .setDOMContent(describePlace(propertiesOf(place, null)))
           .addTo(withPopup);
+        setAccent(place.id);
+      };
       unname = () => popup.remove();
       created.on('mousemove', (event) => {
         const [feature] = under(event.point);
@@ -444,12 +531,12 @@ export default function LocationPicker(props: {
   );
   // The known localities, as given and whenever they (or the parish shown)
   // change. While the map has no coordinates of its own to show, the view
-  // frames the markers (`fit`) or else the parish shown, each time they
-  // change; the first framing jumps, the later ones move.
+  // frames `frame` each time those points change (a view without it forgets
+  // what was framed, so the next frames again); the first framing jumps,
+  // the later ones move.
   let framed = false;
-  let framedMarkers: string | null = null;
-  let framedParish: number | null = null;
-  const frame = (map: MapLibreMap, points: PlaceMarker[]) => {
+  let framedPoints: string | null = null;
+  const frame = (map: MapLibreMap, points: MapMarker[]) => {
     if (!points.length) return false;
     const jump = framed ? {} : { duration: 0 };
     framed = true;
@@ -470,22 +557,16 @@ export default function LocationPicker(props: {
       map: map(),
       markers: props.markers ?? [],
       highlight: props.highlight ?? null,
-      fit: !!props.fit,
+      points: props.frame ?? null,
       located: !!coordinates(),
     }),
-    ({ map, markers, highlight, fit, located }) => {
+    ({ map, markers, highlight, points, located }) => {
       places = placesData(markers, highlight);
       void (map?.getSource(PLACES) as GeoJSONSource | undefined)?.setData(places);
-      if (!map || located) return;
-      if (fit) {
-        const key = markers.map((p) => p.id).join();
-        if (key !== framedMarkers && frame(map, markers)) framedMarkers = key;
-        return;
-      }
-      framedMarkers = null;
-      if (highlight === null || highlight === framedParish) return;
-      const parish = markers.filter((p) => p.parishId === highlight || p.church?.id === highlight);
-      if (frame(map, parishCore(parish, highlight))) framedParish = highlight;
+      if (!points) framedPoints = null;
+      if (!map || located || !points) return;
+      const key = points.map((p) => p.id).join();
+      if (key !== framedPoints && frame(map, points)) framedPoints = key;
     },
     { name: 'map-places' },
   );

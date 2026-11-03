@@ -112,6 +112,12 @@ export function namesOf(
   return row ? { ru: row.nameRu, fi: row.nameFi } : null;
 }
 
+/** Rows by their name in the reader's language (localName), as the places lists show them. */
+export const byLocalName = (
+  a: { nameRu: string; nameFi: string | null },
+  b: { nameRu: string; nameFi: string | null },
+) => localName(namesOf(a)).localeCompare(localName(namesOf(b)), getLocale());
+
 /** Rows by Russian name, as the lists sort them. */
 export const byRussianName = (a: { nameRu: string }, b: { nameRu: string }) =>
   a.nameRu.localeCompare(b.nameRu, 'ru');

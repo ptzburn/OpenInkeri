@@ -38,9 +38,10 @@ form[aria-busy] button {
   }
 }
 
-/* A MapPanel's map on a small screen: the panel is a sheet over its bottom,
-   so the attribution moves to the top, under the search where one floats
-   there (data-top), and the zoom buttons go (pinch, or double-tap). */
+/* The places map on a small screen: the panel is a sheet over its bottom,
+   so the attribution moves to the top, under the search where the page's
+   panel floats one there (data-top), and the zoom buttons go (pinch, or
+   double-tap). */
 @media (width < 64rem) {
   .place-map .maplibregl-ctrl-top-right {
     display: none;
@@ -49,7 +50,7 @@ form[aria-busy] button {
     top: 0;
     bottom: auto;
   }
-  [data-top] .place-map .maplibregl-ctrl-bottom-right {
+  :root:has([data-top]) .place-map .maplibregl-ctrl-bottom-right {
     top: 4rem;
   }
 }

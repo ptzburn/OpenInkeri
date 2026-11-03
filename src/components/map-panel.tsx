@@ -1,5 +1,5 @@
 import type { JSX } from '@solidjs/web';
-import { Show, createSignal } from 'solid-js';
+import { Show, createSignal, onSettled } from 'solid-js';
 
 // How far the sheet is open below lg, lowest first: its handle and what is
 // pinned to its top and bottom (peek); half the map; or all of it but its
@@ -27,8 +27,9 @@ const typesIn = (target: EventTarget | null) =>
   );
 
 /**
- * A panel over a map, the map being the page (MapPage): the locality's and
- * the parish's forms (MapForm), and the places lists. From lg up the panel
+ * A panel over the places layout's map (SharedMap, src/routes/places.tsx),
+ * the map being the page: the locality's and the parish's forms (MapForm),
+ * and the places lists. From lg up the panel
  * is a column along the map's left edge, against the sidebar, the map
  * showing through: `top` at its top, then `head`, the body (`children`)
  * scrolling under them, and `foot` pinned at the bottom, its line level
@@ -37,7 +38,8 @@ const typesIn = (target: EventTarget | null) =>
  * handle drags it (it settles at the nearest of peek, half and full, or the
  * next one on a flick), and a tap or the arrow keys on it step it up or
  * down. Focusing a field to type in opens it fully; touching a fully open
- * sheet's map lowers it to half. `hint` says how to use the map, as a chip
+ * sheet's map lowers it to half. `hint`, where given (the forms), says how
+ * to use the map, as a chip
  * over it.
  */
 export default function MapPanel(props: {
@@ -45,9 +47,7 @@ export default function MapPanel(props: {
   title: string;
   /** The sheet's handle's name, e.g. "Locality form". */
   sheet: string;
-  /** The map (a LocationPicker), given the frame's `class`. */
-  map: (mapClass: string) => JSX.Element;
-  hint: string;
+  hint?: string;
   /** Floating over the map below lg (the search), given its `class`. */
   top?: (topClass: string) => JSX.Element;
   /** Pinned to the sheet's top, under its handle. */
@@ -118,6 +118,30 @@ export default function MapPanel(props: {
     drag.time = event.timeStamp;
     setDragged(at);
   };
+  // Touching the map lowers a fully open sheet, for the map to show; that
+  // tap is only for that, and places nothing. Listened to in the capture
+  // phase, ahead of the map's own listeners.
+  onSettled(() => {
+    let lowering = false;
+    const onMap = (event: Event) =>
+      event.target instanceof Element && !!event.target.closest('.place-map');
+    const down = (event: PointerEvent) => {
+      lowering = onMap(event) && snap() === 'full';
+      if (lowering) go('half');
+    };
+    const click = (event: MouseEvent) => {
+      if (!lowering || !onMap(event)) return;
+      lowering = false;
+      event.stopPropagation();
+    };
+    document.addEventListener('pointerdown', down, true);
+    document.addEventListener('click', click, true);
+    return () => {
+      document.removeEventListener('pointerdown', down, true);
+      document.removeEventListener('click', click, true);
+    };
+  });
+
   const onPointerUp = () => {
     if (!drag) return;
     if (moved) {
@@ -133,57 +157,34 @@ export default function MapPanel(props: {
   };
 
   return (
+    // Over the map, letting it take every touch the panel doesn't.
     <div
       ref={(el) => (box = el)}
-      class="absolute inset-0"
+      class="pointer-events-none absolute inset-0"
       style={{ '--sheet-height': height() }}
       data-top={props.top ? '' : undefined}
     >
-      {/* Touching the map lowers a fully open sheet, for the map to show;
-          that tap is only for that, and places nothing. Listened to in the
-          capture phase, ahead of the map's own listeners. */}
-      <div
-        class="contents"
-        ref={(el) => {
-          let lowering = false;
-          el.addEventListener(
-            'pointerdown',
-            () => {
-              lowering = snap() === 'full';
-              if (lowering) go('half');
-            },
-            true,
-          );
-          el.addEventListener(
-            'click',
-            (event) => {
-              if (!lowering) return;
-              lowering = false;
-              event.stopPropagation();
-            },
-            true,
-          );
-        }}
-      >
-        {props.map('place-map absolute inset-0 h-full')}
-      </div>
       {/* How to use the map and what is on it, as a chip over it: at its
           top left beside the panel (clear of the attribution at the bottom),
           or above the sheet on a phone (while the sheet leaves the map in
           view). */}
-      <p
-        class={[
-          'pointer-events-none absolute z-1 max-w-sm rounded-box bg-base-100/80 px-3 py-1.5 text-xs text-base-content/70 backdrop-blur-sm',
-          'max-lg:bottom-[calc(var(--sheet-height)+0.75rem)] max-lg:left-3 max-lg:right-3',
-          snap() === 'full' || dragged() !== null ? 'max-lg:hidden' : '',
-          'lg:top-3 lg:left-[calc(var(--container-md)+0.75rem)]',
-        ]}
-      >
-        {props.hint}
-      </p>
+      <Show when={props.hint}>
+        {(hint) => (
+          <p
+            class={[
+              'pointer-events-none absolute z-1 max-w-sm rounded-box bg-base-100/80 px-3 py-1.5 text-xs text-base-content/70 backdrop-blur-sm',
+              'max-lg:bottom-[calc(var(--sheet-height)+0.75rem)] max-lg:left-3 max-lg:right-3',
+              snap() === 'full' || dragged() !== null ? 'max-lg:hidden' : '',
+              'lg:top-3 lg:left-[calc(var(--container-md)+0.75rem)]',
+            ]}
+          >
+            {hint()}
+          </p>
+        )}
+      </Show>
       {/* The panel's column. Below lg it is nothing of its own (taps go
           through to the map): the top and the sheet are placed apart. */}
-      <div class="absolute inset-0 max-lg:pointer-events-none lg:right-auto lg:flex lg:w-md lg:flex-col lg:border-r lg:border-base-300 lg:bg-base-100/90 lg:backdrop-blur-md">
+      <div class="absolute inset-0 lg:pointer-events-auto lg:right-auto lg:flex lg:w-md lg:flex-col lg:border-r lg:border-base-300 lg:bg-base-100/90 lg:backdrop-blur-md">
         {props.top?.(
           'max-lg:pointer-events-auto max-lg:absolute max-lg:inset-x-3 max-lg:top-3 max-lg:z-2 max-lg:rounded-field max-lg:shadow-lg lg:border-b lg:border-base-300 lg:px-4 lg:py-3',
         )}

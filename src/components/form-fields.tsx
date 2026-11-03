@@ -1,11 +1,13 @@
 import { type FormAction, useSubmissions } from '@solidjs/router';
-import { For, Show, createMemo, untrack } from 'solid-js';
+import { For, Show, createMemo, createSignal, createUniqueId, untrack } from 'solid-js';
 import type { JSX } from '@solidjs/web';
+import CloseIcon from '~icons/ri/close-line';
 
 import { FIELD_MAX } from '~/lib/field-limits';
 import { localName } from '~/lib/format';
 import type { FormError } from '~/lib/form-error';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
+import { foldForSearch } from '~/lib/search-text';
 import { useToast } from '~/components/toaster';
 import { m } from '~/paraglide/messages.js';
 
@@ -56,18 +58,6 @@ export function useFormDone<U>(
   action.onSettled((submission) => {
     const [form] = submission.input;
     if (!submission.error && isThisForm(form)) done(form);
-  });
-}
-
-/** Like useFormDone, for a submission of this form that the server refused. */
-function useFormRefused<U>(
-  action: FormAction<[FormData], U>,
-  isThisForm: (form: FormData) => boolean,
-  refused: (form: FormData) => void,
-) {
-  action.onSettled((submission) => {
-    const [form] = submission.input;
-    if (submission.error && isThisForm(form)) refused(form);
   });
 }
 
@@ -330,6 +320,135 @@ export function TextArea(props: {
   );
 }
 
+/**
+ * A list of short texts, each a chip with a button that takes it off, and a
+ * field (with Add, or Enter) that puts another on: trimmed, its spaces
+ * collapsed, never empty, and not one already there (by search's folding:
+ * case, ё = е), which the field says instead, marking the one there. Posted
+ * as `name`, one a line, which is what the server reads; a text typed and
+ * not yet added goes with it, so a save doesn't lose it. Before JavaScript
+ * loads the list posts as it was loaded. `invalid` is the server's refusal
+ * of the whole.
+ */
+export function TextListField(props: {
+  name: string;
+  label: string;
+  values: string[];
+  /** The field's accessible name: "New spelling". */
+  inputLabel: string;
+  maxlength: number;
+  invalid: Fault;
+  hint?: string;
+  /** The wrapper's classes, e.g. a grid column span. */
+  class?: string;
+}) {
+  // The form is keyed by its record, so this starts from it once.
+  const [values, setValues] = createSignal(() => [...props.values], { name: 'text-list' });
+  const [draft, setDraft] = createSignal('', { name: 'text-list-draft' });
+  // The value already there that the field's text repeats.
+  const [repeated, setRepeated] = createSignal<string | null>(null, {
+    name: 'text-list-repeated',
+  });
+  const tidy = (text: string) => text.replace(/\s+/g, ' ').trim();
+  const there = (text: string) => {
+    const key = foldForSearch(text);
+    return values().find((value) => foldForSearch(value) === key);
+  };
+  let input: HTMLInputElement | undefined;
+  // From the field as it is (not its signal, which a keystroke updates on
+  // the next microtask).
+  const add = () => {
+    const text = tidy(input?.value ?? draft());
+    if (!text) return;
+    const existing = there(text);
+    if (existing !== undefined) {
+      setRepeated(existing);
+      return;
+    }
+    setValues((list) => [...list, text]);
+    // Emptied here as well as through the signal: a keystroke not yet
+    // committed to it would otherwise be what the binding writes over.
+    if (input) input.value = '';
+    setDraft('');
+  };
+  // What the form posts: the list, and a text typed but not yet added.
+  const posted = () => {
+    const text = tidy(draft());
+    return (text && there(text) === undefined ? [...values(), text] : values()).join('\n');
+  };
+  const inputId = createUniqueId();
+
+  return (
+    <div class={['fieldset', props.class]}>
+      <label for={inputId} class="fieldset-legend">
+        {props.label}
+      </label>
+      <input type="hidden" name={props.name} value={posted()} />
+      <Show when={values().length}>
+        <ul class="flex flex-wrap gap-1.5 pb-1">
+          <For each={values()}>
+            {(value) => (
+              <li
+                class={['badge gap-1 pr-1 badge-soft', { 'badge-warning': repeated() === value }]}
+              >
+                {value}
+                <button
+                  type="button"
+                  class="btn btn-circle btn-ghost btn-xs"
+                  aria-label={m.form_list_remove({ value })}
+                  title={m.form_list_remove({ value })}
+                  onClick={() => {
+                    setValues((list) => list.filter((other) => other !== value));
+                    if (repeated() === value) setRepeated(null);
+                  }}
+                >
+                  <CloseIcon class="size-3" aria-hidden="true" />
+                </button>
+              </li>
+            )}
+          </For>
+        </ul>
+      </Show>
+      <div class="join w-full">
+        <input
+          ref={(el) => (input = el)}
+          id={inputId}
+          type="text"
+          value={draft()}
+          maxlength={props.maxlength}
+          aria-label={props.inputLabel}
+          aria-invalid={ariaInvalid(props.invalid)}
+          class="input join-item w-full"
+          onInput={(event) => {
+            setDraft(event.currentTarget.value);
+            setRepeated(null);
+          }}
+          onKeyDown={(event) => {
+            // Enter adds the text instead of submitting the form.
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            add();
+          }}
+        />
+        <button type="button" class="btn join-item" onClick={add}>
+          {m.form_list_add()}
+        </button>
+      </div>
+      <Show when={repeated()}>
+        {(value) => (
+          <p role="alert" class="text-sm text-warning">
+            {m.form_list_repeated({ value: value() })}
+          </p>
+        )}
+      </Show>
+      <FieldError fault={props.invalid} />
+      <Show when={props.hint}>
+        {(hint) => <span class="label whitespace-normal">{hint()}</span>}
+      </Show>
+    </div>
+  );
+}
+
 type Option = { value: string | number; label: string };
 
 // A <select> with the current value's option marked selected; `none` adds
@@ -380,15 +499,116 @@ export function Select(props: {
 const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype;
 
 /**
- * An edit page's Delete section, for an action whose form posts `id`,
- * `version` and `confirm=on`. Its button opens a native modal dialog
- * (daisyUI's modal) through invoker commands, where Cancel, Escape and the
- * backdrop close it and the dialog's form posts the delete; the server
- * checks the confirmation again. While something still depends on the row,
- * `inUse` says what, and the button is disabled (the server refuses too, in
- * case something was linked since the page loaded). A refused delete closes
- * the dialog and says why in the section. A delete that went through shows
- * `deleted` as a toast on the page its action redirects to.
+ * The confirmation of a delete, as a native modal dialog (daisyUI's modal),
+ * for an action whose form posts `id`, `version` and `confirm=on`: its title
+ * and text, what still depends on the row (`inUse`, which leaves only
+ * Cancel), Cancel (also Escape and the backdrop) and the delete; the server
+ * checks the confirmation again, and what depends on the row, in case
+ * something was linked since. A refused delete says why in the dialog,
+ * which stays open. A delete that went through shows `deleted` as a toast
+ * on the page its action redirects to. Its opener opens it: through
+ * invoker commands at `delete-<id>`, or by `ref`'s `showModal()`. One
+ * dialog can serve a list, its props following the row to delete.
+ */
+export function DeleteDialog<U>(props: {
+  action: FormAction<[FormData], U>;
+  id: number;
+  version: number;
+  title: string;
+  text: string;
+  inUse?: string;
+  deleted: string;
+  ref?: (dialog: HTMLDialogElement) => void;
+  /** Further hidden fields the action reads. */
+  children?: JSX.Element;
+}) {
+  // A dialog posts to one action for its life: read it once.
+  const action = untrack(() => props.action);
+  const isThisForm = (form: FormData) => form.get('id') === String(props.id);
+  const { error } = useFormErrors(action, isThisForm);
+  const toast = useToast();
+  useFormDone(action, isThisForm, () => toast(props.deleted));
+  const dialogId = () => `delete-${props.id}`;
+  let dialog: HTMLDialogElement | undefined;
+
+  return (
+    <dialog
+      ref={(el) => {
+        dialog = el;
+        props.ref?.(el);
+      }}
+      id={dialogId()}
+      class="modal"
+      aria-labelledby={`${dialogId()}-title`}
+      aria-describedby={`${dialogId()}-text`}
+    >
+      <div class="modal-box">
+        <h3 id={`${dialogId()}-title`} class="text-lg font-bold">
+          {props.title}
+        </h3>
+        <p id={`${dialogId()}-text`} class="py-4">
+          {props.text}
+        </p>
+        <Show when={props.inUse}>
+          {(message) => (
+            <div role="alert" class="alert alert-warning alert-soft">
+              {message()}
+            </div>
+          )}
+        </Show>
+        <Show when={error()}>
+          {(error) => (
+            <div role="alert" class="alert alert-error alert-soft">
+              {error().message}
+            </div>
+          )}
+        </Show>
+        {/* While the delete is in flight the router marks the form aria-busy. */}
+        <form method="post" action={action} class="group">
+          <input type="hidden" name="id" value={props.id} />
+          <input type="hidden" name="version" value={props.version} />
+          <input type="hidden" name="confirm" value="on" />
+          {props.children}
+          <div class="modal-action">
+            <button
+              type="button"
+              commandfor={dialogId()}
+              command="close"
+              class="btn"
+              onClick={() => {
+                if (!invokerCommands()) dialog?.close();
+              }}
+            >
+              {m.form_cancel()}
+            </button>
+            <Show when={!props.inUse}>
+              <button type="submit" class="btn btn-error">
+                <span
+                  class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
+                  aria-hidden="true"
+                />
+                {props.title}
+              </button>
+            </Show>
+          </div>
+        </form>
+      </div>
+      {/* A click on the backdrop closes the dialog, natively. Pointer only:
+          keyboards and screen readers have Cancel and Escape. */}
+      <form method="dialog" class="modal-backdrop" aria-hidden="true">
+        <button tabindex="-1">{m.form_cancel()}</button>
+      </form>
+    </dialog>
+  );
+}
+
+/**
+ * An edit page's Delete section: its title, text, what still depends on the
+ * row (`inUse`, which disables the button), and a button that opens the
+ * confirmation (DeleteDialog) through invoker commands, so it needs no
+ * script. A browser without them (before Chrome 135, Firefox 144, Safari
+ * 26.2) gets the same through the click handler, which does nothing where
+ * the commands work.
  */
 export function DeleteSection<U>(props: {
   action: FormAction<[FormData], U>;
@@ -401,23 +621,9 @@ export function DeleteSection<U>(props: {
   /** Further hidden fields the action reads. */
   children?: JSX.Element;
 }) {
-  // A section posts to one action for its life: read it once.
-  const action = untrack(() => props.action);
-  const isThisForm = (form: FormData) => form.get('id') === String(props.id);
-  const { error } = useFormErrors(action, isThisForm);
-  const toast = useToast();
-  useFormDone(action, isThisForm, () => toast(props.deleted));
   // Read by the warning and the button.
   const inUse = createMemo(() => props.inUse, { name: 'delete-in-use' });
-
-  // The confirmation is a native modal dialog, opened and closed by invoker
-  // commands (commandfor/command), so it needs no script. A browser without
-  // them (before Chrome 135, Firefox 144, Safari 26.2) gets the same through
-  // the click handlers, which do nothing where the commands work.
   let dialog: HTMLDialogElement | undefined;
-  const dialogId = () => `delete-${props.id}`;
-  // A refusal closes the dialog: its reason shows in the section underneath.
-  useFormRefused(action, isThisForm, () => dialog?.close());
 
   return (
     <section
@@ -435,16 +641,9 @@ export function DeleteSection<U>(props: {
           </div>
         )}
       </Show>
-      <Show when={error()}>
-        {(error) => (
-          <div role="alert" class="alert alert-error alert-soft">
-            {error().message}
-          </div>
-        )}
-      </Show>
       <button
         type="button"
-        commandfor={dialogId()}
+        commandfor={`delete-${props.id}`}
         command="show-modal"
         disabled={!!inUse()}
         class="btn self-start btn-error"
@@ -454,54 +653,17 @@ export function DeleteSection<U>(props: {
       >
         {props.title}
       </button>
-      <dialog
+      <DeleteDialog
+        action={props.action}
+        id={props.id}
+        version={props.version}
+        title={props.title}
+        text={props.text}
+        deleted={props.deleted}
         ref={(el) => (dialog = el)}
-        id={dialogId()}
-        class="modal"
-        aria-labelledby={`${dialogId()}-title`}
-        aria-describedby={`${dialogId()}-text`}
       >
-        <div class="modal-box">
-          <h3 id={`${dialogId()}-title`} class="text-lg font-bold">
-            {props.title}
-          </h3>
-          <p id={`${dialogId()}-text`} class="py-4">
-            {props.text}
-          </p>
-          {/* While the delete is in flight the router marks the form aria-busy. */}
-          <form method="post" action={action} class="group">
-            <input type="hidden" name="id" value={props.id} />
-            <input type="hidden" name="version" value={props.version} />
-            <input type="hidden" name="confirm" value="on" />
-            {props.children}
-            <div class="modal-action">
-              <button
-                type="button"
-                commandfor={dialogId()}
-                command="close"
-                class="btn"
-                onClick={() => {
-                  if (!invokerCommands()) dialog?.close();
-                }}
-              >
-                {m.form_cancel()}
-              </button>
-              <button type="submit" class="btn btn-error">
-                <span
-                  class="loading hidden loading-sm loading-spinner group-aria-busy:inline-block"
-                  aria-hidden="true"
-                />
-                {props.title}
-              </button>
-            </div>
-          </form>
-        </div>
-        {/* A click on the backdrop closes the dialog, natively. Pointer only:
-            keyboards and screen readers have Cancel and Escape. */}
-        <form method="dialog" class="modal-backdrop" aria-hidden="true">
-          <button tabindex="-1">{m.form_cancel()}</button>
-        </form>
-      </dialog>
+        {props.children}
+      </DeleteDialog>
     </section>
   );
 }
