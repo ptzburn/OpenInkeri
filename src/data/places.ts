@@ -172,6 +172,17 @@ export const getPlaces = query(async (): Promise<PlaceListData> => {
   };
 }, 'places');
 
+/** How many localities and parishes there are: the places tabs' totals. */
+export const getPlaceTotals = query(async (): Promise<{ localities: number; parishes: number }> => {
+  'use server';
+  signedIn();
+  const [[localities], [parishes]] = await Promise.all([
+    db.select({ n: count() }).from(place),
+    db.select({ n: count() }).from(parish),
+  ]);
+  return { localities: localities.n, parishes: parishes.n };
+}, 'place-totals');
+
 async function loadPlace(id: number) {
   return db.query.place.findFirst({
     where: { id },

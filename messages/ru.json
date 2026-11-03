@@ -515,5 +515,6 @@
   "villages_also_written": "Также пишется «{spelling}»",
   "villages_map_legend": "Точки — внесённые населённые пункты.",
   "parishes_map_legend": "Кресты — приходы: у их церкви, а где она не указана — бледнее, посреди их населённых пунктов. У выбранного прихода видны его населённые пункты.",
-  "parishes_not_on_map": "Нет на карте"
+  "parishes_not_on_map": "Нет на карте",
+  "villages_shown_of": "{shown} из {total}"
 }

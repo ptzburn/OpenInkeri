@@ -18,7 +18,7 @@ import {
   usePlacesMap,
 } from '~/components/places-map';
 import { byLocalName, localName, namesOf } from '~/lib/format';
-import { type PlaceRow, getPlaceMarkers, getPlaces } from '~/data/places';
+import { type PlaceRow, getPlaceMarkers, getPlaceTotals, getPlaces } from '~/data/places';
 import { stringParams } from '~/lib/route-params';
 import { foldForSearch } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
@@ -37,6 +37,7 @@ export const route = defineFileRoute('/places/villages/', {
   preload: () => {
     void getPlaces();
     void getPlaceMarkers();
+    void getPlaceTotals();
   },
 });
 
@@ -90,6 +91,8 @@ export default function Villages() {
     const place = parish ? list()?.places.find((p) => p.parishId === parish) : undefined;
     return localName(place?.parish ?? null) || (search.parish ?? '');
   };
+  // The list shows less than all of it: a search or a parish narrows it.
+  const narrowed = () => !!search.q || !!search.parish;
   // Where the edit pages return to: this list as it is now.
   const listPlace = () => ({ q: search.q, parish: search.parish });
   const busy = useListBusy(list);
@@ -137,28 +140,31 @@ export default function Villages() {
               name="villages-search-input"
               label={m.villages_search_label()}
               placeholder={m.villages_search_placeholder()}
-              class="flex flex-wrap items-center gap-2"
-              inputClass="max-w-md"
             >
               <Show when={search.parish}>
-                {(parish) => (
-                  <>
-                    <input type="hidden" name="parish" value={parish()} />
-                    <span class="badge gap-1 badge-soft">
-                      {m.villages_parish_filter({ parish: parishName() })}
-                      <a
-                        href={paths.places.villages({ q: search.q })}
-                        aria-label={m.villages_clear_filter()}
-                        title={m.villages_clear_filter()}
-                      >
-                        <CloseIcon class="size-4" aria-hidden="true" />
-                      </a>
-                    </span>
-                  </>
-                )}
+                {(parish) => <input type="hidden" name="parish" value={parish()} />}
               </Show>
-              <span class="badge badge-sm">{shown().length}</span>
             </SearchBox>
+            {/* The parish the list is narrowed to, which can be let go of. */}
+            <Show when={search.parish}>
+              <span class="badge gap-1 self-start badge-soft">
+                {m.villages_parish_filter({ parish: parishName() })}
+                <a
+                  href={paths.places.villages({ q: search.q })}
+                  aria-label={m.villages_clear_filter()}
+                  title={m.villages_clear_filter()}
+                >
+                  <CloseIcon class="size-4" aria-hidden="true" />
+                </a>
+              </span>
+            </Show>
+            {/* How many of all a search or a parish leaves, said to screen
+                readers as it changes; empty while the list is whole. */}
+            <p class="sr-only" aria-live="polite">
+              {narrowed()
+                ? m.villages_shown_of({ shown: shown().length, total: list()?.places.length ?? 0 })
+                : ''}
+            </p>
           </MapListHead>
         }
         foot={

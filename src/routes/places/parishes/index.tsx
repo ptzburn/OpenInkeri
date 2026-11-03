@@ -17,7 +17,7 @@ import {
   usePlacesMap,
 } from '~/components/places-map';
 import { type ParishRow, getParishes } from '~/data/parishes';
-import { getPlaceMarkers } from '~/data/places';
+import { getPlaceMarkers, getPlaceTotals } from '~/data/places';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import type { Crumbs } from '~/lib/breadcrumbs';
@@ -32,6 +32,7 @@ export const route = defineFileRoute('/places/parishes/', {
   preload: () => {
     void getParishes();
     void getPlaceMarkers();
+    void getPlaceTotals();
   },
 });
 

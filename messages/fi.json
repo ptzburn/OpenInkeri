@@ -501,5 +501,6 @@
   "villages_also_written": "Myös kirjoitusasu ”{spelling}”",
   "villages_map_legend": "Pisteet ovat kirjatut paikkakunnat.",
   "parishes_map_legend": "Ristit ovat seurakunnat: kirkkonsa kohdalla, tai haaleampina paikkakuntiensa keskellä, jos kirkkoa ei ole merkitty. Valitun seurakunnan paikkakunnat näkyvät.",
-  "parishes_not_on_map": "Ei kartalla"
+  "parishes_not_on_map": "Ei kartalla",
+  "villages_shown_of": "{shown} / {total}"
 }

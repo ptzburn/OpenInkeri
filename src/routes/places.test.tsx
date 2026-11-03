@@ -156,6 +156,7 @@ vi.mock('~/data/places', async () => {
   return {
     getPlaces: vi.fn(async () => places.list()),
     getPlaceMarkers: vi.fn(async () => []),
+    getPlaceTotals: vi.fn(async () => ({ localities: 3, parishes: 2 })),
     // The church's choices: Горки in parish 5, Кикерино in another parish.
     getPlaceOptions: vi.fn(async () => [
       {
@@ -277,6 +278,8 @@ describe('/places/villages', () => {
   test('searches names and spellings, ё as е, without diagnostics', async () => {
     const { container } = renderAt('/places/villages');
     await waitFor(() => expect(names(container)).toHaveLength(3));
+    // The whole list: nothing to say.
+    expect(screen.queryByText(/ of 3$/)).toBeNull();
     const input = screen.getByRole('searchbox', { name: 'Search localities' });
 
     const { artifact } = await captureArtifact(
@@ -289,6 +292,8 @@ describe('/places/villages', () => {
     );
     expect(artifact).toHaveNoDiagnostics();
     expect(window.location.search).toBe(`?q=${encodeURIComponent('елк')}`);
+    // Narrowed: how many of all, said to screen readers.
+    expect(screen.getByText('1 of 3')).toHaveClass('sr-only');
 
     // Found by a spelling, not by a name: the spelling says why.
     expect(rows(container)[0]).not.toHaveTextContent('Also written');
@@ -551,7 +556,11 @@ describe('/places/parishes', () => {
   test('lists the parishes; a row is picked, and its link opens their villages', async () => {
     const { container } = renderAt('/places/parishes');
     const tabs = await screen.findByRole('navigation', { name: 'Place type' });
-    expect(screen.getByRole('link', { name: 'Parishes' })).toHaveClass('tab-active');
+    // Each tab says how many there are in all.
+    await waitFor(() =>
+      expect(screen.getByRole('link', { name: 'Parishes 2' })).toHaveClass('tab-active'),
+    );
+    expect(within(tabs).getByRole('link', { name: 'Localities 3' })).not.toHaveClass('tab-active');
     expect(tabs.querySelectorAll('.tab')).toHaveLength(2);
     await waitFor(() => expect(names(container)).toEqual(['Hevaa', 'Курляндия']));
     const [gubanitsy, kurlandia] = rows(container);
@@ -988,7 +997,7 @@ describe('reactivity', () => {
     const { container } = renderAt('/places/villages');
     await waitFor(() => expect(names(container)).toHaveLength(3));
     await capture('places-tabs', async () => {
-      fireEvent.click(screen.getByRole('link', { name: 'Parishes' }));
+      fireEvent.click(screen.getByRole('link', { name: 'Parishes 2' }));
       await waitFor(() => expect(names(container)).toEqual(['Hevaa', 'Курляндия']));
     });
   });

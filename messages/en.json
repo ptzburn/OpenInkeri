@@ -501,5 +501,6 @@
   "villages_also_written": "Also written “{spelling}”",
   "villages_map_legend": "Dots are the recorded localities.",
   "parishes_map_legend": "Crosses are the parishes: at their church, or fainter amid their localities where no church is set. A parish picked shows its localities.",
-  "parishes_not_on_map": "Not on the map"
+  "parishes_not_on_map": "Not on the map",
+  "villages_shown_of": "{shown} of {total}"
 }
