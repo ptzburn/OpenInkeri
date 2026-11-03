@@ -11,11 +11,11 @@ import type { JSX } from '@solidjs/web';
 import EditIcon from '~icons/ri/pencil-line';
 
 import type { QueryData } from '~/lib/query-data';
-import LocationPicker from '~/components/location-picker';
+import LocationPicker, { type MapMarker } from '~/components/location-picker';
 import { AddLink } from '~/components/list-page';
 import PlacesTabs from '~/components/places-tabs';
 import { type PlaceMarker, getPlaceMarkers } from '~/data/places';
-import { finnishNamesShown, localName } from '~/lib/format';
+import { finnishNamesShown, localName, namesOf } from '~/lib/format';
 
 // The places section's one map, which its layout keeps under every page,
 // and what the places lists (villages and parishes) share over it: their
@@ -78,27 +78,35 @@ export function useMapView(view: MapView) {
 }
 
 /**
- * A places list's map: every located locality, parish churches as crosses,
- * `highlight` the parish drawn plain. `only`, when given, keeps the dots of
- * those localities (a search's matches) and frames them. A click on a dot is
- * handed to `onSelect`; `target` flies to a locality and names it, `pointed`
- * names it where it is. Call it in a component body, with getters.
+ * A places list's map: every located locality, or the page's own `markers`
+ * (the parishes); `plain` draws parish churches as the localities they are.
+ * `highlight` is the parish drawn plain, the others faint. `only`, when
+ * given, keeps the dots of those localities (a search's matches) and frames
+ * them. A click on a dot is handed to `onSelect`; `target` flies to a
+ * locality and names it, `pointed` names it where it is. Call it in a
+ * component body, with getters.
  */
 export function usePlacesMap(view: {
+  markers?: MapMarker[];
+  plain?: boolean;
   only?: Set<number> | null;
   highlight?: number | null;
   target?: number | null;
   pointed?: number | null;
-  onSelect: (marker: PlaceMarker) => void;
+  onSelect: (marker: MapMarker) => void;
 }) {
-  const markers = createMemo((): Promise<QueryData<typeof getPlaceMarkers>> => getPlaceMarkers(), {
+  const located = createMemo((): Promise<QueryData<typeof getPlaceMarkers>> => getPlaceMarkers(), {
     name: 'places-map-markers',
   });
+  const shown = (): MapMarker[] => {
+    const all: MapMarker[] = view.markers ?? located() ?? [];
+    const only = view.only;
+    const kept = only ? all.filter((marker) => only.has(marker.id)) : all;
+    return view.plain ? kept.map((marker) => ({ ...marker, church: null })) : kept;
+  };
   useMapView({
     get markers() {
-      const only = view.only;
-      const all = markers() ?? [];
-      return only ? all.filter((marker) => only.has(marker.id)) : all;
+      return shown();
     },
     get fit() {
       return !!view.only;
@@ -113,9 +121,47 @@ export function usePlacesMap(view: {
       return view.pointed;
     },
     onSelect: (id) => {
-      const marker = markers()?.find((n) => n.id === id);
+      const marker = shown().find((n) => n.id === id);
       if (marker) view.onSelect(marker);
     },
+  });
+}
+
+// The middle value; of an even count, halfway between the two middle ones.
+const median = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const half = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[half] : (sorted[half - 1] + sorted[half]) / 2;
+};
+
+/**
+ * The parishes as the parishes map shows them, one cross each: at its
+ * church locality when one is set and located, or else (`estimated`) at the
+ * middle of its located localities, keyed by the parish's id negated so as
+ * not to meet a locality's. A parish with neither isn't there.
+ */
+export function parishMarkers(
+  located: PlaceMarker[],
+  parishes: { id: number; nameRu: string; nameFi: string | null }[],
+): MapMarker[] {
+  return parishes.flatMap((parish): MapMarker[] => {
+    const church = located.find((n) => n.church?.id === parish.id);
+    if (church) return [church];
+    const own = located.filter((n) => n.parishId === parish.id);
+    if (!own.length) return [];
+    const names = namesOf(parish);
+    return [
+      {
+        id: -parish.id,
+        name: names,
+        latitude: median(own.map((n) => n.latitude)),
+        longitude: median(own.map((n) => n.longitude)),
+        parishId: parish.id,
+        parish: names,
+        church: { id: parish.id, name: names },
+        estimated: true,
+      },
+    ];
   });
 }
 

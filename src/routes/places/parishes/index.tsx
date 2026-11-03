@@ -12,6 +12,7 @@ import {
   MapListHead,
   MapListRow,
   RowNames,
+  parishMarkers,
   scrollToRow,
   usePlacesMap,
 } from '~/components/places-map';
@@ -38,9 +39,10 @@ export const route = defineFileRoute('/places/parishes/', {
 const villagesOf = (parish: ParishRow) => paths.places.villages({ parish: String(parish.id) });
 
 /**
- * The parishes: the map is the page, the list its panel (MapPanel). A
- * parish picked, in the list or by a dot of its own (a locality of it, or
- * its church), is drawn plain on the map, the others faint, and framed.
+ * The parishes: the map is the page, the list its panel (MapPanel). Only
+ * parishes are on the map, a cross each (parishMarkers), until one is
+ * picked, in the list or by its cross: then its localities show around it,
+ * framed, and the other parishes go faint.
  */
 export default function Parishes() {
   const list = createMemo((): Promise<QueryData<typeof getParishes>> => getParishes(), {
@@ -54,7 +56,28 @@ export default function Parishes() {
   const canEdit = useCanEdit('parishes-me');
   const [selected, setSelected] = createSignal<number | null>(null, { name: 'parishes-selected' });
   let rows: HTMLUListElement | undefined;
+  const located = createMemo((): Promise<QueryData<typeof getPlaceMarkers>> => getPlaceMarkers(), {
+    name: 'parishes-located',
+  });
+  const crosses = createMemo(() => parishMarkers(located() ?? [], list() ?? []), {
+    name: 'parishes-crosses',
+  });
+  // The parishes with a cross; the others' rows say they aren't on the map.
+  const onMap = createMemo(() => new Set(crosses().map((cross) => cross.parishId)), {
+    name: 'parishes-on-map',
+  });
   usePlacesMap({
+    // The crosses, and the localities of the parish picked as dots.
+    get markers() {
+      const parish = selected();
+      const all = crosses();
+      if (parish === null) return all;
+      const drawn = new Set(all.map((cross) => cross.id));
+      const own = (located() ?? [])
+        .filter((n) => n.parishId === parish && !drawn.has(n.id))
+        .map((n) => ({ ...n, church: null }));
+      return [...all, ...own];
+    },
     get highlight() {
       return selected();
     },
@@ -71,7 +94,7 @@ export default function Parishes() {
       <MapPanel
         title={m.parishes_title()}
         sheet={m.parishes_sheet()}
-        hint={`${m.parishes_map_hint()} ${m.parish_edit_map_legend()}`}
+        hint={`${m.parishes_map_hint()} ${m.parishes_map_legend()}`}
         head={<MapListHead current="parishes" />}
         foot={
           canEdit() ? (
@@ -87,6 +110,7 @@ export default function Parishes() {
                 <ParishListRow
                   parish={parish()}
                   selected={selected() === parish().id}
+                  onMap={!located() || onMap().has(parish().id)}
                   onSelect={() => setSelected(parish().id)}
                   editHref={canEdit() ? paths.places.parishes(parish().id).edit() : undefined}
                 />
@@ -103,6 +127,8 @@ export default function Parishes() {
 function ParishListRow(props: {
   parish: ParishRow;
   selected: boolean;
+  /** Whether the map has its cross; a row without one says so. */
+  onMap: boolean;
   onSelect: () => void;
   editHref?: string;
 }) {
@@ -130,6 +156,10 @@ function ParishListRow(props: {
       <span class="text-xs text-base-content/60">
         {m.parish_delete_villages({ count: props.parish.villages })} ·{' '}
         {m.parish_delete_sources({ count: props.parish.sources })}
+        <Show when={!props.onMap}>
+          {' · '}
+          <span class="text-warning">{m.parishes_not_on_map()}</span>
+        </Show>
       </span>
       <Show when={props.parish.note}>
         {(note) => (

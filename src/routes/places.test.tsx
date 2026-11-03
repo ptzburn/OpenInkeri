@@ -579,6 +579,32 @@ describe('/places/parishes', () => {
     expect(container.querySelector('input[type=hidden][name=parish]')).toHaveValue('5');
   });
 
+  test('a parish the map has no cross for says so', async () => {
+    // Губаницы has a locality located; Курляндия none.
+    const { getPlaceMarkers } = await import('~/data/places');
+    // Every call: the route's preload asks too.
+    vi.mocked(getPlaceMarkers).mockResolvedValue([
+      {
+        id: 1,
+        name: { ru: 'Горки', fi: 'Gorkka' },
+        latitude: 59.6,
+        longitude: 30.2,
+        parishId: 5,
+        parish: { ru: 'Губаницы', fi: 'Hevaa' },
+        church: null,
+      },
+    ]);
+    const { container } = renderAt('/places/parishes');
+    await waitFor(() => expect(names(container)).toEqual(['Hevaa', 'Курляндия']));
+    const [gubanitsy, kurlandia] = rows(container);
+    try {
+      await waitFor(() => expect(kurlandia).toHaveTextContent('Not on the map'));
+      expect(gubanitsy).not.toHaveTextContent('Not on the map');
+    } finally {
+      vi.mocked(getPlaceMarkers).mockResolvedValue([]);
+    }
+  });
+
   test('only admins can add or edit', async () => {
     const { container } = renderAt('/places/parishes');
     await waitFor(() => expect(names(container)).toHaveLength(2));

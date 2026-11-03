@@ -497,6 +497,9 @@
   "villages_sheet": "Paikkakuntien luettelo",
   "villages_map_hint": "Napsauta pistettä löytääksesi sen luettelosta tai riviä löytääksesi sen kartalta.",
   "parishes_sheet": "Seurakuntien luettelo",
-  "parishes_map_hint": "Valitse seurakunta luettelosta tai piste kartalta, niin sen paikkakunnat näkyvät.",
-  "villages_also_written": "Myös kirjoitusasu ”{spelling}”"
+  "parishes_map_hint": "Valitse seurakunta luettelosta tai sen risti kartalta, niin sen paikkakunnat näkyvät.",
+  "villages_also_written": "Myös kirjoitusasu ”{spelling}”",
+  "villages_map_legend": "Pisteet ovat kirjatut paikkakunnat.",
+  "parishes_map_legend": "Ristit ovat seurakunnat: kirkkonsa kohdalla, tai haaleampina paikkakuntiensa keskellä, jos kirkkoa ei ole merkitty. Valitun seurakunnan paikkakunnat näkyvät.",
+  "parishes_not_on_map": "Ei kartalla"
 }

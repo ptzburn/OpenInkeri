@@ -98,7 +98,9 @@ export default function Villages() {
   const [pointed, setPointed] = createSignal<number | null>(null, { name: 'villages-pointed' });
   let rows: HTMLUListElement | undefined;
 
+  // Only localities here: parish churches are drawn as the localities they are.
   usePlacesMap({
+    plain: true,
     get only() {
       return only();
     },
@@ -125,7 +127,7 @@ export default function Villages() {
       <MapPanel
         title={m.villages_title()}
         sheet={m.villages_sheet()}
-        hint={`${m.villages_map_hint()} ${m.place_edit_map_legend()}`}
+        hint={`${m.villages_map_hint()} ${m.villages_map_legend()}`}
         head={
           <MapListHead current="villages">
             {/* The search form carries the parish filter along. */}

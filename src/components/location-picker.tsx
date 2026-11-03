@@ -41,6 +41,13 @@ const PLACES = 'places';
 const DOTS = `${PLACES}-dots`;
 const CHURCHES = `${PLACES}-churches`;
 const CHURCH_ICON = 'church';
+
+/**
+ * A marker on the map: a locality as recorded, or (`estimated`) a parish
+ * the parishes map places amid its localities, having no church locality.
+ */
+export type MapMarker = PlaceMarker & { estimated?: boolean };
+
 interface PlaceProperties {
   id: number;
   name: string;
@@ -48,16 +55,19 @@ interface PlaceProperties {
   parish: string;
   /** Outside the parish the map shows (`highlight`): drawn faint. */
   faded: boolean;
+  /** A parish placed amid its localities: drawn fainter, and named alone. */
+  estimated: boolean;
 }
-const propertiesOf = (p: PlaceMarker, highlight: number | null): PlaceProperties => ({
+const propertiesOf = (p: MapMarker, highlight: number | null): PlaceProperties => ({
   id: p.id,
   name: localName(p.name),
   church: p.church !== null,
   // A church's parish is the one it serves.
   parish: localName(p.church?.name ?? p.parish) ?? '',
   faded: highlight !== null && p.parishId !== highlight && p.church?.id !== highlight,
+  estimated: !!p.estimated,
 });
-const placesData = (markers: PlaceMarker[], highlight: number | null = null): GeoData => ({
+const placesData = (markers: MapMarker[], highlight: number | null = null): GeoData => ({
   type: 'FeatureCollection',
   features: markers.map((p) => ({
     type: 'Feature',
@@ -145,7 +155,11 @@ function addPlaces(map: MapLibreMap, data: GeoData) {
       'text-field': ['get', 'parish'],
       'text-offset': [0, 1.1],
     },
-    paint: { ...textPaint, 'icon-opacity': opacity },
+    // A parish placed amid its localities is fainter than one at its church.
+    paint: {
+      ...textPaint,
+      'icon-opacity': ['case', ['get', 'faded'], 0.3, ['get', 'estimated'], 0.5, 1],
+    },
   });
 }
 
@@ -155,7 +169,7 @@ function describePlace(properties: PlaceProperties) {
   const name = document.createElement('strong');
   name.textContent = properties.name;
   box.appendChild(name);
-  if (properties.parish) {
+  if (properties.parish && !properties.estimated) {
     const line = document.createElement('div');
     line.className = 'text-xs opacity-70';
     line.textContent = properties.church
@@ -252,7 +266,7 @@ export default function LocationPicker(props: {
   onPick?: (lat: number, lng: number) => void;
   /** Told the locality whose dot was clicked. */
   onSelect?: (id: number) => void;
-  markers?: PlaceMarker[];
+  markers?: MapMarker[];
   /** The parish whose localities are drawn plain, the others faint; none: all plain. */
   highlight?: number | null;
   focus?: Point | null;
@@ -272,7 +286,7 @@ export default function LocationPicker(props: {
   const [unsupported, setUnsupported] = createSignal(false, { name: 'map-unsupported' });
   let marker: Marker | undefined;
   // Names a known locality in the popup, as pointing at its dot does; set once the map is up.
-  let namePlace: ((place: PlaceMarker) => void) | undefined;
+  let namePlace: ((place: MapMarker) => void) | undefined;
   let unname: (() => void) | undefined;
   // The dots' data as last given, for a style (re)load to draw.
   let places = placesData([]);
