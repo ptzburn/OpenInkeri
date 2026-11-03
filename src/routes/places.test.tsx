@@ -565,7 +565,9 @@ describe('/places/parishes', () => {
     await waitFor(() => expect(names(container)).toEqual(['Hevaa', 'Курляндия']));
     const [gubanitsy, kurlandia] = rows(container);
     expect(gubanitsy.textContent).toMatch(/^Hevaa\s*Губаницы/);
-    expect(gubanitsy).toHaveTextContent('1 locality · 1 source');
+    // How many localities, and not its sources.
+    expect(gubanitsy).toHaveTextContent('1 locality');
+    expect(gubanitsy).not.toHaveTextContent('source');
     expect(kurlandia).toHaveTextContent('Не приход');
     // No villages: no link to them.
     expect(screen.getAllByRole('link', { name: /^Localities of/ })).toHaveLength(1);

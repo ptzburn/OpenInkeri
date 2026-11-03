@@ -181,7 +181,7 @@ export default function Parishes() {
   );
 }
 
-/** A parish in the list: its names, what belongs to it and its note; its localities a link away. */
+/** A parish in the list: its names, how many localities it has and its note; those localities a link away. */
 function ParishListRow(props: {
   parish: ParishRow;
   selected: boolean;
@@ -214,8 +214,7 @@ function ParishListRow(props: {
     >
       <RowNames names={namesOf(props.parish)} />
       <span class="text-xs text-base-content/60">
-        {m.parish_delete_villages({ count: props.parish.villages })} ·{' '}
-        {m.parish_delete_sources({ count: props.parish.sources })}
+        {m.parish_delete_villages({ count: props.parish.villages })}
         <Show when={!props.onMap}>
           {' · '}
           <span class="text-warning">{m.parishes_not_on_map()}</span>
