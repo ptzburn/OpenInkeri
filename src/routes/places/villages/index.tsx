@@ -130,7 +130,6 @@ export default function Villages() {
       <MapPanel
         title={m.villages_title()}
         sheet={m.villages_sheet()}
-        hint={`${m.villages_map_hint()} ${m.villages_map_legend()}`}
         head={
           <MapListHead current="villages">
             {/* The search form carries the parish filter along. */}

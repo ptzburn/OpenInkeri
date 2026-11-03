@@ -38,7 +38,8 @@ const typesIn = (target: EventTarget | null) =>
  * handle drags it (it settles at the nearest of peek, half and full, or the
  * next one on a flick), and a tap or the arrow keys on it step it up or
  * down. Focusing a field to type in opens it fully; touching a fully open
- * sheet's map lowers it to half. `hint` says how to use the map, as a chip
+ * sheet's map lowers it to half. `hint`, where given (the forms), says how
+ * to use the map, as a chip
  * over it.
  */
 export default function MapPanel(props: {
@@ -46,7 +47,7 @@ export default function MapPanel(props: {
   title: string;
   /** The sheet's handle's name, e.g. "Locality form". */
   sheet: string;
-  hint: string;
+  hint?: string;
   /** Floating over the map below lg (the search), given its `class`. */
   top?: (topClass: string) => JSX.Element;
   /** Pinned to the sheet's top, under its handle. */
@@ -167,16 +168,20 @@ export default function MapPanel(props: {
           top left beside the panel (clear of the attribution at the bottom),
           or above the sheet on a phone (while the sheet leaves the map in
           view). */}
-      <p
-        class={[
-          'pointer-events-none absolute z-1 max-w-sm rounded-box bg-base-100/80 px-3 py-1.5 text-xs text-base-content/70 backdrop-blur-sm',
-          'max-lg:bottom-[calc(var(--sheet-height)+0.75rem)] max-lg:left-3 max-lg:right-3',
-          snap() === 'full' || dragged() !== null ? 'max-lg:hidden' : '',
-          'lg:top-3 lg:left-[calc(var(--container-md)+0.75rem)]',
-        ]}
-      >
-        {props.hint}
-      </p>
+      <Show when={props.hint}>
+        {(hint) => (
+          <p
+            class={[
+              'pointer-events-none absolute z-1 max-w-sm rounded-box bg-base-100/80 px-3 py-1.5 text-xs text-base-content/70 backdrop-blur-sm',
+              'max-lg:bottom-[calc(var(--sheet-height)+0.75rem)] max-lg:left-3 max-lg:right-3',
+              snap() === 'full' || dragged() !== null ? 'max-lg:hidden' : '',
+              'lg:top-3 lg:left-[calc(var(--container-md)+0.75rem)]',
+            ]}
+          >
+            {hint()}
+          </p>
+        )}
+      </Show>
       {/* The panel's column. Below lg it is nothing of its own (taps go
           through to the map): the top and the sheet are placed apart. */}
       <div class="absolute inset-0 lg:pointer-events-auto lg:right-auto lg:flex lg:w-md lg:flex-col lg:border-r lg:border-base-300 lg:bg-base-100/90 lg:backdrop-blur-md">

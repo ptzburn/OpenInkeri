@@ -130,7 +130,6 @@ export default function Parishes() {
       <MapPanel
         title={m.parishes_title()}
         sheet={m.parishes_sheet()}
-        hint={`${m.parishes_map_hint()} ${m.parishes_map_legend()}`}
         head={
           <MapListHead current="parishes">
             <SearchBox
