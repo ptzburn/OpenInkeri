@@ -4,7 +4,7 @@ import { For, Show, createMemo, createSignal } from 'solid-js';
 import ArrowIcon from '~icons/ri/arrow-right-s-line';
 
 import type { QueryData } from '~/lib/query-data';
-import { byLocalName, namesOf } from '~/lib/format';
+import { byLocalName, localName, namesOf, parishInUse } from '~/lib/format';
 import { MapPage } from '~/components/edit-page';
 import MapPanel from '~/components/map-panel';
 import SearchBox from '~/components/search-box';
@@ -13,12 +13,14 @@ import {
   MapListFoot,
   MapListHead,
   MapListRow,
+  type RowActions,
   RowNames,
   parishMarkers,
   scrollToRow,
   usePlacesMap,
 } from '~/components/places-map';
-import { type ParishRow, getParishes } from '~/data/parishes';
+import { type ParishRow, deleteParish, getParishes } from '~/data/parishes';
+import { DeleteDialog } from '~/components/form-fields';
 import { getPlaceMarkers, getPlaceTotals } from '~/data/places';
 import { stringParams } from '~/lib/route-params';
 import { foldForSearch } from '~/lib/search-text';
@@ -81,6 +83,15 @@ export default function Parishes() {
   // The parish whose row is pointed at: its cross is named on the map.
   const [pointed, setPointed] = createSignal<number | null>(null, { name: 'parishes-pointed' });
   let rows: HTMLUListElement | undefined;
+  // The parish an admin asked to delete, which the one dialog confirms.
+  const [deleting, setDeleting] = createSignal<ParishRow | null>(null, {
+    name: 'parishes-deleting',
+  });
+  let deleteDialog: HTMLDialogElement | undefined;
+  const askDelete = (parish: ParishRow) => {
+    setDeleting(parish);
+    deleteDialog?.showModal();
+  };
   const located = createMemo((): Promise<QueryData<typeof getPlaceMarkers>> => getPlaceMarkers(), {
     name: 'parishes-located',
   });
@@ -169,12 +180,34 @@ export default function Parishes() {
                   onMap={!located() || onMap().has(parish().id)}
                   onSelect={() => setSelected(parish().id)}
                   onPoint={(on) => setPointed(on ? parish().id : null)}
-                  editHref={canEdit() ? paths.places.parishes(parish().id).edit() : undefined}
+                  actions={
+                    canEdit()
+                      ? {
+                          editHref: paths.places.parishes(parish().id).edit(),
+                          edit: m.parish_edit_open(),
+                          delete: m.parish_delete(),
+                          onDelete: () => askDelete(parish()),
+                        }
+                      : undefined
+                  }
                 />
               )}
             </For>
           </ul>
         </ListBody>
+        {/* One confirmation for the list, for the row whose menu asked. */}
+        <Show when={canEdit()}>
+          <DeleteDialog
+            action={deleteParish}
+            id={deleting()?.id ?? 0}
+            version={deleting()?.version ?? 0}
+            title={m.parish_delete()}
+            text={m.parish_delete_text()}
+            inUse={deleting() ? parishInUse(deleting()!) : undefined}
+            deleted={m.parish_deleted({ name: localName(namesOf(deleting()) ?? null) })}
+            ref={(el) => (deleteDialog = el)}
+          />
+        </Show>
       </MapPanel>
     </MapPage>
   );
@@ -188,7 +221,7 @@ function ParishListRow(props: {
   onMap: boolean;
   onSelect: () => void;
   onPoint: (on: boolean) => void;
-  editHref?: string;
+  actions?: RowActions;
 }) {
   return (
     <MapListRow
@@ -196,8 +229,7 @@ function ParishListRow(props: {
       selected={props.selected}
       onSelect={props.onSelect}
       onPoint={props.onPoint}
-      editHref={props.editHref}
-      editLabel={m.parish_edit_open()}
+      actions={props.actions}
       // Picked, with localities: the way to the list of them, the ones the
       // map can't show among them.
       more={

@@ -13,12 +13,20 @@ import {
   MapListFoot,
   MapListHead,
   MapListRow,
+  type RowActions,
   RowNames,
   scrollToRow,
   usePlacesMap,
 } from '~/components/places-map';
 import { byLocalName, localName, namesOf } from '~/lib/format';
-import { type PlaceRow, getPlaceMarkers, getPlaceTotals, getPlaces } from '~/data/places';
+import {
+  type PlaceRow,
+  deletePlace,
+  getPlaceMarkers,
+  getPlaceTotals,
+  getPlaces,
+} from '~/data/places';
+import { DeleteDialog } from '~/components/form-fields';
 import { stringParams } from '~/lib/route-params';
 import { foldForSearch } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
@@ -100,6 +108,15 @@ export default function Villages() {
   const [selected, setSelected] = createSignal<number | null>(null, { name: 'villages-selected' });
   const [pointed, setPointed] = createSignal<number | null>(null, { name: 'villages-pointed' });
   let rows: HTMLUListElement | undefined;
+  // The locality an admin asked to delete, which the one dialog confirms.
+  const [deleting, setDeleting] = createSignal<PlaceRow | null>(null, {
+    name: 'villages-deleting',
+  });
+  let deleteDialog: HTMLDialogElement | undefined;
+  const askDelete = (place: PlaceRow) => {
+    setDeleting(place);
+    deleteDialog?.showModal();
+  };
 
   // Only localities here: parish churches are drawn as the localities they are.
   usePlacesMap({
@@ -188,8 +205,15 @@ export default function Villages() {
                   selected={selected() === place().id}
                   onSelect={() => setSelected(place().id)}
                   onPoint={(on) => setPointed(on ? place().id : null)}
-                  editHref={
-                    canEdit() ? paths.places.villages(place().id).edit(listPlace()) : undefined
+                  actions={
+                    canEdit()
+                      ? {
+                          editHref: paths.places.villages(place().id).edit(listPlace()),
+                          edit: m.place_edit_open(),
+                          delete: m.place_delete(),
+                          onDelete: () => askDelete(place()),
+                        }
+                      : undefined
                   }
                 />
               )}
@@ -222,6 +246,22 @@ export default function Villages() {
             </div>
           </details>
         </Show>
+        {/* One confirmation for the list, for the row whose menu asked. The
+            delete returns to the list as it is, like a save. */}
+        <Show when={canEdit()}>
+          <DeleteDialog
+            action={deletePlace}
+            id={deleting()?.id ?? 0}
+            version={deleting()?.version ?? 0}
+            title={m.place_delete()}
+            text={m.place_delete_text()}
+            deleted={m.place_deleted({ name: localName(namesOf(deleting()) ?? null) })}
+            ref={(el) => (deleteDialog = el)}
+          >
+            <input type="hidden" name="returnQ" value={search.q ?? ''} />
+            <input type="hidden" name="returnParish" value={search.parish ?? ''} />
+          </DeleteDialog>
+        </Show>
       </MapPanel>
     </MapPage>
   );
@@ -240,7 +280,7 @@ function PlaceListRow(props: {
   selected: boolean;
   onSelect: () => void;
   onPoint: (on: boolean) => void;
-  editHref?: string;
+  actions?: RowActions;
 }) {
   const located = () => props.place.latitude !== null && props.place.longitude !== null;
   const matched = () => {
@@ -257,8 +297,7 @@ function PlaceListRow(props: {
       selected={props.selected}
       onSelect={props.onSelect}
       onPoint={props.onPoint}
-      editHref={props.editHref}
-      editLabel={m.place_edit_open()}
+      actions={props.actions}
     >
       <RowNames names={namesOf(props.place)}>
         <Show when={props.place.kind !== 'village'}>

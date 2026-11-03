@@ -8,7 +8,9 @@ import {
   useContext,
 } from 'solid-js';
 import type { JSX } from '@solidjs/web';
+import DeleteIcon from '~icons/ri/delete-bin-line';
 import EditIcon from '~icons/ri/pencil-line';
+import MoreIcon from '~icons/ri/more-2-fill';
 
 import type { QueryData } from '~/lib/query-data';
 import LocationPicker, { type MapMarker, parishPoints } from '~/components/location-picker';
@@ -16,6 +18,7 @@ import { AddLink } from '~/components/list-page';
 import PlacesTabs from '~/components/places-tabs';
 import { type PlaceMarker, getPlaceMarkers } from '~/data/places';
 import { finnishNamesShown, localName, namesOf } from '~/lib/format';
+import { m } from '~/paraglide/messages.js';
 
 // The places section's one map, which its layout keeps under every page,
 // and what the places lists (villages and parishes) share over it: their
@@ -168,23 +171,35 @@ export function parishMarkers(
   });
 }
 
+/** What an admin can do with a row of a places list, as its menu offers it. */
+export interface RowActions {
+  editHref: string;
+  /** The menu items' labels: "Edit locality", "Delete locality". */
+  edit: string;
+  delete: string;
+  onDelete: () => void;
+}
+
 /**
  * A row of a places list: `children` in a button that picks the row
  * (`selected` shows it picked; pointing at it or focusing it is told to
- * `onPoint`), for admins a link to the row's edit page, and `more` on a
- * line of its own under them (a link: a button can't hold one).
- * `id` marks the row for `scrollToRow`.
+ * `onPoint`), for admins (`actions`) a menu behind a "more" button with Edit
+ * (a link) and Delete (which hands over to `onDelete`, the list's one
+ * confirmation), and `more` on a line of its own under them (a link: a
+ * button can't hold one). `id` marks the row for `scrollToRow`. The menu is
+ * daisyUI's popover dropdown, anchored to its button: in the top layer, the
+ * panel's scrolling can't clip it.
  */
 export function MapListRow(props: {
   id: number;
   selected: boolean;
   onSelect: () => void;
   onPoint?: (on: boolean) => void;
-  editHref?: string;
-  editLabel: string;
+  actions?: RowActions;
   more?: JSX.Element;
   children: JSX.Element;
 }) {
+  const menuId = () => `row-menu-${props.id}`;
   return (
     <li
       data-row={props.id}
@@ -202,16 +217,46 @@ export function MapListRow(props: {
       >
         {props.children}
       </button>
-      <Show when={props.editHref}>
-        {(href) => (
-          <a
-            href={href()}
-            class="btn btn-square btn-ghost btn-sm"
-            aria-label={props.editLabel}
-            title={props.editLabel}
-          >
-            <EditIcon class="size-4" aria-hidden="true" />
-          </a>
+      <Show when={props.actions}>
+        {(actions) => (
+          <>
+            <button
+              type="button"
+              class="btn btn-square btn-ghost btn-sm [anchor-name:var(--menu-anchor)]"
+              style={{ '--menu-anchor': `--${menuId()}` }}
+              popovertarget={menuId()}
+              aria-label={m.places_row_actions()}
+              title={m.places_row_actions()}
+            >
+              <MoreIcon class="size-4" aria-hidden="true" />
+            </button>
+            <ul
+              id={menuId()}
+              popover
+              class="dropdown dropdown-end menu w-48 rounded-box bg-base-100 shadow-sm [position-anchor:var(--menu-anchor)]"
+              style={{ '--menu-anchor': `--${menuId()}` }}
+            >
+              <li>
+                <a href={actions().editHref}>
+                  <EditIcon class="size-4" aria-hidden="true" />
+                  {actions().edit}
+                </a>
+              </li>
+              <li>
+                {/* The menu closes itself (popovertargetaction), the dialog opens. */}
+                <button
+                  type="button"
+                  class="text-error"
+                  popovertarget={menuId()}
+                  popovertargetaction="hide"
+                  onClick={() => actions().onDelete()}
+                >
+                  <DeleteIcon class="size-4" aria-hidden="true" />
+                  {actions().delete}
+                </button>
+              </li>
+            </ul>
+          </>
         )}
       </Show>
       <Show when={props.more}>

@@ -23,6 +23,7 @@ const { me, places } = vi.hoisted(() => {
       places: [
         {
           id: 1,
+          version: 3,
           kind: 'village' as const,
           nameRu: 'Горки',
           nameFi: 'Gorkka',
@@ -36,6 +37,7 @@ const { me, places } = vi.hoisted(() => {
         },
         {
           id: 2,
+          version: 1,
           kind: 'manor' as const,
           nameRu: 'Мыза Кикерино',
           nameFi: null,
@@ -49,6 +51,7 @@ const { me, places } = vi.hoisted(() => {
         },
         {
           id: 3,
+          version: 1,
           kind: 'village' as const,
           nameRu: 'Ёлкино',
           nameFi: null,
@@ -114,8 +117,24 @@ vi.mock('~/data/parishes', async () => {
   const { redirect } = await import('@solidjs/web');
   return {
     getParishes: vi.fn(async () => [
-      { id: 5, nameRu: 'Губаницы', nameFi: 'Hevaa', note: null, villages: 1, sources: 1 },
-      { id: 6, nameRu: 'Курляндия', nameFi: null, note: 'Не приход', villages: 0, sources: 0 },
+      {
+        id: 5,
+        version: 2,
+        nameRu: 'Губаницы',
+        nameFi: 'Hevaa',
+        note: null,
+        villages: 1,
+        sources: 1,
+      },
+      {
+        id: 6,
+        version: 4,
+        nameRu: 'Курляндия',
+        nameFi: null,
+        note: 'Не приход',
+        villages: 0,
+        sources: 0,
+      },
     ]),
     getParishOptions: vi.fn(async () => [
       {
@@ -327,6 +346,63 @@ describe('/places/villages', () => {
     );
     expect(screen.getByText('Not linked to a locality')).toBeInTheDocument();
     expect(screen.getByText('Серебетта')).toBeInTheDocument();
+  });
+});
+
+describe("a list row's menu", () => {
+  test('admins edit or delete a locality from its row; the delete returns to the list as it was', async () => {
+    me.current = { isAdmin: true };
+    const { container } = renderAt(`/places/villages?q=${encodeURIComponent('горк')}`);
+    await waitFor(() => expect(names(container)).toEqual(['Gorkka']));
+    const row = rows(container)[0] as HTMLElement;
+    expect(within(row).getByRole('button', { name: 'Actions' })).toBeInTheDocument();
+    expect(within(row).getByRole('link', { name: 'Edit locality' })).toHaveAttribute(
+      'href',
+      `/places/villages/1/edit?q=${encodeURIComponent('горк')}`,
+    );
+
+    fireEvent.click(within(row).getByRole('button', { name: 'Delete locality' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete locality' }));
+    await waitFor(() => expect(places.deleted).toHaveLength(1));
+    const [deleted] = places.deleted;
+    expect(deleted.get('id')).toBe('1');
+    // The version the list loaded it at, so a changed one is refused.
+    expect(deleted.get('version')).toBe('3');
+    expect(deleted.get('confirm')).toBe('on');
+    expect(deleted.get('returnQ')).toBe('горк');
+    // The status region is there from the start: wait for the toast in it.
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent('Locality Gorkka deleted.'),
+    );
+  });
+
+  test('a parish still in use says so in its confirmation, which then only cancels', async () => {
+    me.current = { isAdmin: true };
+    const { container } = renderAt('/places/parishes');
+    await waitFor(() => expect(names(container)).toEqual(['Hevaa', 'Курляндия']));
+    const [gubanitsy, kurlandia] = rows(container) as HTMLElement[];
+
+    fireEvent.click(within(gubanitsy).getByRole('button', { name: 'Delete parish' }));
+    const dialog = await screen.findByRole('dialog');
+    await waitFor(() =>
+      expect(within(dialog).getByRole('alert')).toHaveTextContent('1 locality and 1 source'),
+    );
+    expect(within(dialog).queryByRole('button', { name: 'Delete parish' })).toBeNull();
+
+    // The same dialog, for another row: this one can go.
+    fireEvent.click(within(kurlandia).getByRole('button', { name: 'Delete parish' }));
+    await waitFor(() => expect(within(dialog).queryByRole('alert')).toBeNull());
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete parish' }));
+    await waitFor(() => expect(parishes.deleted).toHaveLength(1));
+    expect(parishes.deleted[0].get('id')).toBe('6');
+    expect(parishes.deleted[0].get('version')).toBe('4');
+  });
+
+  test('readers get no menu', async () => {
+    const { container } = renderAt('/places/villages');
+    await waitFor(() => expect(names(container)).toHaveLength(3));
+    expect(screen.queryByRole('button', { name: 'Actions' })).toBeNull();
   });
 });
 

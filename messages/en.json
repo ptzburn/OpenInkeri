@@ -510,5 +510,6 @@
         "countPlural=*": "Show its {count} localities"
       }
     }
-  ]
+  ],
+  "places_row_actions": "Actions"
 }

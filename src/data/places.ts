@@ -78,6 +78,8 @@ import {
 // circular (see AccountData in ./account.ts).
 export interface PlaceRow {
   id: number;
+  /** As loaded, for a delete from the list to be refused once the place changed. */
+  version: number;
   kind: PlaceKind;
   nameRu: string;
   nameFi: string | null;
@@ -132,6 +134,7 @@ export const getPlaces = query(async (): Promise<PlaceListData> => {
     db.query.place.findMany({
       columns: {
         id: true,
+        version: true,
         kind: true,
         nameRu: true,
         nameFi: true,

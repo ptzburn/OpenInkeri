@@ -510,5 +510,6 @@
         "countPlural=*": "Näytä sen {count} paikkakuntaa"
       }
     }
-  ]
+  ],
+  "places_row_actions": "Toiminnot"
 }
