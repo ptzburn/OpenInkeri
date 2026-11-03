@@ -498,14 +498,5 @@
   "villages_map_hint": "Napsauta pistettä löytääksesi sen luettelosta tai riviä löytääksesi sen kartalta.",
   "parishes_sheet": "Seurakuntien luettelo",
   "parishes_map_hint": "Valitse seurakunta luettelosta tai piste kartalta, niin sen paikkakunnat näkyvät.",
-  "villages_records_count": [
-    {
-      "declarations": ["input count", "local countPlural = count: plural"],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "{count} merkintä",
-        "countPlural=*": "{count} merkintää"
-      }
-    }
-  ]
+  "villages_also_written": "Myös kirjoitusasu ”{spelling}”"
 }

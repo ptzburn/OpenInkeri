@@ -238,18 +238,16 @@ afterEach(() => {
 });
 
 describe('/places/villages', () => {
-  test('lists the places with their type, parish, records and spellings; a row is picked', async () => {
+  test('lists the places by the names shown, with the type, parish and location that tell them apart; a row is picked', async () => {
     const { container } = renderAt('/places/villages');
-    await waitFor(() => expect(names(container)).toEqual(['Горки', 'Мыза Кикерино', 'Ёлкино']));
-    const [gorki, kikerino] = rows(container);
-    // English shows the parish's Finnish name.
-    expect(gorki).toHaveTextContent('Village · Hevaa · 331 records');
-    // The spelling that is the name itself isn't repeated.
-    expect(gorki.querySelectorAll('.badge')).toHaveLength(1);
-    expect(gorki).toHaveTextContent('Бедная Горка');
-    // One the map can't show says so.
-    expect(gorki).not.toHaveTextContent('Not located');
-    expect(kikerino).toHaveTextContent('Manor · 4 records · Not located');
+    // English leads with the Finnish name, where there is one, and sorts by it.
+    await waitFor(() => expect(names(container)).toEqual(['Gorkka', 'Ёлкино', 'Мыза Кикерино']));
+    const [gorki, , kikerino] = rows(container);
+    // The other name, and the parish by its Finnish name. A village says
+    // nothing of its type, and neither records nor spellings are shown.
+    expect(gorki.textContent).toMatch(/^Gorkka\s*Горки\s*Hevaa$/);
+    // A manor says so; one the map can't show is marked.
+    expect(kikerino.textContent).toMatch(/^Мыза Кикерино\s*Manor\s*Not located$/);
 
     const pick = within(gorki as HTMLElement).getAllByRole('button')[0];
     const { artifact } = await captureArtifact(
@@ -268,7 +266,8 @@ describe('/places/villages', () => {
     try {
       const { container } = renderAt('/places/villages');
       await waitFor(() => expect(names(container)).toHaveLength(3));
-      expect(rows(container)[0]).toHaveTextContent('Деревня · Губаницы · 331 запись');
+      await waitFor(() => expect(names(container)).toEqual(['Горки', 'Ёлкино', 'Мыза Кикерино']));
+      expect(rows(container)[0].textContent).toMatch(/^Горки\s*Губаницы$/);
       expect(container).not.toHaveTextContent('Gorkka');
     } finally {
       document.cookie = 'PARAGLIDE_LOCALE=; path=/; max-age=0';
@@ -291,8 +290,11 @@ describe('/places/villages', () => {
     expect(artifact).toHaveNoDiagnostics();
     expect(window.location.search).toBe(`?q=${encodeURIComponent('елк')}`);
 
+    // Found by a spelling, not by a name: the spelling says why.
+    expect(rows(container)[0]).not.toHaveTextContent('Also written');
     fireEvent.input(input, { target: { value: 'бедная' } });
-    await waitFor(() => expect(names(container)).toEqual(['Горки']));
+    await waitFor(() => expect(names(container)).toEqual(['Gorkka']));
+    expect(rows(container)[0]).toHaveTextContent('Also written “Бедная Горка”');
   });
 
   test('says when nothing matches', async () => {
@@ -538,6 +540,9 @@ describe('/places/parishes', () => {
       const { container } = renderAt('/places/parishes');
       await waitFor(() => expect(names(container)).toEqual(['Губаницы', 'Курляндия']));
       expect(container).not.toHaveTextContent('Hevaa');
+      expect(
+        screen.getByRole('link', { name: 'Населённые пункты прихода Губаницы' }),
+      ).toBeInTheDocument();
     } finally {
       document.cookie = 'PARAGLIDE_LOCALE=; path=/; max-age=0';
     }
@@ -548,8 +553,9 @@ describe('/places/parishes', () => {
     const tabs = await screen.findByRole('navigation', { name: 'Place type' });
     expect(screen.getByRole('link', { name: 'Parishes' })).toHaveClass('tab-active');
     expect(tabs.querySelectorAll('.tab')).toHaveLength(2);
-    await waitFor(() => expect(names(container)).toEqual(['Губаницы', 'Курляндия']));
+    await waitFor(() => expect(names(container)).toEqual(['Hevaa', 'Курляндия']));
     const [gubanitsy, kurlandia] = rows(container);
+    expect(gubanitsy.textContent).toMatch(/^Hevaa\s*Губаницы/);
     expect(gubanitsy).toHaveTextContent('1 locality · 1 source');
     expect(kurlandia).toHaveTextContent('Не приход');
     // No villages: no link to them.
@@ -559,9 +565,11 @@ describe('/places/parishes', () => {
     fireEvent.click(pick);
     await waitFor(() => expect(pick).toHaveAttribute('aria-pressed', 'true'));
 
-    fireEvent.click(screen.getByRole('link', { name: 'Localities of Губаницы' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Localities of Hevaa' }));
     await waitFor(() => expect(window.location.search).toBe('?parish=5'));
-    await waitFor(() => expect(names(container)).toEqual(['Горки']));
+    await waitFor(() => expect(names(container)).toEqual(['Gorkka']));
+    // Narrowed to the parish: the rows don't repeat it.
+    expect(rows(container)[0].textContent).toMatch(/^Gorkka\s*Горки$/);
     expect(screen.getByText('Parish: Hevaa')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Show all parishes' })).toHaveAttribute(
       'href',
@@ -945,8 +953,8 @@ describe('reactivity', () => {
     const { container } = renderAt('/places/parishes');
     await waitFor(() => expect(names(container)).toHaveLength(2));
     await capture('parish-to-villages', async () => {
-      fireEvent.click(screen.getByRole('link', { name: 'Localities of Губаницы' }));
-      await waitFor(() => expect(names(container)).toEqual(['Горки']));
+      fireEvent.click(screen.getByRole('link', { name: 'Localities of Hevaa' }));
+      await waitFor(() => expect(names(container)).toEqual(['Gorkka']));
     });
   });
 
@@ -955,7 +963,7 @@ describe('reactivity', () => {
     await waitFor(() => expect(names(container)).toHaveLength(3));
     await capture('places-tabs', async () => {
       fireEvent.click(screen.getByRole('link', { name: 'Parishes' }));
-      await waitFor(() => expect(names(container)).toEqual(['Губаницы', 'Курляндия']));
+      await waitFor(() => expect(names(container)).toEqual(['Hevaa', 'Курляндия']));
     });
   });
 

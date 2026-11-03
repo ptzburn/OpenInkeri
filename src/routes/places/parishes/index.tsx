@@ -3,7 +3,7 @@ import { For, Show, createMemo, createSignal } from 'solid-js';
 import ArrowIcon from '~icons/ri/arrow-right-s-line';
 
 import type { QueryData } from '~/lib/query-data';
-import { finnishNamesShown } from '~/lib/format';
+import { byLocalName, localName, namesOf } from '~/lib/format';
 import { MapPage } from '~/components/edit-page';
 import MapPanel from '~/components/map-panel';
 import { ListBody, useCanEdit, useListBusy } from '~/components/list-page';
@@ -11,6 +11,7 @@ import {
   MapListFoot,
   MapListHead,
   MapListRow,
+  RowNames,
   scrollToRow,
   usePlacesMap,
 } from '~/components/places-map';
@@ -45,6 +46,10 @@ export default function Parishes() {
   const list = createMemo((): Promise<QueryData<typeof getParishes>> => getParishes(), {
     name: 'parishes-list',
   });
+  // By the name the list shows.
+  const sorted = createMemo(() => [...(list() ?? [])].sort(byLocalName), {
+    name: 'parishes-sorted',
+  });
   const busy = useListBusy(list);
   const canEdit = useCanEdit('parishes-me');
   const [selected, setSelected] = createSignal<number | null>(null, { name: 'parishes-selected' });
@@ -77,7 +82,7 @@ export default function Parishes() {
       >
         <ListBody busy={busy()} count={list()?.length} empty={m.parishes_empty()}>
           <ul ref={(el) => (rows = el)} class="list">
-            <For each={list() ?? []} keyed={(parish) => parish.id}>
+            <For each={sorted()} keyed={(parish) => parish.id}>
               {(parish) => (
                 <ParishListRow
                   parish={parish()}
@@ -113,20 +118,15 @@ function ParishListRow(props: {
           <a
             href={villagesOf(props.parish)}
             class="btn btn-square btn-ghost btn-sm"
-            aria-label={m.parishes_show_villages({ parish: props.parish.nameRu })}
-            title={m.parishes_show_villages({ parish: props.parish.nameRu })}
+            aria-label={m.parishes_show_villages({ parish: localName(namesOf(props.parish)) })}
+            title={m.parishes_show_villages({ parish: localName(namesOf(props.parish)) })}
           >
             <ArrowIcon class="size-4" aria-hidden="true" />
           </a>
         </Show>
       }
     >
-      <span>
-        <span class="font-medium">{props.parish.nameRu}</span>
-        <Show when={finnishNamesShown() && props.parish.nameFi}>
-          {(fi) => <span class="text-base-content/60"> · {fi()}</span>}
-        </Show>
-      </span>
+      <RowNames names={namesOf(props.parish)} />
       <span class="text-xs text-base-content/60">
         {m.parish_delete_villages({ count: props.parish.villages })} ·{' '}
         {m.parish_delete_sources({ count: props.parish.sources })}

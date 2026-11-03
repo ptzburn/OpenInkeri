@@ -498,14 +498,5 @@
   "villages_map_hint": "Click a dot to find it in the list, or a row to find it on the map.",
   "parishes_sheet": "List of parishes",
   "parishes_map_hint": "Choose a parish in the list, or a dot on the map, to show its localities.",
-  "villages_records_count": [
-    {
-      "declarations": ["input count", "local countPlural = count: plural"],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "{count} record",
-        "countPlural=*": "{count} records"
-      }
-    }
-  ]
+  "villages_also_written": "Also written “{spelling}”"
 }

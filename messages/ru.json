@@ -512,16 +512,5 @@
   "villages_map_hint": "Нажмите на точку, чтобы найти её в списке, или на строку — чтобы найти на карте.",
   "parishes_sheet": "Список приходов",
   "parishes_map_hint": "Выберите приход в списке или точку на карте, чтобы показать его населённые пункты.",
-  "villages_records_count": [
-    {
-      "declarations": ["input count", "local countPlural = count: plural"],
-      "selectors": ["countPlural"],
-      "match": {
-        "countPlural=one": "{count} запись",
-        "countPlural=few": "{count} записи",
-        "countPlural=many": "{count} записей",
-        "countPlural=*": "{count} записи"
-      }
-    }
-  ]
+  "villages_also_written": "Также пишется «{spelling}»"
 }

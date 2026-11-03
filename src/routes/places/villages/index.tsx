@@ -13,10 +13,11 @@ import {
   MapListFoot,
   MapListHead,
   MapListRow,
+  RowNames,
   scrollToRow,
   usePlacesMap,
 } from '~/components/places-map';
-import { finnishNamesShown, localName } from '~/lib/format';
+import { byLocalName, localName, namesOf } from '~/lib/format';
 import { type PlaceRow, getPlaceMarkers, getPlaces } from '~/data/places';
 import { stringParams } from '~/lib/route-params';
 import { foldForSearch } from '~/lib/search-text';
@@ -58,12 +59,16 @@ export default function Villages() {
     name: 'villages-list',
   });
   const parishId = () => Number(search.parish) || null;
+  // Every place, by the name the list shows.
+  const sorted = createMemo(() => [...(list()?.places ?? [])].sort(byLocalName), {
+    name: 'villages-sorted',
+  });
+  const folded = () => foldForSearch(search.q ?? '');
   // The places the search matches, in any parish: the map's dots.
   const matching = createMemo(
     () => {
-      const folded = foldForSearch(search.q ?? '');
-      const all = list()?.places ?? [];
-      return folded ? all.filter((p) => matches(p, folded)) : all;
+      const key = folded();
+      return key ? sorted().filter((p) => matches(p, key)) : sorted();
     },
     { name: 'villages-matching' },
   );
@@ -171,6 +176,8 @@ export default function Villages() {
               {(place) => (
                 <PlaceListRow
                   place={place()}
+                  search={folded()}
+                  showParish={!parishId()}
                   selected={selected() === place().id}
                   onSelect={() => setSelected(place().id)}
                   onPoint={(on) => setPointed(on ? place().id : null)}
@@ -213,17 +220,30 @@ export default function Villages() {
   );
 }
 
-/** A locality in the list: its names, type, parish, records and spellings. */
+/**
+ * A locality in the list, on one line where it fits: its names, its type
+ * when it isn't a village, a mark when the map can't show it, and its
+ * parish unless the list is narrowed to one. A search that found it only by
+ * a spelling of it (`search`, folded) shows that spelling under it.
+ */
 function PlaceListRow(props: {
   place: PlaceRow;
+  search: string;
+  showParish: boolean;
   selected: boolean;
   onSelect: () => void;
   onPoint: (on: boolean) => void;
   editHref?: string;
 }) {
-  // The spellings that differ from the name itself.
-  const spellings = () => props.place.spellings.filter((s) => s !== props.place.nameRu);
   const located = () => props.place.latitude !== null && props.place.longitude !== null;
+  const matched = () => {
+    const key = props.search;
+    const { nameRu, nameFi } = props.place;
+    if (!key || [nameRu, nameFi].some((name) => name && foldForSearch(name).includes(key))) {
+      return undefined;
+    }
+    return props.place.spellings.find((s) => foldForSearch(s).includes(key));
+  };
   return (
     <MapListRow
       id={props.place.id}
@@ -233,32 +253,24 @@ function PlaceListRow(props: {
       editHref={props.editHref}
       editLabel={m.place_edit_open()}
     >
-      <span>
-        <span class="font-medium">{props.place.nameRu}</span>
-        <Show when={finnishNamesShown() && props.place.nameFi}>
-          {(fi) => <span class="text-base-content/60"> · {fi()}</span>}
+      <RowNames names={namesOf(props.place)}>
+        <Show when={props.place.kind !== 'village'}>
+          <span class="badge badge-ghost badge-xs">{placeKindLabels[props.place.kind]()}</span>
         </Show>
-      </span>
-      <span class="text-xs text-base-content/60">
-        {[
-          placeKindLabels[props.place.kind](),
-          localName(props.place.parish),
-          m.villages_records_count({ count: props.place.records }),
-        ]
-          .filter(Boolean)
-          .join(' · ')}
-        {/* Not on the map: said, as the map can't show it. */}
+        {/* Not on the map: picking it moves nothing there. */}
         <Show when={!located()}>
-          {' · '}
-          <span class="text-warning">{coordinateStatusLabels.unknown()}</span>
+          <span class="text-xs text-warning">{coordinateStatusLabels.unknown()}</span>
         </Show>
-      </span>
-      <Show when={spellings().length}>
-        <span class="flex flex-wrap gap-1 pt-0.5">
-          <For each={spellings()}>
-            {(s) => <span class="badge badge-ghost badge-xs whitespace-nowrap">{s}</span>}
-          </For>
-        </span>
+        <Show when={props.showParish && localName(props.place.parish)}>
+          {(parish) => <span class="text-xs text-base-content/60">{parish()}</span>}
+        </Show>
+      </RowNames>
+      <Show when={matched()}>
+        {(spelling) => (
+          <span class="text-xs text-base-content/60">
+            {m.villages_also_written({ spelling: spelling() })}
+          </span>
+        )}
       </Show>
     </MapListRow>
   );

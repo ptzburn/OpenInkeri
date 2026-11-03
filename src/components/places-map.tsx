@@ -15,6 +15,7 @@ import LocationPicker from '~/components/location-picker';
 import { AddLink } from '~/components/list-page';
 import PlacesTabs from '~/components/places-tabs';
 import { type PlaceMarker, getPlaceMarkers } from '~/data/places';
+import { finnishNamesShown, localName } from '~/lib/format';
 
 // The places section's one map, which its layout keeps under every page,
 // and what the places lists (villages and parishes) share over it: their
@@ -165,6 +166,29 @@ export function MapListRow(props: {
         )}
       </Show>
     </li>
+  );
+}
+
+/**
+ * A row's names, as the places lists show them: the one in the reader's
+ * language first, the other dimmed after it (outside Russian, which shows
+ * the Russian alone), then `children` on the same line.
+ */
+export function RowNames(props: {
+  names: { ru: string; fi: string | null };
+  children?: JSX.Element;
+}) {
+  const other = () => {
+    const { ru, fi } = props.names;
+    if (!finnishNamesShown() || !fi || fi === ru) return null;
+    return localName(props.names) === fi ? ru : fi;
+  };
+  return (
+    <span class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+      <span class="font-medium">{localName(props.names)}</span>
+      <Show when={other()}>{(name) => <span class="text-base-content/60">{name()}</span>}</Show>
+      {props.children}
+    </span>
   );
 }
 
