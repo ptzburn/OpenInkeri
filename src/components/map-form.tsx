@@ -7,7 +7,8 @@ import type { FormError } from '~/lib/form-error';
 import type { GazetteerHit } from '~/lib/gazetteer';
 
 /**
- * A form as a panel over a map (MapPanel): the locality's and the parish's.
+ * A form as a panel over the places map (MapPanel): the locality's and the
+ * parish's, which show what the map holds through useMapView.
  * The gazetteer's search is the panel's top (floating over the map on a
  * phone), the fields (`children`) its body, and Cancel and Save are pinned
  * at its bottom: as tall as the sidebar's account corner (min-h-18) so the
@@ -21,8 +22,6 @@ export default function MapForm(props: {
   sheet: string;
   /** The form's id, which the footer's buttons submit. */
   form: string;
-  /** The map (a LocationPicker), given the frame's `class`. */
-  map: (mapClass: string) => JSX.Element;
   hint: string;
   /** What the search finds, when not "Find the locality". */
   searchLabel?: string;
@@ -35,7 +34,6 @@ export default function MapForm(props: {
     <MapPanel
       title={props.title}
       sheet={props.sheet}
-      map={props.map}
       hint={props.hint}
       top={(topClass) => (
         <PlaceSearch

@@ -11,7 +11,8 @@ import {
   postedName,
   useEditForm,
 } from '~/components/form-fields';
-import LocationPicker, { pointOf } from '~/components/location-picker';
+import { pointOf } from '~/components/location-picker';
+import { useMapView } from '~/components/places-map';
 import { type Lookup, LookupField, addsRow, namedRow } from '~/components/lookup-field';
 import MapForm from '~/components/map-form';
 import { placeLookup } from '~/components/new-row-fields';
@@ -174,6 +175,25 @@ export default function ParishEditForm(props: {
           const linked = churchLinked();
           return pointOf(markers(), (n) => n.id === linked);
         };
+        // While a new church is being added, a click on the map places it.
+        useMapView({
+          get value() {
+            return adding() ? location.coordinates() : '';
+          },
+          onPick: (lat, lng) => {
+            if (adding()) location.set(lat, lng);
+          },
+          get markers() {
+            return shown();
+          },
+          highlight: p.id || null,
+          get target() {
+            return target();
+          },
+          get focus() {
+            return church();
+          },
+        });
         const found = (hit: GazetteerHit) => {
           if (hit.nameRu && !nameRu().trim()) setNameRu(hit.nameRu);
           if (hit.nameFi && !nameFi()?.trim()) setNameFi(hit.nameFi);
@@ -192,20 +212,6 @@ export default function ParishEditForm(props: {
             title={props.title}
             sheet={m.parish_edit_sheet()}
             form="parish-form"
-            map={(mapClass) => (
-              <LocationPicker
-                class={mapClass}
-                panel
-                value={adding() ? location.coordinates() : ''}
-                onPick={(lat, lng) => {
-                  if (adding()) location.set(lat, lng);
-                }}
-                markers={shown()}
-                highlight={p.id || null}
-                target={target()}
-                focus={church()}
-              />
-            )}
             hint={`${m.parish_edit_map_hint()} ${m.parish_edit_map_legend()}`}
             searchLabel={m.parish_edit_search()}
             onFound={found}

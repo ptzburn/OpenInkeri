@@ -11,8 +11,8 @@ import {
   MapListFoot,
   MapListHead,
   MapListRow,
-  PlacesMap,
   scrollToRow,
+  usePlacesMap,
 } from '~/components/places-map';
 import { type ParishRow, getParishes } from '~/data/parishes';
 import { getPlaceMarkers } from '~/data/places';
@@ -49,6 +49,17 @@ export default function Parishes() {
   const canEdit = useCanEdit('parishes-me');
   const [selected, setSelected] = createSignal<number | null>(null, { name: 'parishes-selected' });
   let rows: HTMLUListElement | undefined;
+  usePlacesMap({
+    get highlight() {
+      return selected();
+    },
+    onSelect: (marker) => {
+      const parish = marker.church?.id ?? marker.parishId;
+      if (parish === null) return;
+      setSelected(parish);
+      scrollToRow(rows, parish);
+    },
+  });
 
   return (
     <MapPage title={m.parishes_title()}>
@@ -56,18 +67,6 @@ export default function Parishes() {
         title={m.parishes_title()}
         sheet={m.parishes_sheet()}
         hint={`${m.parishes_map_hint()} ${m.parish_edit_map_legend()}`}
-        map={(mapClass) => (
-          <PlacesMap
-            class={mapClass}
-            highlight={selected()}
-            onSelect={(marker) => {
-              const parish = marker.church?.id ?? marker.parishId;
-              if (parish === null) return;
-              setSelected(parish);
-              scrollToRow(rows, parish);
-            }}
-          />
-        )}
         head={<MapListHead current="parishes" />}
         foot={
           canEdit() ? (

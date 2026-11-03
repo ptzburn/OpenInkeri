@@ -14,7 +14,8 @@ import {
 } from '~/components/form-fields';
 import { placeKindLabels } from '~/components/labels';
 import { type Lookup, LookupField, namedRow } from '~/components/lookup-field';
-import LocationPicker, { churchPoint } from '~/components/location-picker';
+import { churchPoint } from '~/components/location-picker';
+import { useMapView } from '~/components/places-map';
 import { LocationLine, createLocation } from '~/components/place-locator';
 import { parishLookup } from '~/components/new-row-fields';
 import MapForm from '~/components/map-form';
@@ -190,22 +191,23 @@ export default function PlaceEditForm(props: {
         };
         // The other localities on the map, which starts at the chosen
         // parish's church while this one has no coordinates.
-        const neighbours = () => (markers() ?? []).filter((n) => n.id !== p.id);
+        useMapView({
+          get value() {
+            return location.coordinates();
+          },
+          onPick: location.set,
+          get markers() {
+            return (markers() ?? []).filter((n) => n.id !== p.id);
+          },
+          get focus() {
+            return churchPoint(markers(), parishId());
+          },
+        });
         return (
           <MapForm
             title={props.title}
             sheet={m.place_edit_sheet()}
             form="place-form"
-            map={(mapClass) => (
-              <LocationPicker
-                class={mapClass}
-                panel
-                value={location.coordinates()}
-                onPick={location.set}
-                markers={neighbours()}
-                focus={churchPoint(markers(), parishId())}
-              />
-            )}
             hint={`${m.place_edit_map_hint()} ${m.place_edit_map_legend()}`}
             onFound={fill}
             error={error()}

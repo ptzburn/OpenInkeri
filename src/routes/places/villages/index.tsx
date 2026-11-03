@@ -13,8 +13,8 @@ import {
   MapListFoot,
   MapListHead,
   MapListRow,
-  PlacesMap,
   scrollToRow,
+  usePlacesMap,
 } from '~/components/places-map';
 import { finnishNamesShown, localName } from '~/lib/format';
 import { type PlaceRow, getPlaceMarkers, getPlaces } from '~/data/places';
@@ -93,6 +93,25 @@ export default function Villages() {
   const [pointed, setPointed] = createSignal<number | null>(null, { name: 'villages-pointed' });
   let rows: HTMLUListElement | undefined;
 
+  usePlacesMap({
+    get only() {
+      return only();
+    },
+    get highlight() {
+      return parishId();
+    },
+    get target() {
+      return selected();
+    },
+    get pointed() {
+      return pointed();
+    },
+    onSelect: (marker) => {
+      setSelected(marker.id);
+      scrollToRow(rows, marker.id);
+    },
+  });
+
   // A search goes in the URL in place of the current entry.
   const searchFor = (value: string) => setSearch({ q: value || undefined }, { replace: true });
 
@@ -102,19 +121,6 @@ export default function Villages() {
         title={m.villages_title()}
         sheet={m.villages_sheet()}
         hint={`${m.villages_map_hint()} ${m.place_edit_map_legend()}`}
-        map={(mapClass) => (
-          <PlacesMap
-            class={mapClass}
-            only={only()}
-            highlight={parishId()}
-            target={selected()}
-            pointed={pointed()}
-            onSelect={(marker) => {
-              setSelected(marker.id);
-              scrollToRow(rows, marker.id);
-            }}
-          />
-        )}
         head={
           <MapListHead current="villages">
             {/* The search form carries the parish filter along. */}

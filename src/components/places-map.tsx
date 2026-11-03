@@ -1,4 +1,12 @@
-import { Show, createMemo } from 'solid-js';
+import {
+  Show,
+  createContext,
+  createEffect,
+  createMemo,
+  createSignal,
+  untrack,
+  useContext,
+} from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import EditIcon from '~icons/ri/pencil-line';
 
@@ -8,19 +16,74 @@ import { AddLink } from '~/components/list-page';
 import PlacesTabs from '~/components/places-tabs';
 import { type PlaceMarker, getPlaceMarkers } from '~/data/places';
 
-// What the places lists (villages and parishes) share: each is a map with
-// the list as its panel (MapPanel), and these are the map, the panel's top
-// and bottom, and its rows.
+// The places section's one map, which its layout keeps under every page,
+// and what the places lists (villages and parishes) share over it: their
+// map's view, the panel's top and bottom, and its rows.
+
+/** What a page of the places layout shows on its map: LocationPicker's props but for its box. */
+export type MapView = Omit<Parameters<typeof LocationPicker>[0], 'class' | 'panel'>;
+
+// How a page shows its view on the layout's map; it hands back how to stop.
+const MapViewContext = createContext<(view: MapView) => () => void>();
 
 /**
- * The map behind a places list's panel: every located locality, parish
- * churches as crosses, `highlight` the parish drawn plain. `only`, when
- * given, keeps the dots of those localities (a search's matches) and frames
- * them. A click on a dot is handed to `onSelect`; `target` flies to a
- * locality and names it, `pointed` names it where it is.
+ * The places layout's map (src/routes/places.tsx): one map under every page
+ * in it, kept as they change, so going from a list to a form, or between
+ * the lists, moves the view instead of starting a map anew. Each page says
+ * what it shows (useMapView); the page shown last has it. The pages' panels
+ * lie over it (MapPanel).
  */
-export function PlacesMap(props: {
-  class: string;
+export function SharedMap(props: { children: JSX.Element }) {
+  const [view, setView] = createSignal<MapView | null>(null, { name: 'places-map-view' });
+  const show = (next: MapView) => {
+    setView(() => next);
+    return () => setView((current) => (current === next ? null : current));
+  };
+  return (
+    <MapViewContext value={show}>
+      <LocationPicker
+        class="place-map absolute inset-0 h-full"
+        panel
+        value={view()?.value}
+        onPick={
+          view()?.onPick ? (lat, lng) => untrack(() => view()?.onPick?.(lat, lng)) : undefined
+        }
+        onSelect={(id) => untrack(() => view()?.onSelect?.(id))}
+        markers={view()?.markers}
+        highlight={view()?.highlight}
+        focus={view()?.focus}
+        target={view()?.target}
+        pointed={view()?.pointed}
+        fit={view()?.fit}
+      />
+      {props.children}
+    </MapViewContext>
+  );
+}
+
+/**
+ * Shows `view` on the places layout's map while the calling component
+ * lives; its fields are read as the map needs them, so getters keep them
+ * current. A click places the marker only where the view has `onPick`.
+ * Call it in a component body.
+ */
+export function useMapView(view: MapView) {
+  const show = useContext(MapViewContext);
+  createEffect(
+    () => show,
+    (show) => show?.(view),
+    { name: 'places-map-show' },
+  );
+}
+
+/**
+ * A places list's map: every located locality, parish churches as crosses,
+ * `highlight` the parish drawn plain. `only`, when given, keeps the dots of
+ * those localities (a search's matches) and frames them. A click on a dot is
+ * handed to `onSelect`; `target` flies to a locality and names it, `pointed`
+ * names it where it is. Call it in a component body, with getters.
+ */
+export function usePlacesMap(view: {
   only?: Set<number> | null;
   highlight?: number | null;
   target?: number | null;
@@ -30,26 +93,29 @@ export function PlacesMap(props: {
   const markers = createMemo((): Promise<QueryData<typeof getPlaceMarkers>> => getPlaceMarkers(), {
     name: 'places-map-markers',
   });
-  const shown = () => {
-    const only = props.only;
-    const all = markers() ?? [];
-    return only ? all.filter((marker) => only.has(marker.id)) : all;
-  };
-  return (
-    <LocationPicker
-      class={props.class}
-      panel
-      markers={shown()}
-      fit={!!props.only}
-      highlight={props.highlight}
-      target={props.target}
-      pointed={props.pointed}
-      onSelect={(id) => {
-        const marker = markers()?.find((n) => n.id === id);
-        if (marker) props.onSelect(marker);
-      }}
-    />
-  );
+  useMapView({
+    get markers() {
+      const only = view.only;
+      const all = markers() ?? [];
+      return only ? all.filter((marker) => only.has(marker.id)) : all;
+    },
+    get fit() {
+      return !!view.only;
+    },
+    get highlight() {
+      return view.highlight;
+    },
+    get target() {
+      return view.target;
+    },
+    get pointed() {
+      return view.pointed;
+    },
+    onSelect: (id) => {
+      const marker = markers()?.find((n) => n.id === id);
+      if (marker) view.onSelect(marker);
+    },
+  });
 }
 
 /**
