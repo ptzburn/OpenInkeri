@@ -4,7 +4,7 @@ import { For, Show, createMemo, createSignal } from 'solid-js';
 import ArrowIcon from '~icons/ri/arrow-right-s-line';
 
 import type { QueryData } from '~/lib/query-data';
-import { byLocalName, localName, namesOf } from '~/lib/format';
+import { byLocalName, namesOf } from '~/lib/format';
 import { MapPage } from '~/components/edit-page';
 import MapPanel from '~/components/map-panel';
 import SearchBox from '~/components/search-box';
@@ -181,7 +181,7 @@ export default function Parishes() {
   );
 }
 
-/** A parish in the list: its names, how many localities it has and its note; those localities a link away. */
+/** A parish in the list: its names, how many localities it has and its note; picked, a link to those localities. */
 function ParishListRow(props: {
   parish: ParishRow;
   selected: boolean;
@@ -199,17 +199,18 @@ function ParishListRow(props: {
       onPoint={props.onPoint}
       editHref={props.editHref}
       editLabel={m.parish_edit_open()}
-      actions={
-        <Show when={props.parish.villages}>
+      // Picked, with localities: the way to the list of them, the ones the
+      // map can't show among them.
+      more={
+        props.selected && props.parish.villages ? (
           <a
             href={villagesOf(props.parish)}
-            class="btn btn-square btn-ghost btn-sm"
-            aria-label={m.parishes_show_villages({ parish: localName(namesOf(props.parish)) })}
-            title={m.parishes_show_villages({ parish: localName(namesOf(props.parish)) })}
+            class="link inline-flex items-center gap-0.5 text-sm link-hover link-primary"
           >
+            {m.parishes_show_localities({ count: props.parish.villages })}
             <ArrowIcon class="size-4" aria-hidden="true" />
           </a>
-        </Show>
+        ) : undefined
       }
     >
       <RowNames names={namesOf(props.parish)} />

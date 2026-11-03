@@ -351,7 +351,6 @@
   "parishes_title": "Seurakunnat",
   "parishes_add": "Lisää seurakunta",
   "parishes_empty": "Seurakuntia ei ole vielä.",
-  "parishes_show_villages": "Seurakunnan {parish} paikkakunnat",
   "parish_edit_open": "Muokkaa seurakuntaa",
   "parish_edit_title": "Muokkaa seurakuntaa",
   "parish_new_title": "Uusi seurakunta",
@@ -505,5 +504,15 @@
   "places_shown_of": "{shown} / {total}",
   "parishes_search_label": "Hae seurakuntia",
   "parishes_search_placeholder": "Nimi venäjäksi tai suomeksi",
-  "parishes_no_match": "Haulla ”{search}” ei löytynyt seurakuntia."
+  "parishes_no_match": "Haulla ”{search}” ei löytynyt seurakuntia.",
+  "parishes_show_localities": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Näytä sen paikkakunta",
+        "countPlural=*": "Näytä sen {count} paikkakuntaa"
+      }
+    }
+  ]
 }

@@ -171,7 +171,8 @@ export function parishMarkers(
 /**
  * A row of a places list: `children` in a button that picks the row
  * (`selected` shows it picked; pointing at it or focusing it is told to
- * `onPoint`), then `actions`, and for admins a link to the row's edit page.
+ * `onPoint`), for admins a link to the row's edit page, and `more` on a
+ * line of its own under them (a link: a button can't hold one).
  * `id` marks the row for `scrollToRow`.
  */
 export function MapListRow(props: {
@@ -181,7 +182,7 @@ export function MapListRow(props: {
   onPoint?: (on: boolean) => void;
   editHref?: string;
   editLabel: string;
-  actions?: JSX.Element;
+  more?: JSX.Element;
   children: JSX.Element;
 }) {
   return (
@@ -201,7 +202,6 @@ export function MapListRow(props: {
       >
         {props.children}
       </button>
-      {props.actions}
       <Show when={props.editHref}>
         {(href) => (
           <a
@@ -213,6 +213,9 @@ export function MapListRow(props: {
             <EditIcon class="size-4" aria-hidden="true" />
           </a>
         )}
+      </Show>
+      <Show when={props.more}>
+        {(more) => <div class="list-col-wrap col-start-1">{more()}</div>}
       </Show>
     </li>
   );

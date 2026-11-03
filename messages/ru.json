@@ -359,7 +359,6 @@
   "parishes_title": "Приходы",
   "parishes_add": "Добавить приход",
   "parishes_empty": "Приходов пока нет.",
-  "parishes_show_villages": "Населённые пункты прихода {parish}",
   "parish_edit_open": "Изменить приход",
   "parish_edit_title": "Изменить приход",
   "parish_new_title": "Новый приход",
@@ -519,5 +518,17 @@
   "places_shown_of": "{shown} из {total}",
   "parishes_search_label": "Поиск приходов",
   "parishes_search_placeholder": "Название по-русски или по-фински",
-  "parishes_no_match": "Нет приходов по запросу «{search}»."
+  "parishes_no_match": "Нет приходов по запросу «{search}».",
+  "parishes_show_localities": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Показать {count} населённый пункт",
+        "countPlural=few": "Показать {count} населённых пункта",
+        "countPlural=many": "Показать {count} населённых пунктов",
+        "countPlural=*": "Показать {count} населённого пункта"
+      }
+    }
+  ]
 }

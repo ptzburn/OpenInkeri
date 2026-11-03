@@ -351,7 +351,6 @@
   "parishes_title": "Parishes",
   "parishes_add": "Add parish",
   "parishes_empty": "There are no parishes yet.",
-  "parishes_show_villages": "Localities of {parish}",
   "parish_edit_open": "Edit parish",
   "parish_edit_title": "Edit parish",
   "parish_new_title": "New parish",
@@ -505,5 +504,15 @@
   "places_shown_of": "{shown} of {total}",
   "parishes_search_label": "Search parishes",
   "parishes_search_placeholder": "Name in Russian or Finnish",
-  "parishes_no_match": "No parishes match “{search}”."
+  "parishes_no_match": "No parishes match “{search}”.",
+  "parishes_show_localities": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Show its locality",
+        "countPlural=*": "Show its {count} localities"
+      }
+    }
+  ]
 }

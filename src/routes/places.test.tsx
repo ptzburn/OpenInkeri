@@ -545,8 +545,9 @@ describe('/places/parishes', () => {
       const { container } = renderAt('/places/parishes');
       await waitFor(() => expect(names(container)).toEqual(['Губаницы', 'Курляндия']));
       expect(container).not.toHaveTextContent('Hevaa');
+      fireEvent.click(within(rows(container)[0] as HTMLElement).getAllByRole('button')[0]);
       expect(
-        screen.getByRole('link', { name: 'Населённые пункты прихода Губаницы' }),
+        await screen.findByRole('link', { name: 'Показать 1 населённый пункт' }),
       ).toBeInTheDocument();
     } finally {
       document.cookie = 'PARAGLIDE_LOCALE=; path=/; max-age=0';
@@ -569,14 +570,24 @@ describe('/places/parishes', () => {
     expect(gubanitsy).toHaveTextContent('1 locality');
     expect(gubanitsy).not.toHaveTextContent('source');
     expect(kurlandia).toHaveTextContent('Не приход');
-    // No villages: no link to them.
-    expect(screen.getAllByRole('link', { name: /^Localities of/ })).toHaveLength(1);
+    // Nothing picked: no link to any parish's localities.
+    expect(screen.queryByRole('link', { name: /^Show its/ })).toBeNull();
 
+    // A parish without localities picked: still none.
+    const pickKurlandia = within(kurlandia as HTMLElement).getAllByRole('button')[0];
+    fireEvent.click(pickKurlandia);
+    await waitFor(() => expect(pickKurlandia).toHaveAttribute('aria-pressed', 'true'));
+    expect(screen.queryByRole('link', { name: /^Show its/ })).toBeNull();
+
+    // One with them: the picked row alone links to them.
     const pick = within(gubanitsy as HTMLElement).getAllByRole('button')[0];
     fireEvent.click(pick);
     await waitFor(() => expect(pick).toHaveAttribute('aria-pressed', 'true'));
+    expect(screen.getAllByRole('link', { name: /^Show its/ })).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole('link', { name: 'Localities of Hevaa' }));
+    fireEvent.click(
+      within(gubanitsy as HTMLElement).getByRole('link', { name: 'Show its locality' }),
+    );
     await waitFor(() => expect(window.location.search).toBe('?parish=5'));
     await waitFor(() => expect(names(container)).toEqual(['Gorkka']));
     // Narrowed to the parish: the rows don't repeat it.
@@ -1011,11 +1022,13 @@ describe('reactivity', () => {
     expectNoSilentHolds(artifact);
   }
 
-  test('following a village count to its villages', async () => {
+  test("following a picked parish's link to its localities", async () => {
     const { container } = renderAt('/places/parishes');
     await waitFor(() => expect(names(container)).toHaveLength(2));
+    fireEvent.click(within(rows(container)[0] as HTMLElement).getAllByRole('button')[0]);
+    const link = await screen.findByRole('link', { name: 'Show its locality' });
     await capture('parish-to-villages', async () => {
-      fireEvent.click(screen.getByRole('link', { name: 'Localities of Hevaa' }));
+      fireEvent.click(link);
       await waitFor(() => expect(names(container)).toEqual(['Gorkka']));
     });
   });
