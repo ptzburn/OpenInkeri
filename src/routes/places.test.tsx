@@ -150,17 +150,6 @@ vi.mock('~/data/parishes', async () => {
     }, 'delete-parish'),
   };
 });
-// The places lists' view: the table, where the lists' own tests look,
-// unless a test picks the map.
-const { placesView } = vi.hoisted(() => ({
-  placesView: { current: 'table' as 'map' | 'table', saved: [] as string[] },
-}));
-vi.mock('~/data/places-view', () => ({
-  getPlacesView: vi.fn(async () => placesView.current),
-  savePlacesView: vi.fn((view: 'map' | 'table') => {
-    placesView.saved.push(view);
-  }),
-}));
 vi.mock('~/data/places', async () => {
   const { formAction } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
@@ -229,7 +218,8 @@ vi.mock('~/data/places', async () => {
 const renderAt = (url: string) => renderPage(url, { toasts: true });
 
 const names = (container: HTMLElement) =>
-  [...container.querySelectorAll('tbody tr .font-medium')].map((el) => el.textContent);
+  [...container.querySelectorAll('.list-row .font-medium')].map((el) => el.textContent);
+const rows = (container: HTMLElement) => [...container.querySelectorAll('.list-row')];
 const field = (name: string) =>
   document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
 
@@ -245,33 +235,32 @@ afterEach(() => {
   parishes.deleteFailsWith = null;
   parishes.uses = { villages: 0, sources: 0 };
   gazetteer.existing = null;
-  placesView.current = 'table';
-  placesView.saved = [];
 });
 
 describe('/places/villages', () => {
-  test('lists the places with their parish, spellings, records and location', async () => {
+  test('lists the places with their type, parish, records and spellings; a row is picked', async () => {
     const { container } = renderAt('/places/villages');
     await waitFor(() => expect(names(container)).toEqual(['Горки', 'Мыза Кикерино', 'Ёлкино']));
-    const first = container.querySelector('tbody tr')!;
+    const [gorki, kikerino] = rows(container);
     // English shows the parish's Finnish name.
-    expect(first).toHaveTextContent('Hevaa');
+    expect(gorki).toHaveTextContent('Village · Hevaa · 331 records');
     // The spelling that is the name itself isn't repeated.
-    expect(first.querySelectorAll('li')).toHaveLength(1);
-    expect(first).toHaveTextContent('Бедная Горка');
-    expect(first).toHaveTextContent('331');
-    expect(screen.getAllByRole('link', { name: /Approximate/ })[0]).toHaveAttribute(
-      'href',
-      expect.stringContaining('mlat=59.613487'),
+    expect(gorki.querySelectorAll('.badge')).toHaveLength(1);
+    expect(gorki).toHaveTextContent('Бедная Горка');
+    // One the map can't show says so.
+    expect(gorki).not.toHaveTextContent('Not located');
+    expect(kikerino).toHaveTextContent('Manor · 4 records · Not located');
+
+    const pick = within(gorki as HTMLElement).getAllByRole('button')[0];
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(pick);
+        await waitFor(() => expect(pick).toHaveAttribute('aria-pressed', 'true'));
+        flush();
+      },
+      { scenario: 'villages-pick' },
     );
-    // Every place's type has its own column, villages included.
-    const typeColumn = [...container.querySelectorAll('thead th')].findIndex(
-      (th) => th.textContent === 'Type',
-    );
-    expect(typeColumn).toBe(2);
-    expect(
-      [...container.querySelectorAll('tbody tr')].map((tr) => tr.children[typeColumn].textContent),
-    ).toEqual(['Village', 'Manor', 'Village']);
+    expect(artifact).toHaveNoDiagnostics();
   });
 
   test('in Russian, only the Russian name is shown', async () => {
@@ -279,9 +268,7 @@ describe('/places/villages', () => {
     try {
       const { container } = renderAt('/places/villages');
       await waitFor(() => expect(names(container)).toHaveLength(3));
-      const headers = [...container.querySelectorAll('thead th')].map((th) => th.textContent);
-      expect(headers.slice(0, 2)).toEqual(['Название', 'Тип']);
-      expect(container.querySelector('tbody tr')!.children).toHaveLength(headers.length);
+      expect(rows(container)[0]).toHaveTextContent('Деревня · Губаницы · 331 запись');
       expect(container).not.toHaveTextContent('Gorkka');
     } finally {
       document.cookie = 'PARAGLIDE_LOCALE=; path=/; max-age=0';
@@ -549,27 +536,30 @@ describe('/places/parishes', () => {
     document.cookie = 'PARAGLIDE_LOCALE=ru; path=/';
     try {
       const { container } = renderAt('/places/parishes');
-      await waitFor(() => expect(container.querySelectorAll('tbody tr')).toHaveLength(2));
-      const headers = [...container.querySelectorAll('thead th')].map((th) => th.textContent);
-      expect(headers[0]).toBe('Название');
-      expect(headers).not.toContain('По-фински');
-      expect(container.querySelector('tbody tr')!.children).toHaveLength(headers.length);
+      await waitFor(() => expect(names(container)).toEqual(['Губаницы', 'Курляндия']));
       expect(container).not.toHaveTextContent('Hevaa');
     } finally {
       document.cookie = 'PARAGLIDE_LOCALE=; path=/; max-age=0';
     }
   });
 
-  test('lists the parishes; a village count opens their villages', async () => {
+  test('lists the parishes; a row is picked, and its link opens their villages', async () => {
     const { container } = renderAt('/places/parishes');
     const tabs = await screen.findByRole('navigation', { name: 'Place type' });
     expect(screen.getByRole('link', { name: 'Parishes' })).toHaveClass('tab-active');
     expect(tabs.querySelectorAll('.tab')).toHaveLength(2);
-    await waitFor(() => expect(container.querySelectorAll('tbody tr')).toHaveLength(2));
-    // No villages: a plain 0, not a link.
-    expect(container.querySelector('tbody tr:nth-child(2)')).toHaveTextContent('Не приход');
+    await waitFor(() => expect(names(container)).toEqual(['Губаницы', 'Курляндия']));
+    const [gubanitsy, kurlandia] = rows(container);
+    expect(gubanitsy).toHaveTextContent('1 locality · 1 source');
+    expect(kurlandia).toHaveTextContent('Не приход');
+    // No villages: no link to them.
+    expect(screen.getAllByRole('link', { name: /^Localities of/ })).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole('link', { name: '1' }));
+    const pick = within(gubanitsy as HTMLElement).getAllByRole('button')[0];
+    fireEvent.click(pick);
+    await waitFor(() => expect(pick).toHaveAttribute('aria-pressed', 'true'));
+
+    fireEvent.click(screen.getByRole('link', { name: 'Localities of Губаницы' }));
     await waitFor(() => expect(window.location.search).toBe('?parish=5'));
     await waitFor(() => expect(names(container)).toEqual(['Горки']));
     expect(screen.getByText('Parish: Hevaa')).toBeInTheDocument();
@@ -583,7 +573,7 @@ describe('/places/parishes', () => {
 
   test('only admins can add or edit', async () => {
     const { container } = renderAt('/places/parishes');
-    await waitFor(() => expect(container.querySelectorAll('tbody tr')).toHaveLength(2));
+    await waitFor(() => expect(names(container)).toHaveLength(2));
     expect(screen.queryByRole('link', { name: 'Add parish' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Edit parish' })).toBeNull();
   });
@@ -953,9 +943,9 @@ describe('reactivity', () => {
 
   test('following a village count to its villages', async () => {
     const { container } = renderAt('/places/parishes');
-    await waitFor(() => expect(container.querySelectorAll('tbody tr')).toHaveLength(2));
+    await waitFor(() => expect(names(container)).toHaveLength(2));
     await capture('parish-to-villages', async () => {
-      fireEvent.click(screen.getByRole('link', { name: '1' }));
+      fireEvent.click(screen.getByRole('link', { name: 'Localities of Губаницы' }));
       await waitFor(() => expect(names(container)).toEqual(['Горки']));
     });
   });
@@ -965,7 +955,7 @@ describe('reactivity', () => {
     await waitFor(() => expect(names(container)).toHaveLength(3));
     await capture('places-tabs', async () => {
       fireEvent.click(screen.getByRole('link', { name: 'Parishes' }));
-      await waitFor(() => expect(container.querySelectorAll('tbody tr')).toHaveLength(2));
+      await waitFor(() => expect(names(container)).toEqual(['Губаницы', 'Курляндия']));
     });
   });
 
@@ -1033,88 +1023,5 @@ describe('reactivity', () => {
       await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
       await screen.findAllByRole('link', { name: 'Edit parish' });
     });
-  });
-});
-
-describe('the map view', () => {
-  const rowNames = (container: HTMLElement) =>
-    [...container.querySelectorAll('.list-row .font-medium')].map((el) => el.textContent);
-
-  test('lists the localities in the panel; the search narrows them, a row is picked', async () => {
-    placesView.current = 'map';
-    const { container } = renderAt('/places/villages');
-    await waitFor(() => expect(rowNames(container)).toEqual(['Горки', 'Мыза Кикерино', 'Ёлкино']));
-    expect(container.querySelector('table')).toBeNull();
-    const [gorki, kikerino] = container.querySelectorAll('.list-row');
-    expect(gorki).toHaveTextContent('Village · Hevaa · 331 records');
-    expect(gorki).toHaveTextContent('Бедная Горка');
-    // One the map can't show says so.
-    expect(gorki).not.toHaveTextContent('Not located');
-    expect(kikerino).toHaveTextContent('Manor · 4 records · Not located');
-
-    const pick = within(gorki as HTMLElement).getAllByRole('button')[0];
-    const { artifact } = await captureArtifact(
-      async () => {
-        fireEvent.click(pick);
-        await waitFor(() => expect(pick).toHaveAttribute('aria-pressed', 'true'));
-        fireEvent.input(screen.getByRole('searchbox', { name: 'Search localities' }), {
-          target: { value: 'елк' },
-        });
-        await waitFor(() => expect(rowNames(container)).toEqual(['Ёлкино']));
-        flush();
-      },
-      { scenario: 'villages-map' },
-    );
-    expect(artifact).toHaveNoDiagnostics();
-  });
-
-  test('switches to the table and back, and remembers the choice', async () => {
-    placesView.current = 'map';
-    const { container } = renderAt('/places/villages');
-    await waitFor(() => expect(rowNames(container)).toHaveLength(3));
-    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
-    await waitFor(() => expect(names(container)).toHaveLength(3));
-    expect(screen.getByRole('button', { name: 'Table' })).toHaveAttribute('aria-pressed', 'true');
-    expect(placesView.saved).toEqual(['table']);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Map' }));
-    await waitFor(() => expect(rowNames(container)).toHaveLength(3));
-    expect(container.querySelector('table')).toBeNull();
-    expect(placesView.saved).toEqual(['table', 'map']);
-  });
-
-  test('admins add and edit from the panel', async () => {
-    placesView.current = 'map';
-    me.current = { isAdmin: true };
-    renderAt(`/places/villages?q=${encodeURIComponent('горк')}`);
-    expect(await screen.findByRole('link', { name: 'Edit locality' })).toHaveAttribute(
-      'href',
-      `/places/villages/1/edit?q=${encodeURIComponent('горк')}`,
-    );
-    expect(screen.getByRole('link', { name: 'Add locality' })).toHaveAttribute(
-      'href',
-      `/places/villages/new?q=${encodeURIComponent('горк')}`,
-    );
-    expect(screen.getByText('Not linked to a locality')).toBeInTheDocument();
-  });
-
-  test('lists the parishes in the panel, each a link away from its localities', async () => {
-    placesView.current = 'map';
-    const { container } = renderAt('/places/parishes');
-    await waitFor(() => expect(rowNames(container)).toEqual(['Губаницы', 'Курляндия']));
-    const [gubanitsy, kurlandia] = container.querySelectorAll('.list-row');
-    expect(gubanitsy).toHaveTextContent('1 locality · 1 source');
-    expect(kurlandia).toHaveTextContent('Не приход');
-    // No localities: no link to them.
-    expect(screen.getAllByRole('link', { name: /^Localities of/ })).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Localities of Губаницы' })).toHaveAttribute(
-      'href',
-      '/places/villages?parish=5',
-    );
-    expect(screen.queryByRole('link', { name: 'Edit parish' })).toBeNull();
-
-    const pick = within(gubanitsy as HTMLElement).getAllByRole('button')[0];
-    fireEvent.click(pick);
-    await waitFor(() => expect(pick).toHaveAttribute('aria-pressed', 'true'));
   });
 });

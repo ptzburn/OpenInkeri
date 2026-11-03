@@ -6,13 +6,12 @@ import { env } from 'virtual:solid-env/client';
 import AddIcon from '~icons/ri/add-line';
 
 import { getCurrentUser } from '~/data/session';
-import { finnishNamesShown } from '~/lib/format';
 import { m } from '~/paraglide/messages.js';
 
-// What the list pages (records, people, sources, villages, parishes) share:
-// the page frame, what goes beside the heading, the dimming while the list
-// is on its way, the table's box and its common header cells. The edit
-// pages have ./edit-page.tsx.
+// What the list pages share: the page frame (records, people, sources),
+// what goes beside the heading, the dimming while the list is on its way
+// (the places lists' too), the table's box and the header cell over its
+// edit links. The edit pages have ./edit-page.tsx.
 
 /** A list page: the tab title, the heading with what goes beside it (`aside`: a count, an Add button), the content. */
 export default function ListPage(props: {
@@ -94,18 +93,6 @@ export function TableBox(props: { children: JSX.Element }) {
     <div class="overflow-x-auto rounded-box border border-base-300">
       <table class="table table-sm">{props.children}</table>
     </div>
-  );
-}
-
-/** The header cells over a row's names: the name (in Russian), and outside Russian the Finnish one too. */
-export function NameHeaders() {
-  return (
-    <>
-      <th>{finnishNamesShown() ? m.villages_col_ru() : m.villages_col_name()}</th>
-      <Show when={finnishNamesShown()}>
-        <th>{m.villages_col_fi()}</th>
-      </Show>
-    </>
   );
 }
 

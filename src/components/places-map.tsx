@@ -1,64 +1,16 @@
-import { For, Show, createMemo, createSignal } from 'solid-js';
+import { Show, createMemo } from 'solid-js';
 import type { JSX } from '@solidjs/web';
 import EditIcon from '~icons/ri/pencil-line';
-import MapIcon from '~icons/ri/road-map-line';
-import TableIcon from '~icons/ri/table-line';
 
 import type { QueryData } from '~/lib/query-data';
-import { type PlacesView, placesViews } from '~/lib/places-view';
 import LocationPicker from '~/components/location-picker';
 import { AddLink } from '~/components/list-page';
 import PlacesTabs from '~/components/places-tabs';
 import { type PlaceMarker, getPlaceMarkers } from '~/data/places';
-import { getPlacesView, savePlacesView } from '~/data/places-view';
-import { m } from '~/paraglide/messages.js';
 
-// What the places lists (villages and parishes) share in their two views:
-// the view chosen, its switch, and the map behind the map view's panel.
-
-const viewLabels: Record<PlacesView, () => string> = {
-  map: m.places_view_map,
-  table: m.places_view_table,
-};
-
-/**
- * The view the reader chose (from its cookie, which the server read) and
- * how to choose another, which remembers it. Call it in a component body:
- * the signal needs an owner.
- */
-export function usePlacesView(): [() => PlacesView, (view: PlacesView) => void] {
-  const [view, setView] = createSignal(() => getPlacesView(), { name: 'places-view' });
-  return [
-    view,
-    (next) => {
-      setView(next);
-      savePlacesView(next);
-    },
-  ];
-}
-
-/** The map or the table, as two joined buttons. */
-export function ViewSwitch(props: { view: PlacesView; onView: (view: PlacesView) => void }) {
-  return (
-    <div class="join" role="group" aria-label={m.places_view_label()}>
-      <For each={placesViews}>
-        {(view) => (
-          <button
-            type="button"
-            class={['btn join-item btn-sm', { 'btn-active': props.view === view }]}
-            aria-pressed={props.view === view ? 'true' : 'false'}
-            onClick={() => props.onView(view)}
-          >
-            <Show when={view === 'map'} fallback={<TableIcon class="size-4" aria-hidden="true" />}>
-              <MapIcon class="size-4" aria-hidden="true" />
-            </Show>
-            {viewLabels[view]()}
-          </button>
-        )}
-      </For>
-    </div>
-  );
-}
+// What the places lists (villages and parishes) share: each is a map with
+// the list as its panel (MapPanel), and these are the map, the panel's top
+// and bottom, and its rows.
 
 /**
  * The map behind a places list's panel: every located locality, parish
@@ -101,7 +53,7 @@ export function PlacesMap(props: {
 }
 
 /**
- * A row of a map view's list: `children` in a button that picks the row
+ * A row of a places list: `children` in a button that picks the row
  * (`selected` shows it picked; pointing at it or focusing it is told to
  * `onPoint`), then `actions`, and for admins a link to the row's edit page.
  * `id` marks the row for `scrollToRow`.
@@ -150,14 +102,14 @@ export function MapListRow(props: {
   );
 }
 
-/** Scrolls a map view's list to the row of `id` (MapListRow), when it is there. */
+/** Scrolls a places list to the row of `id` (MapListRow), when it is there. */
 export const scrollToRow = (list: HTMLElement | undefined, id: number) =>
   list
     ?.querySelector(`[data-row="${id}"]`)
     ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 
 /**
- * The bottom of a map view's panel, for admins: its Add button, in a bar as
+ * The bottom of a places list's panel, for admins: its Add button, in a bar as
  * tall as a form's (min-h-18), level with the sidebar's account corner.
  */
 export function MapListFoot(props: { href: string; label: string }) {
@@ -168,20 +120,11 @@ export function MapListFoot(props: { href: string; label: string }) {
   );
 }
 
-/** The top of a map view's panel: the places tabs and the view switch, then `children`. */
-export function MapListHead(props: {
-  current: 'villages' | 'parishes';
-  onView: (view: PlacesView) => void;
-  children?: JSX.Element;
-}) {
+/** The top of a places list's panel: the places tabs, then `children` (the search). */
+export function MapListHead(props: { current: 'villages' | 'parishes'; children?: JSX.Element }) {
   return (
     <div class="flex flex-col gap-3 border-b border-base-300 px-4 pt-2 pb-3 lg:pt-3">
-      <div class="flex flex-wrap items-center gap-2">
-        <PlacesTabs current={props.current} />
-        <div class="ml-auto">
-          <ViewSwitch view="map" onView={(view) => props.onView(view)} />
-        </div>
-      </div>
+      <PlacesTabs current={props.current} />
       {props.children}
     </div>
   );

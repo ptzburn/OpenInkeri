@@ -21,7 +21,3 @@ export function parseCoordinates(text: string): { lat: number; lng: number } | n
 /** Coordinates as the form shows them, the way they are pasted. */
 export const formatCoordinates = (lat: number | null, lng: number | null) =>
   lat === null || lng === null ? '' : `${lat}, ${lng}`;
-
-/** A place on OpenStreetMap, to check its coordinates. */
-export const mapLink = (lat: number, lng: number) =>
-  `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=14/${lat}/${lng}`;
