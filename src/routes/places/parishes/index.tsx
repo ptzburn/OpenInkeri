@@ -55,6 +55,8 @@ export default function Parishes() {
   const busy = useListBusy(list);
   const canEdit = useCanEdit('parishes-me');
   const [selected, setSelected] = createSignal<number | null>(null, { name: 'parishes-selected' });
+  // The parish whose row is pointed at: its cross is named on the map.
+  const [pointed, setPointed] = createSignal<number | null>(null, { name: 'parishes-pointed' });
   let rows: HTMLUListElement | undefined;
   const located = createMemo((): Promise<QueryData<typeof getPlaceMarkers>> => getPlaceMarkers(), {
     name: 'parishes-located',
@@ -80,6 +82,12 @@ export default function Parishes() {
     },
     get highlight() {
       return selected();
+    },
+    get pointed() {
+      const parish = pointed();
+      return parish === null
+        ? null
+        : (crosses().find((cross) => cross.church?.id === parish)?.id ?? null);
     },
     onSelect: (marker) => {
       const parish = marker.church?.id ?? marker.parishId;
@@ -112,6 +120,7 @@ export default function Parishes() {
                   selected={selected() === parish().id}
                   onMap={!located() || onMap().has(parish().id)}
                   onSelect={() => setSelected(parish().id)}
+                  onPoint={(on) => setPointed(on ? parish().id : null)}
                   editHref={canEdit() ? paths.places.parishes(parish().id).edit() : undefined}
                 />
               )}
@@ -130,6 +139,7 @@ function ParishListRow(props: {
   /** Whether the map has its cross; a row without one says so. */
   onMap: boolean;
   onSelect: () => void;
+  onPoint: (on: boolean) => void;
   editHref?: string;
 }) {
   return (
@@ -137,6 +147,7 @@ function ParishListRow(props: {
       id={props.parish.id}
       selected={props.selected}
       onSelect={props.onSelect}
+      onPoint={props.onPoint}
       editHref={props.editHref}
       editLabel={m.parish_edit_open()}
       actions={
