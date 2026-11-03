@@ -11,7 +11,7 @@ import type { JSX } from '@solidjs/web';
 import EditIcon from '~icons/ri/pencil-line';
 
 import type { QueryData } from '~/lib/query-data';
-import LocationPicker, { type MapMarker } from '~/components/location-picker';
+import LocationPicker, { type MapMarker, parishPoints } from '~/components/location-picker';
 import { AddLink } from '~/components/list-page';
 import PlacesTabs from '~/components/places-tabs';
 import { type PlaceMarker, getPlaceMarkers } from '~/data/places';
@@ -55,7 +55,7 @@ export function SharedMap(props: { children: JSX.Element }) {
         focus={view()?.focus}
         target={view()?.target}
         pointed={view()?.pointed}
-        fit={view()?.fit}
+        frame={view()?.frame}
       />
       {props.children}
     </MapViewContext>
@@ -81,9 +81,11 @@ export function useMapView(view: MapView) {
  * A places list's map: every located locality, or the page's own `markers`
  * (the parishes); `plain` draws parish churches as the localities they are.
  * `highlight` is the parish drawn plain, the others faint. `only`, when
- * given, keeps the dots of those localities (a search's matches) and frames
- * them. A click on a dot is handed to `onSelect`; `target` flies to a
- * locality and names it, `pointed` names it where it is. Call it in a
+ * given, keeps the dots of those localities (a search's matches). The view
+ * frames what the list is about: a search's matches, else the parish
+ * highlighted, else every dot, each time that changes (and on coming back
+ * to the list). A click on a dot is handed to `onSelect`; `target` flies to
+ * a locality and names it, `pointed` names it where it is. Call it in a
  * component body, with getters.
  */
 export function usePlacesMap(view: {
@@ -108,8 +110,9 @@ export function usePlacesMap(view: {
     get markers() {
       return shown();
     },
-    get fit() {
-      return !!view.only;
+    get frame() {
+      const parish = view.highlight;
+      return view.only || parish == null ? shown() : parishPoints(shown(), parish);
     },
     get highlight() {
       return view.highlight;

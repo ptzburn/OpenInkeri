@@ -209,8 +209,14 @@ function panelPadding(container: HTMLElement) {
 // they are likely misplaced, and fitting them would show half the country.
 const PARISH_REACH_KM = 40;
 
-/** A parish's localities within reach of its church (or of their middle, without one). */
-function parishCore(places: PlaceMarker[], parishId: number) {
+/**
+ * A parish's markers among `markers` (its localities, and its church) within
+ * reach of its church, or of their middle without one: what a map frames to
+ * show the parish.
+ */
+export function parishPoints(markers: MapMarker[], parishId: number) {
+  const places = markers.filter((p) => p.parishId === parishId || p.church?.id === parishId);
+  if (!places.length) return [];
   const median = (values: number[]) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)];
   const middle = places.find((p) => p.church?.id === parishId) ?? {
     latitude: median(places.map((p) => p.latitude)),
@@ -219,13 +225,24 @@ function parishCore(places: PlaceMarker[], parishId: number) {
   return places.filter((p) => distanceKm(middle, p) <= PARISH_REACH_KM);
 }
 
+// Of this many points or more, the box around them leaves out the outermost
+// twentieth on each side of each axis: a few strays (a locality recorded in
+// Helsinki) don't pull the view out to take them in.
+const TRIM_FROM = 20;
+const TRIM = 0.05;
+
 /** The box around the points, as MapLibre takes it: [[west, south], [east, north]]. */
 function boundsOf(points: { latitude: number; longitude: number }[]) {
-  const lngs = points.map((p) => p.longitude);
-  const lats = points.map((p) => p.latitude);
+  const span = (values: number[]) => {
+    const sorted = [...values].sort((a, b) => a - b);
+    const cut = sorted.length >= TRIM_FROM ? Math.floor(sorted.length * TRIM) : 0;
+    return [sorted[cut], sorted[sorted.length - 1 - cut]];
+  };
+  const [west, east] = span(points.map((p) => p.longitude));
+  const [south, north] = span(points.map((p) => p.latitude));
   return [
-    [Math.min(...lngs), Math.min(...lats)],
-    [Math.max(...lngs), Math.max(...lats)],
+    [west, south],
+    [east, north],
   ] as [[number, number], [number, number]];
 }
 
@@ -249,14 +266,13 @@ export const churchPoint = (markers: PlaceMarker[] | undefined, parishId: number
  * The localities already known (`markers`) show as dots around it, parish
  * churches among them, those outside the parish `highlight` faint; without
  * coordinates the view starts at `focus` (the parish church) if there is
- * one, else over Ingria; and with a parish to highlight, it then fits that
- * parish's localities (again whenever it changes). Under a MapPanel
- * (`panel`) the view centres on the part of the map in sight.
+ * one, else over Ingria, and frames `frame` (a list's dots, a parish's
+ * localities) whenever those points change. Under a MapPanel (`panel`) the
+ * view centres on the part of the map in sight.
  *
  * Without `onPick` the map only shows (the places lists): a click on a dot
- * names it and hands it to `onSelect`, `pointed` names a dot pointed at
- * elsewhere (its row), and with `fit` the view frames the dots whenever
- * they change (a search's matches).
+ * names it and hands it to `onSelect`, and `pointed` names a dot pointed at
+ * elsewhere (its row).
  * MapLibre needs the browser (and WebGL), so it loads after the page
  * settles, only here; without WebGL the map says so and the field is all.
  */
@@ -274,8 +290,8 @@ export default function LocationPicker(props: {
   target?: number | null;
   /** A locality pointed at elsewhere (its row in a list): its dot is named, the view stays. */
   pointed?: number | null;
-  /** Frame the markers in view whenever they change. */
-  fit?: boolean;
+  /** The points the view frames whenever they change, while the map has no coordinates of its own. */
+  frame?: MapMarker[];
   /** A MapPanel lies over the map. */
   panel?: boolean;
   /** The box's classes, its height above all (h-72 unless said otherwise); MapLibre follows the box as it resizes. */
@@ -458,12 +474,12 @@ export default function LocationPicker(props: {
   );
   // The known localities, as given and whenever they (or the parish shown)
   // change. While the map has no coordinates of its own to show, the view
-  // frames the markers (`fit`) or else the parish shown, each time they
-  // change; the first framing jumps, the later ones move.
+  // frames `frame` each time those points change (a view without it forgets
+  // what was framed, so the next frames again); the first framing jumps,
+  // the later ones move.
   let framed = false;
-  let framedMarkers: string | null = null;
-  let framedParish: number | null = null;
-  const frame = (map: MapLibreMap, points: PlaceMarker[]) => {
+  let framedPoints: string | null = null;
+  const frame = (map: MapLibreMap, points: MapMarker[]) => {
     if (!points.length) return false;
     const jump = framed ? {} : { duration: 0 };
     framed = true;
@@ -484,22 +500,16 @@ export default function LocationPicker(props: {
       map: map(),
       markers: props.markers ?? [],
       highlight: props.highlight ?? null,
-      fit: !!props.fit,
+      points: props.frame ?? null,
       located: !!coordinates(),
     }),
-    ({ map, markers, highlight, fit, located }) => {
+    ({ map, markers, highlight, points, located }) => {
       places = placesData(markers, highlight);
       void (map?.getSource(PLACES) as GeoJSONSource | undefined)?.setData(places);
-      if (!map || located) return;
-      if (fit) {
-        const key = markers.map((p) => p.id).join();
-        if (key !== framedMarkers && frame(map, markers)) framedMarkers = key;
-        return;
-      }
-      framedMarkers = null;
-      if (highlight === null || highlight === framedParish) return;
-      const parish = markers.filter((p) => p.parishId === highlight || p.church?.id === highlight);
-      if (frame(map, parishCore(parish, highlight))) framedParish = highlight;
+      if (!points) framedPoints = null;
+      if (!map || located || !points) return;
+      const key = points.map((p) => p.id).join();
+      if (key !== framedPoints && frame(map, points)) framedPoints = key;
     },
     { name: 'map-places' },
   );

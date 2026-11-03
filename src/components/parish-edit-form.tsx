@@ -11,7 +11,7 @@ import {
   postedName,
   useEditForm,
 } from '~/components/form-fields';
-import { pointOf } from '~/components/location-picker';
+import { parishPoints, pointOf } from '~/components/location-picker';
 import { useMapView } from '~/components/places-map';
 import { type Lookup, LookupField, addsRow, namedRow } from '~/components/lookup-field';
 import MapForm from '~/components/map-form';
@@ -187,6 +187,10 @@ export default function ParishEditForm(props: {
             return shown();
           },
           highlight: p.id || null,
+          // The parish, its localities in view, until a new church has coordinates.
+          get frame() {
+            return p.id ? parishPoints(shown(), p.id) : undefined;
+          },
           get target() {
             return target();
           },
