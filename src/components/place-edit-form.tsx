@@ -9,6 +9,7 @@ import {
   NamePair,
   Select,
   TextArea,
+  TextListField,
   postedName,
   useEditForm,
 } from '~/components/form-fields';
@@ -302,11 +303,12 @@ export default function PlaceEditForm(props: {
                 {/* The spellings the sources use come with the records
                         that name the locality: a new one has none to edit. */}
                 <Show when={p.id}>
-                  <TextArea
+                  <TextListField
                     name="spellings"
                     label={m.place_edit_spellings()}
-                    value={p.spellings.join('\n')}
-                    rows={5}
+                    values={p.spellings}
+                    inputLabel={m.place_edit_spelling_new()}
+                    maxlength={FIELD_MAX.line}
                     hint={m.place_edit_spellings_hint()}
                     invalid={invalid('spellings')}
                     class="sm:col-span-2"

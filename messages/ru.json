@@ -306,7 +306,7 @@
   "map_popup_parish": "Приход: {parish}",
   "map_popup_church": "Приходская церковь: {parish}",
   "place_edit_spellings": "Варианты написания",
-  "place_edit_spellings_hint": "По одному в строке. Записи с новым написанием места, ещё не связанные с населённым пунктом, будут связаны с этим.",
+  "place_edit_spellings_hint": "Записи с новым написанием места, ещё не связанные с населённым пунктом, будут связаны с этим.",
   "place_edit_spellings_too_long": "Каждое написание — не длиннее {max} символов.",
   "place_edit_conflict": "Кто-то другой тем временем изменил этот населённый пункт. Перезагрузите страницу, чтобы увидеть изменения.",
   "place_edit_missing": "Населённого пункта больше нет.",
@@ -527,5 +527,9 @@
       }
     }
   ],
-  "places_row_actions": "Действия"
+  "places_row_actions": "Действия",
+  "form_list_add": "Добавить",
+  "form_list_remove": "Убрать «{value}»",
+  "form_list_repeated": "«{value}» уже есть.",
+  "place_edit_spelling_new": "Новое написание"
 }

@@ -304,7 +304,7 @@
   "map_popup_parish": "Parish: {parish}",
   "map_popup_church": "Parish church: {parish}",
   "place_edit_spellings": "Alternative spellings",
-  "place_edit_spellings_hint": "One per line. Records that have a new spelling as their locality, and no locality yet, are linked to this one.",
+  "place_edit_spellings_hint": "Records that have a new spelling as their locality, and no locality yet, are linked to this one.",
   "place_edit_spellings_too_long": "Each spelling is at most {max} characters.",
   "place_edit_conflict": "Someone else changed this locality meanwhile. Reload the page to see their changes.",
   "place_edit_missing": "The locality no longer exists.",
@@ -511,5 +511,9 @@
       }
     }
   ],
-  "places_row_actions": "Actions"
+  "places_row_actions": "Actions",
+  "form_list_add": "Add",
+  "form_list_remove": "Remove “{value}”",
+  "form_list_repeated": "“{value}” is already there.",
+  "place_edit_spelling_new": "New spelling"
 }

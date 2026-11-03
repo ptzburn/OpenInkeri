@@ -304,7 +304,7 @@
   "map_popup_parish": "Seurakunta: {parish}",
   "map_popup_church": "Seurakunnan kirkko: {parish}",
   "place_edit_spellings": "Vaihtoehtoiset kirjoitusasut",
-  "place_edit_spellings_hint": "Yksi riville. Merkinnät, joiden paikka on kirjoitettu uudella tavalla ja joilla ei vielä ole paikkakuntaa, liitetään tähän.",
+  "place_edit_spellings_hint": "Merkinnät, joiden paikka on kirjoitettu uudella tavalla ja joilla ei vielä ole paikkakuntaa, liitetään tähän.",
   "place_edit_spellings_too_long": "Kukin kirjoitusasu on enintään {max} merkkiä.",
   "place_edit_conflict": "Joku muu muutti paikkakuntaa sillä välin. Lataa sivu uudelleen nähdäksesi muutokset.",
   "place_edit_missing": "Paikkakuntaa ei ole enää.",
@@ -511,5 +511,9 @@
       }
     }
   ],
-  "places_row_actions": "Toiminnot"
+  "places_row_actions": "Toiminnot",
+  "form_list_add": "Lisää",
+  "form_list_remove": "Poista ”{value}”",
+  "form_list_repeated": "”{value}” on jo listalla.",
+  "place_edit_spelling_new": "Uusi kirjoitusasu"
 }

@@ -1,11 +1,13 @@
 import { type FormAction, useSubmissions } from '@solidjs/router';
-import { For, Show, createMemo, untrack } from 'solid-js';
+import { For, Show, createMemo, createSignal, createUniqueId, untrack } from 'solid-js';
 import type { JSX } from '@solidjs/web';
+import CloseIcon from '~icons/ri/close-line';
 
 import { FIELD_MAX } from '~/lib/field-limits';
 import { localName } from '~/lib/format';
 import type { FormError } from '~/lib/form-error';
 import { CYRILLIC_NAME_PATTERN, LATIN_NAME_PATTERN } from '~/lib/name-scripts';
+import { foldForSearch } from '~/lib/search-text';
 import { useToast } from '~/components/toaster';
 import { m } from '~/paraglide/messages.js';
 
@@ -315,6 +317,135 @@ export function TextArea(props: {
         {(hint) => <span class="label whitespace-normal">{hint()}</span>}
       </Show>
     </label>
+  );
+}
+
+/**
+ * A list of short texts, each a chip with a button that takes it off, and a
+ * field (with Add, or Enter) that puts another on: trimmed, its spaces
+ * collapsed, never empty, and not one already there (by search's folding:
+ * case, ё = е), which the field says instead, marking the one there. Posted
+ * as `name`, one a line, which is what the server reads; a text typed and
+ * not yet added goes with it, so a save doesn't lose it. Before JavaScript
+ * loads the list posts as it was loaded. `invalid` is the server's refusal
+ * of the whole.
+ */
+export function TextListField(props: {
+  name: string;
+  label: string;
+  values: string[];
+  /** The field's accessible name: "New spelling". */
+  inputLabel: string;
+  maxlength: number;
+  invalid: Fault;
+  hint?: string;
+  /** The wrapper's classes, e.g. a grid column span. */
+  class?: string;
+}) {
+  // The form is keyed by its record, so this starts from it once.
+  const [values, setValues] = createSignal(() => [...props.values], { name: 'text-list' });
+  const [draft, setDraft] = createSignal('', { name: 'text-list-draft' });
+  // The value already there that the field's text repeats.
+  const [repeated, setRepeated] = createSignal<string | null>(null, {
+    name: 'text-list-repeated',
+  });
+  const tidy = (text: string) => text.replace(/\s+/g, ' ').trim();
+  const there = (text: string) => {
+    const key = foldForSearch(text);
+    return values().find((value) => foldForSearch(value) === key);
+  };
+  let input: HTMLInputElement | undefined;
+  // From the field as it is (not its signal, which a keystroke updates on
+  // the next microtask).
+  const add = () => {
+    const text = tidy(input?.value ?? draft());
+    if (!text) return;
+    const existing = there(text);
+    if (existing !== undefined) {
+      setRepeated(existing);
+      return;
+    }
+    setValues((list) => [...list, text]);
+    // Emptied here as well as through the signal: a keystroke not yet
+    // committed to it would otherwise be what the binding writes over.
+    if (input) input.value = '';
+    setDraft('');
+  };
+  // What the form posts: the list, and a text typed but not yet added.
+  const posted = () => {
+    const text = tidy(draft());
+    return (text && there(text) === undefined ? [...values(), text] : values()).join('\n');
+  };
+  const inputId = createUniqueId();
+
+  return (
+    <div class={['fieldset', props.class]}>
+      <label for={inputId} class="fieldset-legend">
+        {props.label}
+      </label>
+      <input type="hidden" name={props.name} value={posted()} />
+      <Show when={values().length}>
+        <ul class="flex flex-wrap gap-1.5 pb-1">
+          <For each={values()}>
+            {(value) => (
+              <li
+                class={['badge gap-1 pr-1 badge-soft', { 'badge-warning': repeated() === value }]}
+              >
+                {value}
+                <button
+                  type="button"
+                  class="btn btn-circle btn-ghost btn-xs"
+                  aria-label={m.form_list_remove({ value })}
+                  title={m.form_list_remove({ value })}
+                  onClick={() => {
+                    setValues((list) => list.filter((other) => other !== value));
+                    if (repeated() === value) setRepeated(null);
+                  }}
+                >
+                  <CloseIcon class="size-3" aria-hidden="true" />
+                </button>
+              </li>
+            )}
+          </For>
+        </ul>
+      </Show>
+      <div class="join w-full">
+        <input
+          ref={(el) => (input = el)}
+          id={inputId}
+          type="text"
+          value={draft()}
+          maxlength={props.maxlength}
+          aria-label={props.inputLabel}
+          aria-invalid={ariaInvalid(props.invalid)}
+          class="input join-item w-full"
+          onInput={(event) => {
+            setDraft(event.currentTarget.value);
+            setRepeated(null);
+          }}
+          onKeyDown={(event) => {
+            // Enter adds the text instead of submitting the form.
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            add();
+          }}
+        />
+        <button type="button" class="btn join-item" onClick={add}>
+          {m.form_list_add()}
+        </button>
+      </div>
+      <Show when={repeated()}>
+        {(value) => (
+          <p role="alert" class="text-sm text-warning">
+            {m.form_list_repeated({ value: value() })}
+          </p>
+        )}
+      </Show>
+      <FieldError fault={props.invalid} />
+      <Show when={props.hint}>
+        {(hint) => <span class="label whitespace-normal">{hint()}</span>}
+      </Show>
+    </div>
   );
 }
 

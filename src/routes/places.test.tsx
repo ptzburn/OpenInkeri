@@ -429,6 +429,49 @@ describe('editing a village', () => {
     expect(screen.getByRole('checkbox', { name: 'The parish church stands here' })).toBeChecked();
   });
 
+  test('the spellings are chips: added tidied and once, removed one by one, a typed one kept', async () => {
+    const form = await openGorki();
+    const spelling = screen.getByRole('textbox', { name: 'New spelling' });
+    const add = screen.getByRole('button', { name: 'Add' });
+    const chips = () =>
+      [...form.querySelectorAll('ul .badge')].map((chip) => chip.textContent?.trim());
+    expect(chips()).toEqual(['Бедная Горка', 'Горки']);
+
+    const { artifact } = await captureArtifact(
+      async () => {
+        // Its spaces collapsed, by Enter, which doesn't submit.
+        fireEvent.input(spelling, { target: { value: '  Горка   Бедная ' } });
+        fireEvent.keyDown(spelling, { key: 'Enter' });
+        await waitFor(() => expect(chips()).toEqual(['Бедная Горка', 'Горки', 'Горка Бедная']));
+        expect(spelling).toHaveValue('');
+        flush();
+      },
+      { scenario: 'spellings-add' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+    expect(places.saved).toHaveLength(0);
+
+    // One already there (case and ё folded) isn't added again: the field says so.
+    fireEvent.input(spelling, { target: { value: 'ГОРКИ' } });
+    fireEvent.click(add);
+    expect(await screen.findByText('“Горки” is already there.')).toBeInTheDocument();
+    expect(chips()).toHaveLength(3);
+    // Nothing to add from blanks.
+    fireEvent.input(spelling, { target: { value: '   ' } });
+    fireEvent.click(add);
+    expect(chips()).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove “Горки”' }));
+    await waitFor(() => expect(chips()).toEqual(['Бедная Горка', 'Горка Бедная']));
+
+    // Typed but not added: the save takes it along.
+    fireEvent.input(spelling, { target: { value: 'Горкино' } });
+    flush();
+    fireEvent.submit(form);
+    await waitFor(() => expect(places.saved).toHaveLength(1));
+    expect(places.saved[0].get('spellings')).toBe('Бедная Горка\nГорка Бедная\nГоркино');
+  });
+
   test('unticking the church box posts no church, so the save unsets it', async () => {
     const form = await openGorki();
     fireEvent.click(screen.getByRole('checkbox', { name: 'The parish church stands here' }));
@@ -439,7 +482,10 @@ describe('editing a village', () => {
 
   test('saves with the version it was loaded at, then returns to the list', async () => {
     const form = await openGorki();
-    fireEvent.input(field('spellings'), { target: { value: 'Бедная Горка\nГорки\nГоркка' } });
+    const spelling = screen.getByRole('textbox', { name: 'New spelling' });
+    fireEvent.input(spelling, { target: { value: 'Горкка' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    flush();
     fireEvent.submit(form);
 
     await waitFor(() => expect(window.location.pathname).toBe('/places/villages'));
