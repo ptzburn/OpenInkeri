@@ -41,6 +41,11 @@ const PLACES = 'places';
 const DOTS = `${PLACES}-dots`;
 const CHURCHES = `${PLACES}-churches`;
 const CHURCH_ICON = 'church';
+const HALO = `${PLACES}-halo`;
+// The place the map names (pointed at, here or in a list, or picked): a
+// feature state, so only its dot is drawn anew.
+const ACCENT = '#2563eb';
+const accented: ExpressionSpecification = ['boolean', ['feature-state', 'accent'], false];
 
 /**
  * A marker on the map: a locality as recorded, or (`estimated`) a parish
@@ -105,7 +110,8 @@ function addPlaces(map: MapLibreMap, data: GeoData) {
     const { image, pixelRatio } = churchIcon();
     map.addImage(CHURCH_ICON, image, { pixelRatio });
   }
-  map.addSource(PLACES, { type: 'geojson', data });
+  // By the locality's id, for its feature state.
+  map.addSource(PLACES, { type: 'geojson', data, promoteId: 'id' });
   const text = {
     'text-font': ['Noto Sans Regular'],
     'text-size': 11,
@@ -120,16 +126,30 @@ function addPlaces(map: MapLibreMap, data: GeoData) {
     'text-halo-width': 1.2,
     'text-opacity': opacity,
   };
+  // A glow under the place named, its dot or its cross.
+  map.addLayer({
+    id: HALO,
+    type: 'circle',
+    source: PLACES,
+    paint: {
+      'circle-radius': ['case', accented, 15, 0],
+      'circle-color': ACCENT,
+      'circle-opacity': 0.2,
+      'circle-stroke-color': ACCENT,
+      'circle-stroke-width': ['case', accented, 2, 0],
+      'circle-stroke-opacity': 0.7,
+    },
+  });
   map.addLayer({
     id: DOTS,
     type: 'circle',
     source: PLACES,
     filter: ['!', ['get', 'church']],
     paint: {
-      'circle-radius': 4,
-      'circle-color': '#4b5563',
+      'circle-radius': ['case', accented, 7, 4],
+      'circle-color': ['case', accented, ACCENT, '#4b5563'],
       'circle-stroke-color': '#ffffff',
-      'circle-stroke-width': 1.5,
+      'circle-stroke-width': ['case', accented, 2, 1.5],
       'circle-opacity': opacity,
       'circle-stroke-opacity': opacity,
     },
@@ -158,7 +178,7 @@ function addPlaces(map: MapLibreMap, data: GeoData) {
     // A parish placed amid its localities is fainter than one at its church.
     paint: {
       ...textPaint,
-      'icon-opacity': ['case', ['get', 'faded'], 0.3, ['get', 'estimated'], 0.5, 1],
+      'icon-opacity': ['case', accented, 1, ['get', 'faded'], 0.3, ['get', 'estimated'], 0.5, 1],
     },
   });
 }
@@ -304,6 +324,7 @@ export default function LocationPicker(props: {
   // Names a known locality in the popup, as pointing at its dot does; set once the map is up.
   let namePlace: ((place: MapMarker) => void) | undefined;
   let unname: (() => void) | undefined;
+  let reaccent: (() => void) | undefined;
   // The dots' data as last given, for a style (re)load to draw.
   let places = placesData([]);
   const coordinates = () => parseCoordinates(props.value ?? '') ?? null;
@@ -354,28 +375,48 @@ export default function LocationPicker(props: {
       created.addControl(new NavigationControl({ showCompass: false }), 'top-right');
       // The dots go on with each style, the theme switch's included.
       const withPlaces = created;
-      withPlaces.on('style.load', () => addPlaces(withPlaces, places));
+      withPlaces.on('style.load', () => {
+        addPlaces(withPlaces, places);
+        reaccent?.();
+      });
       // A dot under the pointer names its locality (a tap does the same, and
       // places nothing: the locality is there already); the pointer says it
       // is something to point at.
       const withPopup = created;
       const popup = new Popup({ closeButton: false, closeOnClick: false, offset: 10 });
+      // The place the popup names is accented, until it closes.
+      let accent: number | null = null;
+      const setAccent = (id: number | null) => {
+        if (!withPopup.getSource(PLACES)) return;
+        if (accent !== null)
+          withPopup.setFeatureState({ source: PLACES, id: accent }, { accent: false });
+        accent = id;
+        if (id !== null) withPopup.setFeatureState({ source: PLACES, id }, { accent: true });
+      };
+      popup.on('close', () => setAccent(null));
+      // A new style's dots start plain: the accent goes on them again.
+      reaccent = () => {
+        const id = accent;
+        accent = null;
+        setAccent(id);
+      };
       const under = (point: { x: number; y: number }) =>
         withPopup.getLayer(DOTS)
           ? withPopup.queryRenderedFeatures([point.x, point.y], { layers: [DOTS, CHURCHES] })
           : [];
       const name = (feature: ReturnType<typeof under>[number]) => {
         const [lng, lat] = (feature.geometry as { coordinates: [number, number] }).coordinates;
-        popup
-          .setLngLat([lng, lat])
-          .setDOMContent(describePlace(feature.properties as PlaceProperties))
-          .addTo(withPopup);
+        const properties = feature.properties as PlaceProperties;
+        popup.setLngLat([lng, lat]).setDOMContent(describePlace(properties)).addTo(withPopup);
+        setAccent(properties.id);
       };
-      namePlace = (place) =>
+      namePlace = (place) => {
         popup
           .setLngLat([place.longitude, place.latitude])
           .setDOMContent(describePlace(propertiesOf(place, null)))
           .addTo(withPopup);
+        setAccent(place.id);
+      };
       unname = () => popup.remove();
       created.on('mousemove', (event) => {
         const [feature] = under(event.point);
