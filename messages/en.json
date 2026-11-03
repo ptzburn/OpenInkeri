@@ -502,5 +502,8 @@
   "villages_map_legend": "Dots are the recorded localities.",
   "parishes_map_legend": "Crosses are the parishes: at their church, or fainter amid their localities where no church is set. A parish picked shows its localities.",
   "parishes_not_on_map": "Not on the map",
-  "villages_shown_of": "{shown} of {total}"
+  "places_shown_of": "{shown} of {total}",
+  "parishes_search_label": "Search parishes",
+  "parishes_search_placeholder": "Name in Russian or Finnish",
+  "parishes_no_match": "No parishes match “{search}”."
 }

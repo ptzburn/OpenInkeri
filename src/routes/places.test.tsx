@@ -588,6 +588,31 @@ describe('/places/parishes', () => {
     expect(container.querySelector('input[type=hidden][name=parish]')).toHaveValue('5');
   });
 
+  test('searches the parishes by either name, without diagnostics', async () => {
+    const { container } = renderAt('/places/parishes');
+    await waitFor(() => expect(names(container)).toEqual(['Hevaa', 'Курляндия']));
+    const input = screen.getByRole('searchbox', { name: 'Search parishes' });
+
+    const { artifact } = await captureArtifact(
+      async () => {
+        // By the Russian name, in any case.
+        fireEvent.input(input, { target: { value: 'ГУБ' } });
+        await waitFor(() => expect(names(container)).toEqual(['Hevaa']));
+        flush();
+      },
+      { scenario: 'parishes-search' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+    expect(window.location.search).toBe('?q=%D0%93%D0%A3%D0%91');
+    expect(screen.getByText('1 of 2')).toHaveClass('sr-only');
+
+    // By the Finnish name.
+    fireEvent.input(input, { target: { value: 'hev' } });
+    await waitFor(() => expect(names(container)).toEqual(['Hevaa']));
+    fireEvent.input(input, { target: { value: 'zzz' } });
+    expect(await screen.findByText('No parishes match “zzz”.')).toBeInTheDocument();
+  });
+
   test('a parish the map has no cross for says so', async () => {
     // Губаницы has a locality located; Курляндия none.
     const { getPlaceMarkers } = await import('~/data/places');

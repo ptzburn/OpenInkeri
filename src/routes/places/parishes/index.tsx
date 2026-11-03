@@ -1,3 +1,4 @@
+import { useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createMemo, createSignal } from 'solid-js';
 import ArrowIcon from '~icons/ri/arrow-right-s-line';
@@ -6,6 +7,7 @@ import type { QueryData } from '~/lib/query-data';
 import { byLocalName, localName, namesOf } from '~/lib/format';
 import { MapPage } from '~/components/edit-page';
 import MapPanel from '~/components/map-panel';
+import SearchBox from '~/components/search-box';
 import { ListBody, useCanEdit, useListBusy } from '~/components/list-page';
 import {
   MapListFoot,
@@ -18,17 +20,21 @@ import {
 } from '~/components/places-map';
 import { type ParishRow, getParishes } from '~/data/parishes';
 import { getPlaceMarkers, getPlaceTotals } from '~/data/places';
+import { stringParams } from '~/lib/route-params';
+import { foldForSearch } from '~/lib/search-text';
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import type { Crumbs } from '~/lib/breadcrumbs';
 
 // Signed-in users only: getParishes redirects a signed-out visitor to
-// sign-in (src/data/parishes.ts). A few dozen parishes at most: no search
-// and no pages.
+// sign-in (src/data/parishes.ts). A few dozen parishes at most: the whole
+// list comes at once, and ?q= searches it here by either name, so a search
+// survives reloads and can be shared.
 const crumbs: Crumbs = () => [{ label: m.parishes_title() }];
 
 export const route = defineFileRoute('/places/parishes/', {
   info: { crumbs },
+  search: stringParams('q'),
   preload: () => {
     void getParishes();
     void getPlaceMarkers();
@@ -39,20 +45,36 @@ export const route = defineFileRoute('/places/parishes/', {
 // The villages list narrowed to a parish.
 const villagesOf = (parish: ParishRow) => paths.places.villages({ parish: String(parish.id) });
 
+// A parish whose name in either language contains the search (folded: case, ё = е).
+const matches = (parish: ParishRow, folded: string) =>
+  [parish.nameRu, parish.nameFi].some((name) => !!name && foldForSearch(name).includes(folded));
+
 /**
  * The parishes: the map is the page, the list its panel (MapPanel). Only
  * parishes are on the map, a cross each (parishMarkers), until one is
  * picked, in the list or by its cross: then its localities show around it,
- * framed, and the other parishes go faint.
+ * framed, and the other parishes go faint. The search narrows the crosses
+ * too, and frames them.
  */
 export default function Parishes() {
+  const [search, setSearch] = useSearchParams(paths.places.parishes);
   const list = createMemo((): Promise<QueryData<typeof getParishes>> => getParishes(), {
     name: 'parishes-list',
   });
-  // By the name the list shows.
-  const sorted = createMemo(() => [...(list() ?? [])].sort(byLocalName), {
-    name: 'parishes-sorted',
+  // By the name the list shows, as the search leaves them.
+  const shown = createMemo(
+    () => {
+      const folded = foldForSearch(search.q ?? '');
+      const all = [...(list() ?? [])].sort(byLocalName);
+      return folded ? all.filter((parish) => matches(parish, folded)) : all;
+    },
+    { name: 'parishes-shown' },
+  );
+  const shownIds = createMemo(() => new Set(shown().map((parish) => parish.id)), {
+    name: 'parishes-shown-ids',
   });
+  // A search goes in the URL in place of the current entry.
+  const searchFor = (value: string) => setSearch({ q: value || undefined }, { replace: true });
   const busy = useListBusy(list);
   const canEdit = useCanEdit('parishes-me');
   const [selected, setSelected] = createSignal<number | null>(null, { name: 'parishes-selected' });
@@ -70,11 +92,15 @@ export default function Parishes() {
     name: 'parishes-on-map',
   });
   usePlacesMap({
-    // The crosses, and the localities of the parish picked as dots.
+    // The crosses of the parishes listed, and the localities of the parish
+    // picked (while it is listed) as dots.
     get markers() {
       const parish = selected();
-      const all = crosses();
-      if (parish === null) return all;
+      const listed = shownIds();
+      const all = crosses().filter(
+        (cross) => cross.parishId !== null && listed.has(cross.parishId),
+      );
+      if (parish === null || !listed.has(parish)) return all;
       const drawn = new Set(all.map((cross) => cross.id));
       const own = (located() ?? [])
         .filter((n) => n.parishId === parish && !drawn.has(n.id))
@@ -82,7 +108,8 @@ export default function Parishes() {
       return [...all, ...own];
     },
     get highlight() {
-      return selected();
+      const parish = selected();
+      return parish !== null && shownIds().has(parish) ? parish : null;
     },
     get pointed() {
       const parish = pointed();
@@ -104,7 +131,24 @@ export default function Parishes() {
         title={m.parishes_title()}
         sheet={m.parishes_sheet()}
         hint={`${m.parishes_map_hint()} ${m.parishes_map_legend()}`}
-        head={<MapListHead current="parishes" />}
+        head={
+          <MapListHead current="parishes">
+            <SearchBox
+              value={search.q}
+              onSearch={searchFor}
+              name="parishes-search-input"
+              label={m.parishes_search_label()}
+              placeholder={m.parishes_search_placeholder()}
+            />
+            {/* How many of all a search leaves, said to screen readers as it
+                changes; empty while the list is whole. */}
+            <p class="sr-only" aria-live="polite">
+              {search.q
+                ? m.places_shown_of({ shown: shown().length, total: list()?.length ?? 0 })
+                : ''}
+            </p>
+          </MapListHead>
+        }
         foot={
           canEdit() ? (
             <MapListFoot href={paths.places.parishes.new()} label={m.parishes_add()} />
@@ -112,9 +156,13 @@ export default function Parishes() {
         }
         bodyClass="p-2"
       >
-        <ListBody busy={busy()} count={list()?.length} empty={m.parishes_empty()}>
+        <ListBody
+          busy={busy()}
+          count={shown().length}
+          empty={search.q ? m.parishes_no_match({ search: search.q }) : m.parishes_empty()}
+        >
           <ul ref={(el) => (rows = el)} class="list">
-            <For each={sorted()} keyed={(parish) => parish.id}>
+            <For each={shown()} keyed={(parish) => parish.id}>
               {(parish) => (
                 <ParishListRow
                   parish={parish()}

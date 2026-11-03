@@ -162,7 +162,7 @@ export default function Villages() {
                 readers as it changes; empty while the list is whole. */}
             <p class="sr-only" aria-live="polite">
               {narrowed()
-                ? m.villages_shown_of({ shown: shown().length, total: list()?.places.length ?? 0 })
+                ? m.places_shown_of({ shown: shown().length, total: list()?.places.length ?? 0 })
                 : ''}
             </p>
           </MapListHead>
