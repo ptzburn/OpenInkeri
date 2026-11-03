@@ -215,12 +215,15 @@ function webglSupported() {
 const styleFor = () =>
   getComputedStyle(document.documentElement).colorScheme === 'dark' ? STYLE.dark : STYLE.light;
 
+// Tailwind's lg breakpoint, where the panel becomes a column beside the map.
+const LG = '(min-width: 64rem)';
+
 // What a MapForm's panel covers of the map, for the view to centre on the
 // rest: from lg up its column along the left edge (w-md, 28rem); below, the
 // search floating at the top and the collapsed sheet, a third of the height.
 function panelPadding(container: HTMLElement) {
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-  return matchMedia('(min-width: 64rem)').matches
+  return matchMedia(LG).matches
     ? { left: 28 * rem, top: 0, right: 0, bottom: 0 }
     : { left: 0, top: 4.5 * rem, right: 0, bottom: container.clientHeight / 3 };
 }
@@ -366,6 +369,19 @@ export default function LocationPicker(props: {
         zoom: at ? PLACE_ZOOM : focus ? PARISH_ZOOM : INGRIA.zoom,
         attributionControl: { compact: true },
       });
+      // Below lg the attribution starts folded to its "i" (a tap opens it):
+      // the map is small there, and the panel's sheet covers much of it.
+      // MapLibre's compact attribution starts open; once its style has given
+      // the attributions, it doesn't open again by itself.
+      if (!matchMedia(LG).matches) {
+        const small = created;
+        small.once('load', () =>
+          small
+            .getContainer()
+            .querySelector('.maplibregl-ctrl-attrib')
+            ?.classList.remove('maplibregl-compact-show'),
+        );
+      }
       if (untrack(() => props.panel)) {
         const covered = created;
         const cover = () => covered.setPadding(panelPadding(covered.getContainer()));
