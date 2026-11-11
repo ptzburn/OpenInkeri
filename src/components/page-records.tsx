@@ -11,26 +11,40 @@ import type { RecordKind } from '~/lib/record-kinds';
 import { m } from '~/paraglide/messages.js';
 
 /**
- * The list of `rows`, all of `kind`. With `editHref` (admins), each opens
- * its form; `selected` marks the one whose form is open.
+ * The list of `rows`, all of `kind`. A record marked on the photo carries
+ * its band's number (its place in the list). With `editHref` (admins), each
+ * opens its form. `hovered` is the record pointed at, here or on the photo;
+ * `onHover` says which one the pointer is on here.
  */
 export default function PageRecords(props: {
   kind: RecordKind;
   rows: RecordRow[];
-  selected?: number;
+  hovered?: number | null;
+  onHover?: (id: number | null) => void;
   editHref?: (row: RecordRow) => string;
 }) {
   return (
     <ol class="flex flex-col">
       <For each={props.rows} keyed={(row) => row.id}>
-        {(row) => (
+        {(row, i) => (
           <li
             class={[
-              'flex items-start gap-2 border-b border-base-200 py-2 last:border-b-0',
-              { 'bg-base-200': row().id === props.selected, 'text-base-content/50': row().lost },
+              'flex items-start gap-2 border-b border-base-200 px-1 py-2 last:border-b-0',
+              { 'bg-base-200': row().id === props.hovered, 'text-base-content/50': row().lost },
             ]}
+            onMouseEnter={() => props.onHover?.(row().id)}
+            onMouseLeave={() => props.onHover?.(null)}
           >
-            <div class="flex min-w-0 flex-1 flex-col gap-0.5 px-1">
+            <span
+              class={[
+                'badge badge-sm mt-0.5 w-7 shrink-0 tabular-nums',
+                row().photoTop === null ? 'badge-ghost' : 'badge-primary',
+              ]}
+              title={row().photoTop === null ? m.source_page_unmarked() : undefined}
+            >
+              {i() + 1}
+            </span>
+            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
               <span class="flex flex-wrap items-center gap-1 font-medium">
                 <Show when={row().lost}>
                   <span class="badge badge-soft badge-sm">{m.records_lost()}</span>

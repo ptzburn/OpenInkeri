@@ -250,6 +250,8 @@
   "source_page_records": "Records on this page",
   "source_page_no_records": "Nothing has been transcribed from this page yet.",
   "source_page_column": "This page's records",
+  "source_page_mark_hint": "Click the photo where this record's entry begins.",
+  "source_page_unmarked": "Not marked on the photo yet",
   "records_add": "Add record",
   "records_source": "Source: {title}",
   "records_source_clear": "All sources",

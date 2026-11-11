@@ -143,6 +143,8 @@ vi.mock('~/data/records', () => ({
       holding: null,
       members: [],
       note: null,
+      // Виктор is marked on the photo, Пётр Адам not yet.
+      photoTop: id === 41 ? 0.25 : null,
     });
     return {
       kind: 'baptisms' as const,
@@ -482,5 +484,29 @@ describe('/sources/:id', () => {
     renderAt('/sources/1/pages/1');
     await screen.findByText('1 of 3');
     expect(screen.queryByRole('complementary', { name: "This page's records" })).toBeNull();
+  });
+
+  test('the records marked on the photo show as numbered bands, lit with their row', async () => {
+    renderAt('/sources/1/pages/2');
+    const column = await screen.findByRole('complementary', { name: "This page's records" });
+    const victor = (await within(column).findByText('Виктор')).closest('li')!;
+    // Numbered by their place in the list; only the marked one has a band.
+    const bands = document.querySelectorAll<HTMLElement>('main section a.absolute');
+    expect(bands).toHaveLength(1);
+    expect(bands[0]).toHaveTextContent('1');
+    expect(bands[0].style.top).toBe('25%');
+    expect(within(victor).getByText('1')).toBeInTheDocument();
+    expect(
+      within(within(column).getByText('Пётр Адам').closest('li')!).getByTitle(
+        'Not marked on the photo yet',
+      ),
+    ).toHaveTextContent('2');
+    // Pointing at the row lights its band, and the band its row.
+    fireEvent.mouseEnter(victor);
+    await waitFor(() => expect(bands[0]).toHaveClass('bg-primary/25'));
+    fireEvent.mouseLeave(victor);
+    await waitFor(() => expect(bands[0]).toHaveClass('bg-primary/10'));
+    fireEvent.mouseEnter(bands[0]);
+    await waitFor(() => expect(victor).toHaveClass('bg-base-200'));
   });
 });

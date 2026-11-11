@@ -177,7 +177,7 @@ async function recordRows(
     where: { RAW: filter },
     orderBy: { id: 'asc' },
     ...page,
-    columns: { id: true, status: true, date: true, placeText: true, note: true },
+    columns: { id: true, status: true, date: true, placeText: true, note: true, photoTop: true },
     with: {
       place: { columns: { nameRu: true, nameFi: true } },
       baptism: {
@@ -259,6 +259,8 @@ async function recordRows(
         }))
       : [],
     note: r.note,
+    // Where it starts on its page's photo (0 the top, 1 the bottom).
+    photoTop: r.photoTop,
   }));
 }
 
@@ -321,6 +323,8 @@ export interface RecordEditData {
   sourceId: number | null;
   /** The page as the source numbers it ("221об"). */
   page: string | null;
+  /** Where it starts on its page's photo, as a fraction of its height. */
+  photoTop: number | null;
   /** The language of the original register: ru, fi, sv… */
   language: string | null;
   version: number;
@@ -414,6 +418,7 @@ async function loadRecord(id: number) {
       version: true,
       sourceId: true,
       page: true,
+      photoTop: true,
       status: true,
       date: true,
       placeText: true,
@@ -567,6 +572,15 @@ const common = {
   version,
   sourceId: v.pipe(v.string(), v.transform(Number), rowId),
   page: line(),
+  // Where it starts on its page's photo, posted only by the form beside the
+  // photo: absent leaves it as it is, empty clears it.
+  photoTop: v.optional(
+    v.pipe(
+      v.string(),
+      v.transform((s) => (s === '' ? null : Number(s))),
+      v.nullable(v.pipe(v.number(), v.minValue(0), v.maxValue(1))),
+    ),
+  ),
   status: v.picklist(recordStatuses),
   date: partialDate,
   note: text,
@@ -1139,6 +1153,7 @@ export const saveRecord = formAction(async (formData: FormData) => {
   const fields = {
     sourceId: chosen.id,
     page: input.page as string | null,
+    ...(input.photoTop !== undefined && { photoTop: input.photoTop as number | null }),
     status: input.status,
     date: input.date,
     placeId,

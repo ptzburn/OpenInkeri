@@ -129,6 +129,7 @@ const blank = (kind: RecordKind, sourceId: number | null = null): RecordEditData
   kind,
   sourceId,
   page: null,
+  photoTop: null,
   language: null,
   version: 0,
   status: 'ok',
@@ -198,7 +199,9 @@ const nextAfter = (previous: RecordEditData): RecordEditData => {
  * form as typed, says why and marks the fields at fault. An existing
  * record's form is followed by its Delete section. Its fields lay out by the
  * form's own width (container queries), so it fits a page or, with `panel`,
- * the column beside a page photo, whose bottom its save bar keeps to.
+ * the column beside a page photo, whose bottom its save bar keeps to. There
+ * it also posts where the entry starts on the photo: `mark`, just clicked,
+ * else the record's own.
  */
 export default function RecordEditForm(props: {
   id?: number;
@@ -206,6 +209,7 @@ export default function RecordEditForm(props: {
   after?: number;
   returnTo: ListPlace;
   panel?: boolean;
+  mark?: number;
   cancelHref: string;
 }) {
   const options = createMemo(
@@ -329,6 +333,9 @@ export default function RecordEditForm(props: {
             <input type="hidden" name="returnSource" value={props.returnTo.source ?? ''} />
             <input type="hidden" name="returnPhoto" value={props.returnTo.photo ?? ''} />
             <input type="hidden" name="id" value={r.id || ''} />
+            <Show when={props.panel}>
+              <input type="hidden" name="photoTop" value={props.mark ?? r.photoTop ?? ''} />
+            </Show>
             <input type="hidden" name="version" value={r.version} />
 
             {/* In the order a register entry reads: the entry (where and

@@ -1184,6 +1184,24 @@ describe('adding and deleting records', () => {
     );
   });
 
+  test('a click on the photo marks where the new record starts, and is posted with it', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/2?record=new');
+    await waitFor(() => expect(field('page')).toHaveValue('221об'));
+    expect(field('photoTop')).toHaveValue('');
+    expect(
+      screen.getByText("Click the photo where this record's entry begins."),
+    ).toBeInTheDocument();
+    const photo = screen.getByRole('img', { name: /p\. 221об$/ });
+    photo.getBoundingClientRect = () => ({ top: 100, height: 400 }) as DOMRect;
+    fireEvent.click(photo, { clientY: 200 });
+    await waitFor(() => expect(field('photoTop')).toHaveValue('0.25'));
+    // Its band shows at once, numbered after the page's records.
+    const band = document.querySelector<HTMLElement>('main section a.absolute')!;
+    expect(band.style.top).toBe('25%');
+    expect(band).toHaveTextContent('1');
+  });
+
   test('a record opened from its page photo causes no diagnostics', async () => {
     me.current = { isAdmin: true };
     renderAt('/sources/1/pages/2?record=new');

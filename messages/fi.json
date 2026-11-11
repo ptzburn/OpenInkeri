@@ -250,6 +250,8 @@
   "source_page_records": "Tämän sivun merkinnät",
   "source_page_no_records": "Tältä sivulta ei ole vielä kirjattu mitään.",
   "source_page_column": "Tämän sivun merkinnät",
+  "source_page_mark_hint": "Napsauta kuvaa kohdasta, josta tämä merkintä alkaa.",
+  "source_page_unmarked": "Ei vielä merkitty kuvaan",
   "records_add": "Lisää merkintä",
   "records_source": "Lähde: {title}",
   "records_source_clear": "Kaikki lähteet",

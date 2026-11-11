@@ -238,6 +238,10 @@ export const record = snakeCase.table(
       .references(() => source.id, { onDelete: 'restrict' }),
     sectionId: integer().references(() => sourceSection.id, { onDelete: 'set null' }),
     page: text(), // as numbered in the source: "221об"
+    // Where the entry starts on its page's photo (source_page), as a fraction
+    // of the photo's height from the top: marked with a click as the record
+    // is transcribed beside the photo. Its band there runs to the next mark.
+    photoTop: real(),
     status: text({ enum: recordStatuses }).default('ok').notNull(),
     date: text(), // baptism, wedding or death date; the list's date for lists
     // For the map's timeline: grouping by place and year needs no date parsing.

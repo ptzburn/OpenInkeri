@@ -2,7 +2,7 @@ import { Link, Title } from '@solidjs/meta';
 import { type RouteProps, useNavigate, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import type { JSX } from '@solidjs/web';
-import { Show, createMemo, createSignal, isPending, onSettled } from 'solid-js';
+import { For, Show, createMemo, createSignal, isPending, onSettled } from 'solid-js';
 import { env } from 'virtual:solid-env/client';
 import AddIcon from '~icons/ri/add-line';
 import PrevIcon from '~icons/ri/arrow-left-s-line';
@@ -18,6 +18,7 @@ import RecordEditForm from '~/components/record-edit-form';
 import { getPageRecords } from '~/data/records';
 import { getSourcePages } from '~/data/sources';
 import { pageName } from '~/lib/format';
+import { photoBands } from '~/lib/photo-bands';
 import { photoUrl } from '~/lib/photos';
 import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
@@ -35,6 +36,9 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 // column, starting on this page (?after= the record saved just before with
 // Save and add next, which the new one follows), and ?record=<id> a
 // record's form. Saving, deleting or cancelling comes back to the list.
+// While a form is open, a click on the photo marks where its entry starts;
+// the records marked show as numbered bands over the photo, each down to
+// the next mark, lit with their row in the list as the pointer is on it.
 const crumbs: Crumbs = async ({ params }) => {
   const id = idParam(params.id);
   const n = idParam(params.n);
@@ -112,6 +116,48 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
     shown: { source: { id: number }; page: { position: number } },
     record: string,
   ) => paths.sources(shown.source.id).pages(String(shown.page.position))({ record });
+
+  // The mark just clicked on the photo for the form open beside it, kept
+  // with which form it is for (?record= and ?after=), so the next record's
+  // form starts unmarked; it is posted with the form (record.photo_top).
+  const [pending, setPending] = createSignal<{ form: string; top: number } | null>(null, {
+    name: 'source-page-mark',
+  });
+  // The record pointed at, in the list or on the photo.
+  const [hovered, setHovered] = createSignal<number | null>(null, {
+    name: 'source-page-hovered',
+  });
+  // The form open beside the photo, for an admin: which, or undefined.
+  const formOpen = () => (canEdit() ? search.record : undefined);
+  const formKey = () => `${search.record ?? ''}:${search.after ?? ''}`;
+  const markOf = () => {
+    const mark = pending();
+    return mark && mark.form === formKey() ? mark.top : undefined;
+  };
+  // With a form open, a click on the photo marks where its entry starts;
+  // else it zooms.
+  const photoClick = (event: MouseEvent & { currentTarget: HTMLImageElement }) => {
+    if (!formOpen()) return toggleZoom();
+    const box = event.currentTarget.getBoundingClientRect();
+    if (!(box.height > 0)) return;
+    const top = Math.min(1, Math.max(0, (event.clientY - box.top) / box.height));
+    setPending({ form: formKey(), top });
+  };
+  // The bands over the photo: the records marked on it, numbered by their
+  // place in the list, the one whose form is open where it was just marked.
+  const bands = () => {
+    const rows = records()?.records ?? [];
+    const open = formOpen();
+    const mark = markOf();
+    const marks = rows.flatMap((row, i) => {
+      const top = String(row.id) === open && mark !== undefined ? mark : row.photoTop;
+      return top === null ? [] : [{ id: row.id, n: i + 1, top }];
+    });
+    if (open === 'new' && mark !== undefined) marks.push({ id: 0, n: rows.length + 1, top: mark });
+    return photoBands(marks);
+  };
+  const lit = (id: number) =>
+    id === hovered() || String(id) === formOpen() || (id === 0 && formOpen() === 'new');
 
   // Kept as the pages turn: one read at full size is likely read so on.
   const [zoomed, setZoomed] = createSignal(false, { name: 'source-page-zoomed' });
@@ -191,19 +237,62 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                 ]}
                 style={{ opacity: isPending(source) ? 0.5 : 1 }}
               >
-                <img
-                  src={photoUrl('pages', a().page.key)}
-                  alt={`${a().source.title}, ${pageName(a().page.position, a().page.label)}`}
-                  width={a().page.width}
-                  height={a().page.height}
-                  class={
-                    zoomed()
-                      ? 'h-auto max-w-none cursor-zoom-out'
-                      : 'h-auto max-h-[75dvh] w-auto max-w-full cursor-zoom-in object-contain lg:max-h-[calc(100dvh-9rem)]'
-                  }
-                  onClick={toggleZoom}
-                />
+                <div class={['relative', zoomed() ? 'w-max' : 'max-w-full']}>
+                  <img
+                    src={photoUrl('pages', a().page.key)}
+                    alt={`${a().source.title}, ${pageName(a().page.position, a().page.label)}`}
+                    width={a().page.width}
+                    height={a().page.height}
+                    class={[
+                      zoomed()
+                        ? 'h-auto max-w-none'
+                        : 'h-auto max-h-[75dvh] w-auto max-w-full object-contain lg:max-h-[calc(100dvh-9rem)]',
+                      formOpen()
+                        ? 'cursor-crosshair'
+                        : zoomed()
+                          ? 'cursor-zoom-out'
+                          : 'cursor-zoom-in',
+                    ]}
+                    onClick={photoClick}
+                  />
+                  <For each={bands()} keyed={(band) => band.id}>
+                    {(band) => (
+                      // An admin's way to a record from its entry; with a
+                      // form open (and for anyone else) the clicks go
+                      // through to the photo.
+                      <a
+                        href={
+                          canEdit() && !formOpen() ? formHref(a(), String(band().id)) : undefined
+                        }
+                        class={[
+                          'absolute inset-x-0 border-t-2 border-primary transition-colors',
+                          lit(band().id) ? 'bg-primary/25' : 'bg-primary/10',
+                          { 'pointer-events-none': !canEdit() || !!formOpen() },
+                        ]}
+                        style={{
+                          top: `${band().top * 100}%`,
+                          height: `${(band().bottom - band().top) * 100}%`,
+                        }}
+                        aria-label={
+                          canEdit() && !formOpen()
+                            ? `${m.record_edit_open()} ${band().n}`
+                            : undefined
+                        }
+                        aria-hidden={canEdit() && !formOpen() ? undefined : 'true'}
+                        onMouseEnter={() => setHovered(band().id)}
+                        onMouseLeave={() => setHovered(null)}
+                      >
+                        <span class="absolute top-1 left-1 badge badge-sm badge-primary tabular-nums">
+                          {band().n}
+                        </span>
+                      </a>
+                    )}
+                  </For>
+                </div>
               </div>
+              <Show when={formOpen()}>
+                <p class="text-sm text-base-content/70">{m.source_page_mark_hint()}</p>
+              </Show>
             </section>
 
             <Show when={a().page.label}>
@@ -253,6 +342,8 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                           <PageRecords
                             kind={records()!.kind}
                             rows={records()!.records}
+                            hovered={hovered()}
+                            onHover={setHovered}
                             editHref={
                               canEdit() ? (row) => formHref(a(), String(row.id)) : undefined
                             }
@@ -268,6 +359,7 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                         after={idParam(search.after) ?? undefined}
                         returnTo={here(a())}
                         cancelHref={pageHref(a().source.id, a().page.position)}
+                        mark={markOf()}
                       />
                     )}
                   </Show>

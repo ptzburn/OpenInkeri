@@ -252,6 +252,8 @@
   "source_page_records": "Записи на этой странице",
   "source_page_no_records": "С этой страницы пока ничего не переписано.",
   "source_page_column": "Записи этой страницы",
+  "source_page_mark_hint": "Нажмите на фото там, где начинается эта запись.",
+  "source_page_unmarked": "Ещё не отмечена на фото",
   "records_add": "Добавить запись",
   "records_source": "Источник: {title}",
   "records_source_clear": "Все источники",
