@@ -247,6 +247,8 @@
   "source_page_next": "Next page",
   "source_page_full": "Full size",
   "source_page_fit": "Fit to window",
+  "source_page_records": "Records on this page",
+  "source_page_no_records": "Nothing has been transcribed from this page yet.",
   "records_add": "Add record",
   "records_source": "Source: {title}",
   "records_source_clear": "All sources",

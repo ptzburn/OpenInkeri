@@ -119,6 +119,38 @@ vi.mock('~/data/sources', async () => {
   };
 });
 
+// The records transcribed from a page: two on the register's page "1об".
+vi.mock('~/data/records', () => ({
+  getPageRecords: vi.fn(async (sourceId: number, label: string) => {
+    const row = (id: number, child: string) => ({
+      id,
+      lost: false,
+      date: '1903-01-12',
+      birthDate: null,
+      stillborn: false,
+      multipleBirth: null,
+      illegitimate: false,
+      burialDate: null,
+      cause: null,
+      village: null,
+      villageAsWritten: null,
+      child: { ru: child, fi: null, age: null, residence: null, residenceAsWritten: null },
+      father: null,
+      mother: null,
+      groom: null,
+      bride: null,
+      deceased: null,
+      holding: null,
+      members: [],
+      note: null,
+    });
+    return {
+      kind: 'baptisms' as const,
+      records: sourceId === 1 && label === '1об' ? [row(41, 'Виктор'), row(42, 'Пётр Адам')] : [],
+    };
+  }),
+}));
+
 const renderAt = (url: string) => renderPage(url, { toasts: true });
 
 const field = (name: string) =>
@@ -143,10 +175,11 @@ describe('/sources', () => {
     expect(row).toHaveTextContent('1892–1919');
     expect(row).toHaveTextContent('Russian');
     // The title and the count open the source's records.
+    // The count opens the source's records; the title, the source.
     expect(screen.getByRole('link', { name: '6630' })).toHaveAttribute('href', '/records?source=1');
     expect(
       screen.getByRole('link', { name: 'Губаницы: список рожденных и крещенных' }),
-    ).toHaveAttribute('href', '/records?source=1');
+    ).toHaveAttribute('href', '/sources/1');
     const other = screen.getByText('Туутари и Хиетамяки: налогоплательщики 1696').closest('tr')!;
     expect(other).toHaveTextContent('Taxpayers');
     expect(other).toHaveTextContent('Swedish');
@@ -313,10 +346,22 @@ describe('/sources', () => {
 });
 
 describe('/sources/:id', () => {
-  test("the list counts a source's page photos and opens them", async () => {
+  test("a click on a source's row opens it; the row's own links stay theirs", async () => {
     renderAt('/sources');
     const row = (await screen.findByText('Губаницы: список рожденных и крещенных')).closest('tr')!;
-    expect(within(row).getByRole('link', { name: '3' })).toHaveAttribute('href', '/sources/1');
+    // The photo count, beside the records count.
+    expect(row.cells[6]).toHaveTextContent('3');
+    fireEvent.click(within(row).getByText('Baptisms'));
+    await waitFor(() => expect(window.location.pathname).toBe('/sources/1'));
+    cleanup();
+
+    me.current = { isAdmin: true };
+    renderAt('/sources');
+    const again = (await screen.findByText('Губаницы: список рожденных и крещенных')).closest(
+      'tr',
+    )!;
+    fireEvent.click(within(again).getByRole('link', { name: 'Edit source' }));
+    await waitFor(() => expect(window.location.pathname).toBe('/sources/1/edit'));
   });
 
   test("a source's pages are thumbnails in order", async () => {
@@ -406,5 +451,38 @@ describe('/sources/:id', () => {
   test('a page the source has not says so', async () => {
     renderAt('/sources/1/pages/9');
     expect(await screen.findByText('This source has no such page.')).toBeInTheDocument();
+  });
+
+  test('a numbered page lists its records; admins add and edit them from here', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/2');
+    const section = (await screen.findByRole('heading', { name: 'Records on this page' })).closest(
+      'section',
+    )!;
+    await within(section).findByText('Виктор');
+    expect(within(section).getByText('Пётр Адам')).toBeInTheDocument();
+    // The form starts on this page and returns here.
+    expect(within(section).getByRole('link', { name: 'Add record' })).toHaveAttribute(
+      'href',
+      '/records/new?source=1&photo=2',
+    );
+    expect(within(section).getAllByRole('link', { name: 'Edit record' })[0]).toHaveAttribute(
+      'href',
+      '/records/41/edit?source=1&photo=2',
+    );
+  });
+
+  test('a page with nothing transcribed says so, and only admins may add', async () => {
+    renderAt('/sources/1/pages/3');
+    expect(
+      await screen.findByText('Nothing has been transcribed from this page yet.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Add record' })).toBeNull();
+  });
+
+  test('an unnumbered photo (a cover) has no records section', async () => {
+    renderAt('/sources/1/pages/1');
+    await screen.findByText('1 of 3');
+    expect(screen.queryByRole('heading', { name: 'Records on this page' })).toBeNull();
   });
 });

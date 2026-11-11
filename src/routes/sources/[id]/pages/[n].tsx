@@ -11,6 +11,9 @@ import ZoomInIcon from '~icons/ri/zoom-in-line';
 import ZoomOutIcon from '~icons/ri/zoom-out-line';
 
 import type { QueryData } from '~/lib/query-data';
+import { AddLink, CountBadge, useCanEdit } from '~/components/list-page';
+import RecordTable from '~/components/record-table';
+import { getPageRecords } from '~/data/records';
 import { getSourcePages } from '~/data/sources';
 import { pageName } from '~/lib/format';
 import { photoUrl } from '~/lib/photos';
@@ -22,7 +25,10 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 // One page photograph of a source, for signed-in users (see ../index.tsx): fitted to
 // the window, or at its full size to read the hand, by its button or a
 // click on the photo. Previous and next, also by the arrow keys; the next
-// photo is fetched ahead, so turning the page doesn't wait.
+// photo is fetched ahead, so turning the page doesn't wait. Under it, the
+// records transcribed from the page (a numbered one: those whose page is
+// its number), and for admins Add record, whose form starts on this page
+// and, like a record's Edit, returns here.
 const crumbs: Crumbs = async ({ params }) => {
   const id = idParam(params.id);
   const n = idParam(params.n);
@@ -39,7 +45,13 @@ export const route = defineFileRoute('/sources/:id/pages/:n', {
   info: { crumbs },
   preload: ({ params }) => {
     const id = idParam(params.id);
-    if (id) void getSourcePages(id);
+    const n = idParam(params.n);
+    if (id) {
+      void getSourcePages(id).then((source) => {
+        const label = source?.pages.find((p) => p.position === n)?.label;
+        if (label) void getPageRecords(id, label);
+      });
+    }
   },
 });
 
@@ -70,6 +82,21 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
     },
     { name: 'source-page-at' },
   );
+  // The records transcribed from the page, when it is numbered.
+  const records = createMemo(
+    (): Promise<QueryData<typeof getPageRecords>> | null => {
+      const shown = at();
+      return shown?.page.label ? getPageRecords(shown.source.id, shown.page.label) : null;
+    },
+    { name: 'source-page-records' },
+  );
+  const canEdit = useCanEdit('source-page-me');
+  // Where a record's form opened from here returns: this photo.
+  const here = (shown: { source: { id: number }; page: { position: number } }) => ({
+    source: String(shown.source.id),
+    photo: String(shown.page.position),
+  });
+
   // Kept as the pages turn: one read at full size is likely read so on.
   const [zoomed, setZoomed] = createSignal(false, { name: 'source-page-zoomed' });
   const toggleZoom = () => {
@@ -158,6 +185,32 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                 onClick={toggleZoom}
               />
             </div>
+            <Show when={a().page.label}>
+              <section class="flex flex-col gap-3 py-2" aria-labelledby="page-records">
+                <header class="flex flex-wrap items-center gap-2">
+                  <h2 id="page-records" class="text-lg font-semibold">
+                    {m.source_page_records()}
+                  </h2>
+                  <CountBadge count={records()?.records.length} />
+                  <Show when={canEdit()}>
+                    <AddLink href={paths.records.new(here(a()))} label={m.records_add()} />
+                  </Show>
+                </header>
+                <Show
+                  when={records()?.records.length}
+                  fallback={<p class="text-base-content/60">{m.source_page_no_records()}</p>}
+                >
+                  <div class="transition-opacity" style={{ opacity: isPending(records) ? 0.5 : 1 }}>
+                    <RecordTable
+                      kind={records()!.kind}
+                      rows={records()!.records}
+                      canEdit={canEdit()}
+                      editHref={(row) => paths.records(row.id).edit(here(a()))}
+                    />
+                  </div>
+                </Show>
+              </section>
+            </Show>
           </>
         )}
       </Show>

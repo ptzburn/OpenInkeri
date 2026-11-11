@@ -247,6 +247,8 @@
   "source_page_next": "Seuraava sivu",
   "source_page_full": "Täysi koko",
   "source_page_fit": "Ikkunan kokoon",
+  "source_page_records": "Tämän sivun merkinnät",
+  "source_page_no_records": "Tältä sivulta ei ole vielä kirjattu mitään.",
   "records_add": "Lisää merkintä",
   "records_source": "Lähde: {title}",
   "records_source_clear": "Kaikki lähteet",

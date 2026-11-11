@@ -249,6 +249,8 @@
   "source_page_next": "Следующая страница",
   "source_page_full": "В полный размер",
   "source_page_fit": "По размеру окна",
+  "source_page_records": "Записи на этой странице",
+  "source_page_no_records": "С этой страницы пока ничего не переписано.",
   "records_add": "Добавить запись",
   "records_source": "Источник: {title}",
   "records_source_clear": "Все источники",

@@ -1,3 +1,4 @@
+import { useNavigate } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createMemo } from 'solid-js';
 import AddIcon from '~icons/ri/add-line';
@@ -83,17 +84,26 @@ const languageName = (code: string | null) =>
   sourceLanguages.find((l) => l === code) ? sourceLanguageLabels[code as SourceLanguage]() : code;
 
 function SourceTableRow(props: { source: SourceRow; canEdit: boolean; editHref?: string }) {
-  // The title and the count open the source's records; Add records a new
-  // record's form in the source (an admin transcribes it from there).
+  // The row opens the source (its page photos): its title is the link, and
+  // a click anywhere else on the row follows it, but for the row's own
+  // links (the records count, Add records, Edit). The records count opens
+  // the source's records; Add records a new record's form in the source (an
+  // admin transcribes it from there).
   const listPlace = () => ({
     kind: props.source.kind === 'baptisms' ? undefined : props.source.kind,
     source: String(props.source.id),
   });
   const recordsHref = () => paths.records(listPlace());
+  const sourceHref = () => paths.sources(props.source.id)();
+  const navigate = useNavigate();
+  const open = (event: MouseEvent) => {
+    if (event.target instanceof Element && event.target.closest('a, button')) return;
+    navigate(sourceHref());
+  };
   return (
-    <tr>
+    <tr class="cursor-pointer hover:bg-base-200" onClick={open}>
       <td>
-        <a href={recordsHref()} class="link font-medium link-hover">
+        <a href={sourceHref()} class="link font-medium link-hover">
           {props.source.title}
         </a>
         <Show when={props.source.archiveReference}>
@@ -113,13 +123,7 @@ function SourceTableRow(props: { source: SourceRow; canEdit: boolean; editHref?:
           </a>
         </Show>
       </td>
-      <td class="text-right tabular-nums">
-        <Show when={props.source.pages} fallback={0}>
-          <a href={paths.sources(props.source.id)()} class="link">
-            {props.source.pages}
-          </a>
-        </Show>
-      </td>
+      <td class="text-right tabular-nums">{props.source.pages}</td>
       <td class="max-w-64 truncate text-base-content/70" title={props.source.note ?? undefined}>
         {props.source.note}
       </td>

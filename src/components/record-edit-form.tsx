@@ -24,7 +24,13 @@ import {
   sexLabels,
 } from '~/components/labels';
 import LeaveGuard from '~/components/leave-guard';
-import { PARTIAL_DATE_PATTERN, formatPartialDate, localName, localTerm } from '~/lib/format';
+import {
+  PARTIAL_DATE_PATTERN,
+  formatPartialDate,
+  localName,
+  localTerm,
+  pageName,
+} from '~/lib/format';
 import {
   type RecordEditData,
   type RecordEditPerson,
@@ -33,6 +39,9 @@ import {
   getRecordEditOptions,
   saveRecord,
 } from '~/data/records';
+import { getSourcePages } from '~/data/sources';
+import type { Crumb } from '~/lib/breadcrumbs';
+import { idParam } from '~/lib/route-params';
 import { type RecordKind, baptismLocations, recordStatuses, sexes } from '~/lib/record-kinds';
 import {
   type EditedRole,
@@ -56,12 +65,17 @@ const dateLabels: Record<RecordKind, () => string> = {
   taxpayers: m.records_col_list_date,
 };
 
-/** Where the records list was, to return there after saving. */
+/**
+ * Where the records list was, to return there after saving; or, with
+ * `photo` (a photo's position in `source`), the source's page photo the
+ * form was opened from.
+ */
 export interface ListPlace {
   kind?: string;
   q?: string;
   page?: string;
   source?: string;
+  photo?: string;
 }
 
 /** Where the records list was, from a page's search params (or a crumb's query). */
@@ -70,7 +84,43 @@ export const listPlaceOf = (search: ListPlace): ListPlace => ({
   q: search.q,
   page: search.page,
   source: search.source,
+  photo: search.photo,
 });
+
+// The source's page photo a form was opened from, if any.
+const photoOf = (place: ListPlace) => {
+  const source = idParam(place.source);
+  const position = idParam(place.photo);
+  return source && position ? { source, position } : null;
+};
+
+/** Where a record's form returns to: the page photo it was opened from, or the records list. */
+export function returnHref(place: ListPlace): string {
+  const photo = photoOf(place);
+  if (photo) return paths.sources(photo.source).pages(String(photo.position))();
+  const { kind, q, page, source } = place;
+  return paths.records({ kind, q, page, source });
+}
+
+/**
+ * The breadcrumbs of a record's form (`label`, the form's own step): from
+ * the page photo it was opened from (Sources, the source, the page), or
+ * from the records list.
+ */
+export async function recordFormCrumbs(place: ListPlace, label: string): Promise<Crumb[]> {
+  const photo = photoOf(place);
+  const source = photo ? await getSourcePages(photo.source) : null;
+  const page = source?.pages.find((p) => p.position === photo?.position);
+  if (source && page) {
+    return [
+      { label: m.sources_title(), href: paths.sources() },
+      { label: source.title, href: paths.sources(source.id)() },
+      { label: pageName(page.position, page.label), href: returnHref(place) },
+      { label },
+    ];
+  }
+  return [{ label: m.records_title(), href: returnHref(place) }, { label }];
+}
 
 // What a new record's form starts from: empty, of the list's type, in the
 // source the list shows if any.
@@ -133,7 +183,8 @@ const nextAfter = (previous: RecordEditData): RecordEditData => {
  * The admin's form for one record, or for a new one without `id`: of the
  * type of the source the list shows (`returnTo.source`, which the new record
  * then stays in: the source isn't asked again, and Save and add next leads),
- * else of type `kind`; or following record `after` on its page. Its source
+ * else of type `kind`; or following record `after` on its page. Opened from
+ * a page photo (`returnTo.photo`), a new record starts on that page. Its source
  * and page, the record, its kind's details and the people it names
  * (~/lib/record-people). A register's form has one person in each role; a
  * list's (a household, a farm) has all its people, and more can be added:
@@ -164,6 +215,18 @@ export default function RecordEditForm(props: {
     { name: 'edit-start-source' },
   );
   const inSource = () => !props.id && !!startSource();
+  // The page, as the source numbers it, of the photo the form was opened
+  // from: where a new record starts.
+  const photoLabel = createMemo(
+    (): Promise<string | null> | null => {
+      const photo = photoOf(props.returnTo);
+      if (props.id || !photo) return null;
+      return getSourcePages(photo.source).then(
+        (source) => source?.pages.find((p) => p.position === photo.position)?.label ?? null,
+      );
+    },
+    { name: 'edit-photo-label' },
+  );
   const record = createMemo(
     (): Promise<QueryData<typeof getRecordEdit>> | RecordEditData => {
       if (props.id) return getRecordEdit(props.id);
@@ -176,7 +239,7 @@ export default function RecordEditForm(props: {
           previous?.kind === kind ? nextAfter(previous) : blank(kind, source?.id ?? null),
         );
       }
-      return blank(kind, source?.id ?? null);
+      return { ...blank(kind, source?.id ?? null), page: photoLabel() ?? null };
     },
     { name: 'record-edit' },
   );
@@ -257,6 +320,7 @@ export default function RecordEditForm(props: {
             <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
             <input type="hidden" name="returnPage" value={props.returnTo.page ?? ''} />
             <input type="hidden" name="returnSource" value={props.returnTo.source ?? ''} />
+            <input type="hidden" name="returnPhoto" value={props.returnTo.photo ?? ''} />
             <input type="hidden" name="id" value={r.id || ''} />
             <input type="hidden" name="version" value={r.version} />
 
@@ -538,6 +602,7 @@ export default function RecordEditForm(props: {
               <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
               <input type="hidden" name="returnPage" value={props.returnTo.page ?? ''} />
               <input type="hidden" name="returnSource" value={props.returnTo.source ?? ''} />
+              <input type="hidden" name="returnPhoto" value={props.returnTo.photo ?? ''} />
             </DeleteSection>
           </Show>
         </>

@@ -2,7 +2,11 @@ import { type RouteProps, useSearchParams } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { Show } from 'solid-js';
 
-import RecordEditForm, { listPlaceOf } from '~/components/record-edit-form';
+import RecordEditForm, {
+  listPlaceOf,
+  recordFormCrumbs,
+  returnHref,
+} from '~/components/record-edit-form';
 import EditPage from '~/components/edit-page';
 import { getRecordEdit, getRecordEditOptions } from '~/data/records';
 import { idParam, stringParams } from '~/lib/route-params';
@@ -13,17 +17,11 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 // Admins only: getRecordEdit redirects anyone else (signed out to sign-in,
 // others home). The list's ?kind=, ?q=, ?page= and ?source= ride along, so
 // saving or cancelling returns to the same place in the list.
-const crumbs: Crumbs = ({ query }) => [
-  {
-    label: m.records_title(),
-    href: paths.records(listPlaceOf(query)),
-  },
-  { label: m.record_edit_title() },
-];
+const crumbs: Crumbs = ({ query }) => recordFormCrumbs(listPlaceOf(query), m.record_edit_title());
 
 export const route = defineFileRoute('/records/:id/edit', {
   info: { crumbs },
-  search: stringParams('kind', 'q', 'page', 'source'),
+  search: stringParams('kind', 'q', 'page', 'source', 'photo'),
   preload: ({ params }) => {
     const id = idParam(params.id);
     if (id) {
@@ -36,7 +34,7 @@ export const route = defineFileRoute('/records/:id/edit', {
 export default function EditRecord(props: RouteProps<'/records/:id/edit'>) {
   const [search] = useSearchParams(paths.records);
   const listPlace = () => listPlaceOf(search);
-  const listHref = () => paths.records(listPlace());
+  const listHref = () => returnHref(listPlace());
 
   return (
     <EditPage title={m.record_edit_title()}>

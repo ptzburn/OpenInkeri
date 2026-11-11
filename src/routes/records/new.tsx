@@ -3,7 +3,11 @@ import { defineFileRoute } from '@solidjs/router/fs';
 import { Show, createMemo } from 'solid-js';
 
 import EditPage from '~/components/edit-page';
-import RecordEditForm, { listPlaceOf } from '~/components/record-edit-form';
+import RecordEditForm, {
+  listPlaceOf,
+  recordFormCrumbs,
+  returnHref,
+} from '~/components/record-edit-form';
 import { getRecordEditOptions } from '~/data/records';
 import { requireAdmin } from '~/data/session';
 import { isRecordKind } from '~/lib/record-kinds';
@@ -18,17 +22,11 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 // new record's type, the source the one it starts in, and cancelling
 // returns to the same place in the list. ?after= is the record saved just
 // before with Save and add next, which the new one follows on its page.
-const crumbs: Crumbs = ({ query }) => [
-  {
-    label: m.records_title(),
-    href: paths.records(listPlaceOf(query)),
-  },
-  { label: m.record_new_title() },
-];
+const crumbs: Crumbs = ({ query }) => recordFormCrumbs(listPlaceOf(query), m.record_new_title());
 
 export const route = defineFileRoute('/records/new', {
   info: { crumbs },
-  search: stringParams('kind', 'q', 'page', 'source', 'after'),
+  search: stringParams('kind', 'q', 'page', 'source', 'photo', 'after'),
   preload: () => {
     void requireAdmin();
     void getRecordEditOptions();
@@ -39,7 +37,7 @@ export default function NewRecord() {
   const [search] = useSearchParams(paths.records.new);
   const allowed = createMemo(() => requireAdmin(), { name: 'record-new-admin' });
   const listPlace = () => listPlaceOf(search);
-  const listHref = () => paths.records(listPlace());
+  const listHref = () => returnHref(listPlace());
 
   return (
     <EditPage title={m.record_new_title()}>

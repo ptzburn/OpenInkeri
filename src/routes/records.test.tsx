@@ -346,6 +346,26 @@ vi.mock('~/data/people', () => ({
     return { total: rows.length, page: 1, pages: 1, people: rows };
   }),
 }));
+// A record's form opened from a page photo reads the source's pages.
+vi.mock('~/data/sources', () => ({
+  getSourcePages: vi.fn(async (id: number) =>
+    id === 1
+      ? {
+          id: 1,
+          title: 'Губаницы: крещения',
+          kind: 'baptisms',
+          parish: null,
+          yearFrom: null,
+          yearTo: null,
+          archiveReference: null,
+          pages: [
+            { position: 1, label: null, key: 'a'.repeat(32), width: 10, height: 10 },
+            { position: 2, label: '221об', key: 'b'.repeat(32), width: 10, height: 10 },
+          ],
+        }
+      : null,
+  ),
+}));
 vi.mock('~/data/records', async () => {
   const { formAction } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
@@ -1129,6 +1149,23 @@ describe('adding and deleting records', () => {
     await waitFor(() => expect(field('sourceId')).toHaveValue('3'));
     expect(field('members.0.nameFi')).toBeInTheDocument();
     expect(field('child.nameRu')).toBeNull();
+  });
+
+  test('opened from a page photo, a new record starts on its page and returns there', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?source=1&photo=2');
+    await waitFor(() => expect(field('page')).toHaveValue('221об'));
+    expect(field('sourceId')).toHaveValue('1');
+    expect(field('returnPhoto')).toHaveValue('2');
+    // Cancel and the crumbs lead back to the photo.
+    expect(screen.getByRole('link', { name: 'Cancel' })).toHaveAttribute(
+      'href',
+      '/sources/1/pages/2',
+    );
+    expect(await screen.findByRole('link', { name: 'p. 221об' })).toHaveAttribute(
+      'href',
+      '/sources/1/pages/2',
+    );
   });
 
   test('a locality named in a new record is added with it', async () => {
