@@ -179,8 +179,6 @@ if (uploads.length) {
     manifest,
     '--content-type',
     'image/webp',
-    '--cache-control',
-    'public, max-age=31536000, immutable',
   );
 }
 

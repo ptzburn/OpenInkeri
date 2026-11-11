@@ -319,7 +319,7 @@ describe('/sources/:id', () => {
     expect(within(row).getByRole('link', { name: '3' })).toHaveAttribute('href', '/sources/1');
   });
 
-  test("a source's pages are thumbnails in order, for anyone", async () => {
+  test("a source's pages are thumbnails in order", async () => {
     renderAt('/sources/1');
     await screen.findByRole('heading', {
       level: 1,

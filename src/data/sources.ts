@@ -1,8 +1,8 @@
 // The sources pages' data: server functions ('use server') behind router
 // queries and actions, like ./parishes.ts. A source is one register or
 // list (a book, an archival file) that records are transcribed from. The
-// list is for signed-in users; a source's page photographs are for anyone;
-// creating, editing and deleting sources is for admins. A save writes the source and a change_log entry in one D1
+// list and its page photographs are for signed-in users; creating, editing
+// and deleting sources is for admins. A save writes the source and a change_log entry in one D1
 // batch.
 import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
@@ -139,12 +139,10 @@ export const getSources = query(async (): Promise<SourceRow[]> => {
     );
 }, 'sources');
 
-/**
- * One source with its page photographs, in order, for its pages (anyone may
- * see them), or null if there is none.
- */
+/** One source with its page photographs, in order, for its pages, or null if there is none. */
 export const getSourcePages = query(async (id: number): Promise<SourcePagesData | null> => {
   'use server';
+  signedIn();
   const row = await db.query.source.findFirst({
     where: { id: v.parse(rowId, id) },
     columns: {

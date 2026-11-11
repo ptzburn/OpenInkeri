@@ -15,8 +15,9 @@ import { paths } from '~/router';
 import type { Crumbs } from '~/lib/breadcrumbs';
 
 // A source's page photographs, as thumbnails in the source's order; each
-// opens its page (./pages/[n].tsx). Anyone may see them: getSourcePages
-// asks no sign-in.
+// opens its page (./pages/[n].tsx). Signed-in users only: getSourcePages
+// redirects a signed-out visitor to sign-in, and the photos' route
+// (src/routes/api/photos) refuses one.
 const crumbs: Crumbs = async ({ params }) => {
   const id = idParam(params.id);
   const source = id ? await getSourcePages(id) : null;

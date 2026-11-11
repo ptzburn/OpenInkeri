@@ -75,7 +75,7 @@ Production is the `openinkeri` Worker at https://openinkeri.hokkanen.io, with th
 
 Migrations run before the new code goes live, so the code already running must keep working on the new schema. Add tables and nullable or defaulted columns first; rename or drop only in a later release, once no deployed code uses the old shape. Review generated SQL in the pull request; [CLAUDE.md](CLAUDE.md) lists what needs extra care on D1.
 
-The sources' page photographs live in the `openinkeri-photos` R2 bucket (the `PHOTOS` binding), as WebP copies, not the originals. Create the bucket once before the first deploy that binds it: `pnpm exec wrangler r2 bucket create openinkeri-photos`. Photos go in one folder (one register) at a time, to the local bucket and database first, then to production with `--remote`; the source must already exist in that database:
+The sources' page photographs live in the `openinkeri-photos` R2 bucket (the `PHOTOS` binding), as WebP copies, not the originals; only signed-in users see them, through `/api/photos`, never from the bucket directly. Create the bucket once before the first deploy that binds it: `pnpm exec wrangler r2 bucket create openinkeri-photos`. Photos go in one folder (one register) at a time, to the local bucket and database first, then to production with `--remote`; the source must already exist in that database:
 
 ```bash
 node scripts/import-pages.ts --source <id> "<folder>"           # local

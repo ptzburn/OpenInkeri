@@ -19,7 +19,7 @@ import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import type { Crumbs } from '~/lib/breadcrumbs';
 
-// One page photograph of a source, for anyone (see ../index.tsx): fitted to
+// One page photograph of a source, for signed-in users (see ../index.tsx): fitted to
 // the window, or at its full size to read the hand, by its button or a
 // click on the photo. Previous and next, also by the arrow keys; the next
 // photo is fetched ahead, so turning the page doesn't wait.
