@@ -113,6 +113,8 @@ export function FormActions(props: {
   class?: string;
   /** The id of the form to submit, where the bar is outside it. */
   form?: string;
+  /** Without Cancel: where the page has its own way back (a tab). */
+  noCancel?: boolean;
 }) {
   return (
     <div class={['flex flex-col gap-3', props.class]}>
@@ -156,9 +158,11 @@ export function FormActions(props: {
             {props.nextLabel ?? m.form_save_and_next()}
           </button>
         </Show>
-        <a href={props.cancelHref} class="btn">
-          {m.form_cancel()}
-        </a>
+        <Show when={!props.noCancel}>
+          <a href={props.cancelHref} class="btn">
+            {m.form_cancel()}
+          </a>
+        </Show>
       </div>
     </div>
   );

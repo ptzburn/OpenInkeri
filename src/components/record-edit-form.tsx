@@ -804,6 +804,8 @@ export default function RecordEditForm(props: {
               saveAndNext={!r.id}
               primary={inSource() ? 'next' : 'save'}
               class={props.panel ? panelSaveBarClass : saveBarClass(!r.id)}
+              // Beside a page photo the column's tabs lead back to the list.
+              noCancel={props.panel}
             />
           </form>
           <Show when={r.id}>

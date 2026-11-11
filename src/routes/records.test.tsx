@@ -1187,7 +1187,9 @@ describe('adding and deleting records', () => {
     // The photo stays in view beside it.
     expect(screen.getByRole('img', { name: /p\. 221об$/ })).toBeInTheDocument();
     expect(field('returnPhoto')).toHaveValue('2');
-    expect(within(column).getByRole('link', { name: 'Cancel' })).toHaveAttribute(
+    // No Cancel: the column's first tab leads back to the page's records.
+    expect(within(column).queryByRole('link', { name: 'Cancel' })).toBeNull();
+    expect(within(column).getByRole('link', { name: /Records on this page/ })).toHaveAttribute(
       'href',
       '/sources/1/pages/2',
     );
