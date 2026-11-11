@@ -359,7 +359,6 @@ export default function RecordEditForm(props: {
   // A baptism, in the order its register reads: the printed columns left to
   // right (the dates, the number and the child, the parents, where and by
   // whom, the marks of the last columns), then notes and the entry's state.
-  // Each section shows its column's printed heading, to find it on the page.
   const baptismSections = (r: RecordEditData) => (
     <>
       <div class="grid gap-x-4 @sm:grid-cols-2 @3xl:grid-cols-4">
@@ -373,7 +372,7 @@ export default function RecordEditForm(props: {
           invalid={invalid('page')}
         />
       </div>
-      <RegisterSection n={1} title={m.record_section_dates()} printed={printed.dates}>
+      <RegisterSection n={1} title={m.record_section_dates()}>
         <DateInput
           name="birthDate"
           label={m.records_col_born()}
@@ -387,7 +386,7 @@ export default function RecordEditForm(props: {
           invalid={invalid('date')}
         />
       </RegisterSection>
-      <RegisterSection n={2} title={m.record_section_child()} printed={printed.child}>
+      <RegisterSection n={2} title={m.record_section_child()}>
         <TextInput
           name="entryNo"
           label={m.record_edit_entry_no()}
@@ -410,7 +409,7 @@ export default function RecordEditForm(props: {
           />
         </div>
       </RegisterSection>
-      <RegisterSection n={3} title={m.record_section_parents()} printed={printed.parents}>
+      <RegisterSection n={3} title={m.record_section_parents()}>
         <For each={['father', 'mother'] as const}>
           {(role) => (
             <div class="@sm:col-span-2 @3xl:col-span-4">
@@ -443,7 +442,7 @@ export default function RecordEditForm(props: {
           {m.record_edit_remove_hint()}
         </p>
       </RegisterSection>
-      <RegisterSection n={4} title={m.record_section_where()} printed={printed.where}>
+      <RegisterSection n={4} title={m.record_section_where()}>
         <Choice
           name="location"
           label={m.record_edit_location()}
@@ -478,7 +477,7 @@ export default function RecordEditForm(props: {
           </div>
         </details>
       </RegisterSection>
-      <RegisterSection n={5} title={m.record_section_marks()} printed={printed.marks}>
+      <RegisterSection n={5} title={m.record_section_marks()}>
         <Choice
           name="child.sex"
           label={m.record_edit_sex()}
@@ -1047,28 +1046,12 @@ function PersonFields(props: {
 }
 
 // `wide` lays short fields four to a row on large screens.
-// The printed headings of a baptism register's columns, as the books of
-// the Lutheran consistory have them: quoted, so not translated.
-const printed = {
-  dates: 'День и часъ рожденія · День крещенія',
-  child: '№ и имя младенца',
-  parents: 'Имя, фамилія и вѣроисповѣданіе родителей; званіе',
-  where: 'Гдѣ и кѣмъ совершено Св. Крещеніе',
-  marks: 'Законно- · Незаконно- · Мертворожденные; мужеск. · женск. пола',
-};
-
 // A section of a register's form: its place in the register's order (`n`;
-// none for what follows the columns), what it asks, and the printed
-// heading of its column, to find it on the page.
-function RegisterSection(props: {
-  n?: number;
-  title: string;
-  printed?: string;
-  children: JSX.Element;
-}) {
+// none for what follows the columns) and what it asks.
+function RegisterSection(props: { n?: number; title: string; children: JSX.Element }) {
   return (
     <section class="flex flex-col gap-2 rounded-box border border-base-300 p-4">
-      <header class="flex items-start gap-3">
+      <header class="flex items-center gap-3">
         <span
           aria-hidden="true"
           class={[
@@ -1078,16 +1061,7 @@ function RegisterSection(props: {
         >
           {props.n ?? '+'}
         </span>
-        <div class="flex flex-col gap-0.5">
-          <h2 class="font-semibold">{props.title}</h2>
-          <Show when={props.printed}>
-            {(heading) => (
-              <p class="font-serif text-sm text-base-content/60 italic">
-                {m.record_in_register({ heading: heading() })}
-              </p>
-            )}
-          </Show>
-        </div>
+        <h2 class="font-semibold">{props.title}</h2>
       </header>
       <div class="grid gap-x-4 @sm:grid-cols-2 @3xl:grid-cols-4">{props.children}</div>
     </section>
