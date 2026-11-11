@@ -1190,7 +1190,9 @@ describe('adding and deleting records', () => {
     await waitFor(() => expect(field('page')).toHaveValue('221об'));
     expect(field('photoTop')).toHaveValue('');
     expect(
-      screen.getByText("Click the photo where this record's entry begins."),
+      screen.getByText(
+        'Not marked on the photo yet: click the photo at the first line of this entry.',
+      ),
     ).toBeInTheDocument();
     const photo = screen.getByRole('img', { name: /p\. 221об$/ });
     photo.getBoundingClientRect = () => ({ top: 100, height: 400 }) as DOMRect;
@@ -1200,6 +1202,13 @@ describe('adding and deleting records', () => {
     const band = document.querySelector<HTMLElement>('main section a.absolute')!;
     expect(band.style.top).toBe('25%');
     expect(band).toHaveTextContent('1');
+    expect(
+      screen.getByText('Marked on the photo. Click the photo again to move the mark.'),
+    ).toBeInTheDocument();
+    // Taken off again: nothing is posted, and the band goes.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove mark' }));
+    await waitFor(() => expect(field('photoTop')).toHaveValue(''));
+    expect(document.querySelector('main section a.absolute')).toBeNull();
   });
 
   test('a record opened from its page photo causes no diagnostics', async () => {

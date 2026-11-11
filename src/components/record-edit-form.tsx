@@ -1,5 +1,7 @@
 import type { JSX } from '@solidjs/web';
 import { For, Show, createMemo, createSignal } from 'solid-js';
+import MarkedIcon from '~icons/ri/checkbox-circle-line';
+import CrosshairIcon from '~icons/ri/focus-3-line';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
@@ -200,8 +202,9 @@ const nextAfter = (previous: RecordEditData): RecordEditData => {
  * record's form is followed by its Delete section. Its fields lay out by the
  * form's own width (container queries), so it fits a page or, with `panel`,
  * the column beside a page photo, whose bottom its save bar keeps to. There
- * it also posts where the entry starts on the photo: `mark`, just clicked,
- * else the record's own.
+ * it also posts where the entry starts on the photo: `mark`, just clicked
+ * (null: taken off with `onClearMark`), else the record's own; and says at
+ * its top whether the record is marked and how to mark it.
  */
 export default function RecordEditForm(props: {
   id?: number;
@@ -209,7 +212,8 @@ export default function RecordEditForm(props: {
   after?: number;
   returnTo: ListPlace;
   panel?: boolean;
-  mark?: number;
+  mark?: number | null;
+  onClearMark?: () => void;
   cancelHref: string;
 }) {
   const options = createMemo(
@@ -334,7 +338,15 @@ export default function RecordEditForm(props: {
             <input type="hidden" name="returnPhoto" value={props.returnTo.photo ?? ''} />
             <input type="hidden" name="id" value={r.id || ''} />
             <Show when={props.panel}>
-              <input type="hidden" name="photoTop" value={props.mark ?? r.photoTop ?? ''} />
+              <input
+                type="hidden"
+                name="photoTop"
+                value={(props.mark !== undefined ? props.mark : r.photoTop) ?? ''}
+              />
+              <PhotoMarkStatus
+                marked={(props.mark !== undefined ? props.mark : r.photoTop) !== null}
+                onClear={props.onClearMark}
+              />
             </Show>
             <input type="hidden" name="version" value={r.version} />
 
@@ -841,6 +853,33 @@ function Section(props: { title: string; children: JSX.Element; wide?: boolean }
         {props.children}
       </div>
     </section>
+  );
+}
+
+// Whether the record is marked on its page's photo, and what to do about it:
+// the form's first step beside the photo.
+function PhotoMarkStatus(props: { marked: boolean; onClear?: () => void }) {
+  return (
+    <div
+      aria-live="polite"
+      class={['alert alert-soft text-sm', props.marked ? 'alert-success' : 'alert-info']}
+    >
+      <Show
+        when={props.marked}
+        fallback={
+          <>
+            <CrosshairIcon class="size-5 shrink-0" aria-hidden="true" />
+            <span>{m.record_mark_none()}</span>
+          </>
+        }
+      >
+        <MarkedIcon class="size-5 shrink-0" aria-hidden="true" />
+        <span>{m.record_mark_set()}</span>
+        <button type="button" class="btn btn-ghost btn-xs" onClick={() => props.onClear?.()}>
+          {m.record_mark_clear()}
+        </button>
+      </Show>
+    </div>
   );
 }
 

@@ -117,11 +117,17 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
     record: string,
   ) => paths.sources(shown.source.id).pages(String(shown.page.position))({ record });
 
-  // The mark just clicked on the photo for the form open beside it, kept
-  // with which form it is for (?record= and ?after=), so the next record's
-  // form starts unmarked; it is posted with the form (record.photo_top).
-  const [pending, setPending] = createSignal<{ form: string; top: number } | null>(null, {
+  // The mark just clicked on the photo for the form open beside it (null:
+  // taken off), kept with which form it is for (?record= and ?after=), so
+  // the next record's form starts unmarked; it is posted with the form
+  // (record.photo_top).
+  const [pending, setPending] = createSignal<{ form: string; top: number | null } | null>(null, {
     name: 'source-page-mark',
+  });
+  // Where the pointer is on the photo while a form is open: the guide line
+  // showing where a click would mark the entry's start.
+  const [pointer, setPointer] = createSignal<number | null>(null, {
+    name: 'source-page-pointer',
   });
   // The record pointed at, in the list or on the photo.
   const [hovered, setHovered] = createSignal<number | null>(null, {
@@ -138,10 +144,14 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
   // else it zooms.
   const photoClick = (event: MouseEvent & { currentTarget: HTMLImageElement }) => {
     if (!formOpen()) return toggleZoom();
-    const box = event.currentTarget.getBoundingClientRect();
-    if (!(box.height > 0)) return;
-    const top = Math.min(1, Math.max(0, (event.clientY - box.top) / box.height));
-    setPending({ form: formKey(), top });
+    const top = heightAt(event);
+    if (top !== null) setPending({ form: formKey(), top });
+  };
+  const photoMove = (event: MouseEvent & { currentTarget: HTMLImageElement }) => {
+    if (formOpen()) setPointer(heightAt(event));
+  };
+  const clearMark = () => {
+    setPending({ form: formKey(), top: null });
   };
   // The bands over the photo: the records marked on it, numbered by their
   // place in the list, the one whose form is open where it was just marked.
@@ -153,7 +163,7 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
       const top = String(row.id) === open && mark !== undefined ? mark : row.photoTop;
       return top === null ? [] : [{ id: row.id, n: i + 1, top }];
     });
-    if (open === 'new' && mark !== undefined) marks.push({ id: 0, n: rows.length + 1, top: mark });
+    if (open === 'new' && mark != null) marks.push({ id: 0, n: rows.length + 1, top: mark });
     return photoBands(marks);
   };
   const lit = (id: number) =>
@@ -254,7 +264,21 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                           : 'cursor-zoom-in',
                     ]}
                     onClick={photoClick}
+                    onMouseMove={photoMove}
+                    onMouseLeave={() => setPointer(null)}
                   />
+                  <Show when={formOpen() && pointer() !== null ? pointer() : undefined}>
+                    {(y) => (
+                      <div
+                        class="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-primary"
+                        style={{ top: `${y() * 100}%` }}
+                      >
+                        <span class="absolute right-2 -translate-y-1/2 badge badge-sm badge-primary">
+                          {m.source_page_mark_here()}
+                        </span>
+                      </div>
+                    )}
+                  </Show>
                   <For each={bands()} keyed={(band) => band.id}>
                     {(band) => (
                       // An admin's way to a record from its entry; with a
@@ -290,9 +314,6 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                   </For>
                 </div>
               </div>
-              <Show when={formOpen()}>
-                <p class="text-sm text-base-content/70">{m.source_page_mark_hint()}</p>
-              </Show>
             </section>
 
             <Show when={a().page.label}>
@@ -360,6 +381,7 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                         returnTo={here(a())}
                         cancelHref={pageHref(a().source.id, a().page.position)}
                         mark={markOf()}
+                        onClearMark={clearMark}
                       />
                     )}
                   </Show>
@@ -371,6 +393,14 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
       </Show>
     </main>
   );
+}
+
+// Where on the photo an event is, as a fraction of its height from the top;
+// null when the photo has no height yet.
+function heightAt(event: MouseEvent & { currentTarget: HTMLImageElement }): number | null {
+  const box = event.currentTarget.getBoundingClientRect();
+  if (!(box.height > 0)) return null;
+  return Math.min(1, Math.max(0, (event.clientY - box.top) / box.height));
 }
 
 const pageHref = (source: number, position: number) =>
