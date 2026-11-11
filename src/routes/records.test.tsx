@@ -626,6 +626,9 @@ describe('editing a baptism', () => {
   }
   const field = (name: string) =>
     document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
+  // The value of the radio checked in a group.
+  const picked = (name: string) =>
+    document.querySelector<HTMLInputElement>(`[name="${name}"]:checked`)?.value;
 
   test('a mention links to its person, or says who it is as the record is saved', async () => {
     await openMaria();
@@ -681,7 +684,9 @@ describe('editing a baptism', () => {
     fireEvent.focus(village);
     flush();
     expect(screen.queryByRole('listbox')).toBeNull();
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'Locality: show choices' }));
+    fireEvent.mouseDown(
+      screen.getByRole('button', { name: 'Locality (if the register names one): show choices' }),
+    );
     flush();
     const options = () =>
       within(screen.getByRole('listbox'))
@@ -884,9 +889,12 @@ describe('editing a baptism', () => {
     expect(field('placeId')).toHaveValue('1');
     expect(field('placeText')).toHaveValue('Горкка');
     expect(field('officiantId')).toHaveValue('7');
-    expect(field('location')).toHaveValue('pastorate');
+    // A baptism's choices are rows of buttons: the one checked.
+    expect(picked('location')).toBe('pastorate');
     expect(field('multipleBirth')).toHaveValue('2');
-    expect(field('child.sex')).toHaveValue('female');
+    expect(picked('child.sex')).toBe('female');
+    expect(picked('illegitimate')).toBe('');
+    expect(picked('status')).toBe('ok');
     expect(field('father.nameRu')).toHaveValue('Иоанн Адамов Варис');
     expect(field('child.givenRu')).toHaveValue('Мария');
     // No mother yet: her fields are there, empty, to add her.

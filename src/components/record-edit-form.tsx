@@ -329,6 +329,240 @@ export default function RecordEditForm(props: {
     sourcesOf(r.kind)[0]?.language ??
     null;
 
+  // The source the record is in: fixed when the form was opened from one
+  // (a record added to the list's source stays in it), else to pick.
+  const sourceField = (r: RecordEditData) => (
+    <Show
+      when={inSource() ? startSource() : undefined}
+      fallback={
+        <div class="@sm:col-span-2">
+          <Select
+            name="sourceId"
+            label={m.record_edit_source()}
+            value={r.sourceId}
+            options={sourcesOf(r.kind).map((s) => ({ value: s.id, label: s.title }))}
+            invalid={invalid('sourceId')}
+          />
+        </div>
+      }
+    >
+      {(source) => (
+        <div class="fieldset @sm:col-span-2">
+          <span class="fieldset-legend">{m.record_edit_source()}</span>
+          <input type="hidden" name="sourceId" value={source().id} />
+          <p class="py-2 font-medium">{source().title}</p>
+        </div>
+      )}
+    </Show>
+  );
+
+  // A baptism, in the order its register reads: the printed columns left to
+  // right (the dates, the number and the child, the parents, where and by
+  // whom, the marks of the last columns), then notes and the entry's state.
+  // Each section shows its column's printed heading, to find it on the page.
+  const baptismSections = (r: RecordEditData) => (
+    <>
+      <div class="grid gap-x-4 @sm:grid-cols-2 @3xl:grid-cols-4">
+        {sourceField(r)}
+        <TextInput
+          name="page"
+          label={m.record_edit_page()}
+          value={r.page}
+          hint={m.record_edit_page_hint()}
+          maxlength={FIELD_MAX.line}
+          invalid={invalid('page')}
+        />
+      </div>
+      <RegisterSection n={1} title={m.record_section_dates()} printed={printed.dates}>
+        <DateInput
+          name="birthDate"
+          label={m.records_col_born()}
+          value={r.baptism?.birthDate}
+          invalid={invalid('birthDate')}
+        />
+        <DateInput
+          name="date"
+          label={m.records_col_baptised()}
+          value={r.date}
+          invalid={invalid('date')}
+        />
+      </RegisterSection>
+      <RegisterSection n={2} title={m.record_section_child()} printed={printed.child}>
+        <TextInput
+          name="entryNo"
+          label={m.record_edit_entry_no()}
+          value={r.entryNo}
+          hint={m.record_edit_entry_no_hint()}
+          maxlength={FIELD_MAX.line}
+          invalid={invalid('entryNo')}
+        />
+        <div class="@sm:col-span-2 @3xl:col-span-4">
+          <PersonFields
+            plain
+            prefix="child"
+            legend={editedRoleLabels.child()}
+            fields={[]}
+            person={r.people.child ?? null}
+            latin={languageOf(r)}
+            places={places()}
+            relations={relations()}
+            invalid={invalid}
+          />
+        </div>
+      </RegisterSection>
+      <RegisterSection n={3} title={m.record_section_parents()} printed={printed.parents}>
+        <For each={['father', 'mother'] as const}>
+          {(role) => (
+            <div class="@sm:col-span-2 @3xl:col-span-4">
+              <PersonFields
+                plain
+                prefix={role}
+                legend={editedRoleLabels[role]()}
+                fields={personFieldsOf('baptisms', role)}
+                person={r.people[role] ?? null}
+                latin={languageOf(r)}
+                places={places()}
+                relations={relations()}
+                invalid={invalid}
+              />
+            </div>
+          )}
+        </For>
+        <div class="@sm:col-span-2">
+          <LookupField
+            textName="placeText"
+            idName="placeId"
+            label={`${m.record_edit_village()} ${m.record_edit_village_hint()}`}
+            text={r.placeText}
+            id={r.placeId}
+            lookup={places()}
+            invalid={invalid}
+          />
+        </div>
+        <p class="text-sm text-base-content/60 @sm:col-span-2 @3xl:col-span-4">
+          {m.record_edit_remove_hint()}
+        </p>
+      </RegisterSection>
+      <RegisterSection n={4} title={m.record_section_where()} printed={printed.where}>
+        <Choice
+          name="location"
+          label={m.record_edit_location()}
+          value={r.baptism?.location ?? ''}
+          chips
+          options={[
+            { value: '', label: m.record_edit_location_none() },
+            ...baptismLocations.map((l) => ({ value: l, label: baptismLocationLabels[l]() })),
+          ]}
+          class="@sm:col-span-2 @3xl:col-span-4"
+        />
+        <div class="@sm:col-span-2">
+          <LookupField
+            textName="officiantText"
+            idName="officiantId"
+            label={m.record_edit_officiant()}
+            text={r.baptism?.officiantText}
+            id={r.baptism?.officiantId}
+            lookup={clergy()}
+            invalid={invalid}
+          />
+        </div>
+        <details class="text-sm @sm:col-span-2 @3xl:col-span-4" open={!!r.baptism?.emergencyDate}>
+          <summary class="cursor-pointer py-1">{m.record_edit_emergency()}</summary>
+          <div class="grid gap-x-4 @sm:grid-cols-2">
+            <DateInput
+              name="emergencyDate"
+              label={m.record_edit_emergency_date()}
+              value={r.baptism?.emergencyDate}
+              invalid={invalid('emergencyDate')}
+            />
+          </div>
+        </details>
+      </RegisterSection>
+      <RegisterSection n={5} title={m.record_section_marks()} printed={printed.marks}>
+        <Choice
+          name="child.sex"
+          label={m.record_edit_sex()}
+          value={r.people.child?.sex ?? ''}
+          options={[
+            { value: '', label: m.record_edit_sex_unknown() },
+            ...sexes.map((x) => ({ value: x, label: sexLabels[x]() })),
+          ]}
+          class="@sm:col-span-2"
+        />
+        <Choice
+          name="illegitimate"
+          label={m.record_edit_legitimacy()}
+          value={r.baptism?.illegitimate ? 'on' : ''}
+          options={[
+            { value: '', label: m.record_edit_legitimate() },
+            { value: 'on', label: m.record_edit_illegitimate_short() },
+          ]}
+          class="@sm:col-span-2"
+        />
+        <Select
+          name="multipleBirth"
+          label={m.record_edit_multiple_birth()}
+          value={r.baptism?.multipleBirth}
+          none={m.record_edit_single()}
+          options={[
+            { value: 2, label: m.records_twins() },
+            { value: 3, label: m.records_triplets() },
+          ]}
+          invalid={invalid('multipleBirth')}
+        />
+        <div class="fieldset flex flex-col justify-end pb-2">
+          <Checkbox
+            name="stillborn"
+            label={m.records_stillborn()}
+            checked={r.baptism?.stillborn ?? false}
+            onChange={(value) => setStillborn({ record: r, value })}
+          />
+        </div>
+        {/* Stillborn: the death date is the birth, so it is said instead of
+            asked, keeping any date stored. */}
+        <Show
+          when={stillbornNow(r)}
+          fallback={
+            <DateInput
+              name="child.deathDate"
+              label={m.record_edit_death_date()}
+              value={r.people.child?.deathDate}
+              invalid={invalid('child.deathDate')}
+            />
+          }
+        >
+          <div class="fieldset">
+            <span class="fieldset-legend">{m.record_edit_death_date()}</span>
+            <input
+              type="hidden"
+              name="child.deathDate"
+              value={formatPartialDate(r.people.child?.deathDate)}
+            />
+            <p class="py-2 text-sm text-base-content/60">{m.record_edit_death_stillborn()}</p>
+          </div>
+        </Show>
+      </RegisterSection>
+      <RegisterSection title={m.record_section_rest()}>
+        <TextArea
+          name="note"
+          label={m.records_col_note()}
+          value={r.note}
+          rows={3}
+          maxlength={FIELD_MAX.text}
+          invalid={invalid('note')}
+          class="@sm:col-span-2 @3xl:col-span-4"
+        />
+        <Choice
+          name="status"
+          label={m.record_edit_status()}
+          value={r.status}
+          options={recordStatuses.map((x) => ({ value: x, label: recordStatusLabels[x]() }))}
+          class="@sm:col-span-2"
+        />
+      </RegisterSection>
+    </>
+  );
+
   return (
     // Keyed: each record (and each fresh read of it) gets a fresh form. A
     // refused save revalidates nothing, so what was typed stays.
@@ -376,272 +610,191 @@ export default function RecordEditForm(props: {
             </Show>
             <input type="hidden" name="version" value={r.version} />
 
-            {/* In the order a register entry reads: the entry (where and
+            {/* A baptism reads as its register does (see BaptismSections);
+                the other records keep their own order. */}
+            <Show when={r.kind !== 'baptisms'} fallback={baptismSections(r)}>
+              {/* In the order a register entry reads: the entry (where and
                 when), the people it names, then what else the entry says.
                 Status, notes and the rarer details fold away at the end. */}
-            <Section title={m.record_edit_record()} wide>
-              {/* A record added to the list's source stays in it. */}
-              <Show
-                when={inSource() ? startSource() : undefined}
-                fallback={
-                  <div class="@sm:col-span-2">
-                    <Select
-                      name="sourceId"
-                      label={m.record_edit_source()}
-                      value={r.sourceId}
-                      options={sourcesOf(r.kind).map((s) => ({ value: s.id, label: s.title }))}
-                      invalid={invalid('sourceId')}
-                    />
-                  </div>
-                }
-              >
-                {(source) => (
-                  <div class="fieldset @sm:col-span-2">
-                    <span class="fieldset-legend">{m.record_edit_source()}</span>
-                    <input type="hidden" name="sourceId" value={source().id} />
-                    <p class="py-2 font-medium">{source().title}</p>
-                  </div>
-                )}
-              </Show>
-              <TextInput
-                name="page"
-                label={m.record_edit_page()}
-                value={r.page}
-                hint={m.record_edit_page_hint()}
-                maxlength={FIELD_MAX.line}
-                invalid={invalid('page')}
-              />
-              <Show when={!isListKind(r.kind)}>
+              <Section title={m.record_edit_record()} wide>
+                {sourceField(r)}
                 <TextInput
-                  name="entryNo"
-                  label={m.record_edit_entry_no()}
-                  value={r.entryNo}
-                  hint={m.record_edit_entry_no_hint()}
+                  name="page"
+                  label={m.record_edit_page()}
+                  value={r.page}
+                  hint={m.record_edit_page_hint()}
                   maxlength={FIELD_MAX.line}
-                  invalid={invalid('entryNo')}
+                  invalid={invalid('page')}
                 />
-              </Show>
-              <Show when={isListKind(r.kind)}>
-                <TextInput
-                  name="holdingNo"
-                  label={
-                    r.kind === 'households'
-                      ? m.records_col_household()
-                      : `${m.records_col_farm()}: ${m.record_edit_holding_no()}`
-                  }
-                  value={r.holding?.holdingNo}
-                  maxlength={FIELD_MAX.line}
-                  invalid={invalid('holdingNo')}
-                />
-              </Show>
-              <Show when={r.kind === 'baptisms'}>
+                <Show when={!isListKind(r.kind)}>
+                  <TextInput
+                    name="entryNo"
+                    label={m.record_edit_entry_no()}
+                    value={r.entryNo}
+                    hint={m.record_edit_entry_no_hint()}
+                    maxlength={FIELD_MAX.line}
+                    invalid={invalid('entryNo')}
+                  />
+                </Show>
+                <Show when={isListKind(r.kind)}>
+                  <TextInput
+                    name="holdingNo"
+                    label={
+                      r.kind === 'households'
+                        ? m.records_col_household()
+                        : `${m.records_col_farm()}: ${m.record_edit_holding_no()}`
+                    }
+                    value={r.holding?.holdingNo}
+                    maxlength={FIELD_MAX.line}
+                    invalid={invalid('holdingNo')}
+                  />
+                </Show>
                 <DateInput
-                  name="birthDate"
-                  label={m.records_col_born()}
-                  value={r.baptism?.birthDate}
-                  invalid={invalid('birthDate')}
+                  name="date"
+                  label={dateLabels[r.kind]()}
+                  value={r.date}
+                  invalid={invalid('date')}
                 />
-              </Show>
-              <DateInput
-                name="date"
-                label={dateLabels[r.kind]()}
-                value={r.date}
-                invalid={invalid('date')}
-              />
-              <Show when={r.kind === 'deaths'}>
-                <DateInput
-                  name="burialDate"
-                  label={m.records_col_buried()}
-                  value={r.death?.burialDate}
-                  invalid={invalid('burialDate')}
-                />
-              </Show>
-              {/* A marriage has no place of its own: the bride and groom
+                <Show when={r.kind === 'deaths'}>
+                  <DateInput
+                    name="burialDate"
+                    label={m.records_col_buried()}
+                    value={r.death?.burialDate}
+                    invalid={invalid('burialDate')}
+                  />
+                </Show>
+                {/* A marriage has no place of its own: the bride and groom
                 each have where they lived. */}
-              <Show when={r.kind !== 'marriages'}>
-                <LookupField
-                  textName="placeText"
-                  idName="placeId"
-                  label={
-                    r.kind === 'deaths' ? m.records_col_death_place() : m.record_edit_village()
-                  }
-                  text={r.placeText}
-                  id={r.placeId}
-                  lookup={places()}
-                  invalid={invalid}
-                />
-              </Show>
-              <Show when={r.kind === 'taxpayers'}>
-                <LookupField
-                  textName="estateText"
-                  idName="estatePlaceId"
-                  label={m.records_col_estate()}
-                  text={r.holding?.estateText}
-                  id={r.holding?.estatePlaceId}
-                  lookup={places()}
-                  invalid={invalid}
-                />
-                <TextInput
-                  name="tenantText"
-                  label={m.record_edit_tenant()}
-                  value={r.holding?.tenantText}
-                  invalid={invalid('tenantText')}
-                />
-              </Show>
-            </Section>
-
-            <section class="flex flex-col gap-3">
-              <h2 class="text-lg font-semibold">{m.record_edit_people()}</h2>
-              <p class="text-sm text-base-content/60">{m.record_edit_remove_hint()}</p>
-              {/* A list's people, numbered in the form; then a register's,
-                one in each role. */}
-              <Show
-                when={isListKind(r.kind) ? r.kind : undefined}
-                fallback={
-                  <For
-                    each={editedRoles[r.kind as keyof typeof editedRoles] as readonly EditedRole[]}
-                  >
-                    {(role) => (
-                      <PersonFields
-                        prefix={role}
-                        legend={editedRoleLabels[role]()}
-                        stillbornBox={
-                          role === 'child' && r.kind === 'baptisms'
-                            ? {
-                                loaded: r.baptism?.stillborn ?? false,
-                                set: (value) => setStillborn({ record: r, value }),
-                              }
-                            : undefined
-                        }
-                        stillborn={role === 'child' && stillbornNow(r)}
-                        fields={personFieldsOf(r.kind as keyof typeof editedRoles, role)}
-                        person={r.people[role] ?? null}
-                        latin={languageOf(r)}
-                        places={places()}
-                        relations={relations()}
-                        invalid={invalid}
-                      />
-                    )}
-                  </For>
-                }
-              >
-                {(kind) => (
-                  <ListPeople
-                    kind={kind()}
-                    members={r.members}
-                    latin={languageOf(r)}
-                    places={places()}
-                    relations={relations()}
+                <Show when={r.kind !== 'marriages'}>
+                  <LookupField
+                    textName="placeText"
+                    idName="placeId"
+                    label={
+                      r.kind === 'deaths' ? m.records_col_death_place() : m.record_edit_village()
+                    }
+                    text={r.placeText}
+                    id={r.placeId}
+                    lookup={places()}
                     invalid={invalid}
                   />
-                )}
-              </Show>
-            </section>
-
-            {/* What else a baptism or death entry says, as a rule. */}
-            <Show when={r.kind === 'baptisms'}>
-              <Section title={m.record_edit_baptism()} wide>
-                <LookupField
-                  textName="officiantText"
-                  idName="officiantId"
-                  label={m.record_edit_officiant()}
-                  text={r.baptism?.officiantText}
-                  id={r.baptism?.officiantId}
-                  lookup={clergy()}
-                  invalid={invalid}
-                />
-                <Select
-                  name="location"
-                  label={m.record_edit_location()}
-                  value={r.baptism?.location}
-                  none={m.form_none()}
-                  options={baptismLocations.map((l) => ({
-                    value: l,
-                    label: baptismLocationLabels[l](),
-                  }))}
-                  invalid={invalid('location')}
-                />
-              </Section>
-            </Show>
-            <Show when={r.kind === 'deaths'}>
-              <Section title={m.record_edit_death()} wide>
-                <div class="@sm:col-span-2">
+                </Show>
+                <Show when={r.kind === 'taxpayers'}>
+                  <LookupField
+                    textName="estateText"
+                    idName="estatePlaceId"
+                    label={m.records_col_estate()}
+                    text={r.holding?.estateText}
+                    id={r.holding?.estatePlaceId}
+                    lookup={places()}
+                    invalid={invalid}
+                  />
                   <TextInput
-                    name="causeText"
-                    label={m.records_col_cause()}
-                    value={r.death?.causeText}
-                    invalid={invalid('causeText')}
+                    name="tenantText"
+                    label={m.record_edit_tenant()}
+                    value={r.holding?.tenantText}
+                    invalid={invalid('tenantText')}
+                  />
+                </Show>
+              </Section>
+
+              <section class="flex flex-col gap-3">
+                <h2 class="text-lg font-semibold">{m.record_edit_people()}</h2>
+                <p class="text-sm text-base-content/60">{m.record_edit_remove_hint()}</p>
+                {/* A list's people, numbered in the form; then a register's,
+                one in each role. */}
+                <Show
+                  when={isListKind(r.kind) ? r.kind : undefined}
+                  fallback={
+                    <For
+                      each={
+                        editedRoles[r.kind as keyof typeof editedRoles] as readonly EditedRole[]
+                      }
+                    >
+                      {(role) => (
+                        <PersonFields
+                          prefix={role}
+                          legend={editedRoleLabels[role]()}
+                          fields={personFieldsOf(r.kind as keyof typeof editedRoles, role)}
+                          person={r.people[role] ?? null}
+                          latin={languageOf(r)}
+                          places={places()}
+                          relations={relations()}
+                          invalid={invalid}
+                        />
+                      )}
+                    </For>
+                  }
+                >
+                  {(kind) => (
+                    <ListPeople
+                      kind={kind()}
+                      members={r.members}
+                      latin={languageOf(r)}
+                      places={places()}
+                      relations={relations()}
+                      invalid={invalid}
+                    />
+                  )}
+                </Show>
+              </section>
+
+              {/* What else a death entry says, as a rule. */}
+              <Show when={r.kind === 'deaths'}>
+                <Section title={m.record_edit_death()} wide>
+                  <div class="@sm:col-span-2">
+                    <TextInput
+                      name="causeText"
+                      label={m.records_col_cause()}
+                      value={r.death?.causeText}
+                      invalid={invalid('causeText')}
+                    />
+                  </div>
+                </Section>
+              </Show>
+
+              {/* The rest: open when any of it is set, so nothing hides. */}
+              <details class="rounded-box border border-base-300 p-4" open={hasMore(r)}>
+                <summary class="cursor-pointer text-lg font-semibold">
+                  {m.record_edit_more()}
+                </summary>
+                <div class="mt-2 grid gap-x-4 @sm:grid-cols-2 @3xl:grid-cols-4">
+                  <Select
+                    name="status"
+                    label={m.record_edit_status()}
+                    value={r.status}
+                    options={recordStatuses.map((s) => ({
+                      value: s,
+                      label: recordStatusLabels[s](),
+                    }))}
+                    invalid={invalid('status')}
+                  />
+                  <Show when={r.kind === 'deaths'}>
+                    <TextInput
+                      name="burialPlaceText"
+                      label={m.record_edit_burial_place()}
+                      value={r.death?.burialPlaceText}
+                      invalid={invalid('burialPlaceText')}
+                    />
+                    <div class="fieldset flex flex-col justify-end gap-2 pb-2">
+                      <Checkbox
+                        name="stillborn"
+                        label={m.records_stillborn()}
+                        checked={r.death?.stillborn ?? false}
+                      />
+                    </div>
+                  </Show>
+                  <TextArea
+                    name="note"
+                    label={m.records_col_note()}
+                    value={r.note}
+                    rows={3}
+                    maxlength={FIELD_MAX.text}
+                    invalid={invalid('note')}
+                    class="@sm:col-span-2 @3xl:col-span-4"
                   />
                 </div>
-              </Section>
+              </details>
             </Show>
-
-            {/* The rest: open when any of it is set, so nothing hides. */}
-            <details class="rounded-box border border-base-300 p-4" open={hasMore(r)}>
-              <summary class="cursor-pointer text-lg font-semibold">{m.record_edit_more()}</summary>
-              <div class="mt-2 grid gap-x-4 @sm:grid-cols-2 @3xl:grid-cols-4">
-                <Select
-                  name="status"
-                  label={m.record_edit_status()}
-                  value={r.status}
-                  options={recordStatuses.map((s) => ({
-                    value: s,
-                    label: recordStatusLabels[s](),
-                  }))}
-                  invalid={invalid('status')}
-                />
-                <Show when={r.kind === 'baptisms'}>
-                  <DateInput
-                    name="emergencyDate"
-                    label={m.record_edit_emergency()}
-                    value={r.baptism?.emergencyDate}
-                    invalid={invalid('emergencyDate')}
-                  />
-                  <Select
-                    name="multipleBirth"
-                    label={m.record_edit_multiple_birth()}
-                    value={r.baptism?.multipleBirth}
-                    none={m.record_edit_single()}
-                    options={[
-                      { value: 2, label: m.records_twins() },
-                      { value: 3, label: m.records_triplets() },
-                    ]}
-                    invalid={invalid('multipleBirth')}
-                  />
-                  <div class="fieldset flex flex-col justify-end gap-2 pb-2">
-                    <Checkbox
-                      name="illegitimate"
-                      label={m.records_illegitimate()}
-                      checked={r.baptism?.illegitimate ?? false}
-                    />
-                  </div>
-                </Show>
-                <Show when={r.kind === 'deaths'}>
-                  <TextInput
-                    name="burialPlaceText"
-                    label={m.record_edit_burial_place()}
-                    value={r.death?.burialPlaceText}
-                    invalid={invalid('burialPlaceText')}
-                  />
-                  <div class="fieldset flex flex-col justify-end gap-2 pb-2">
-                    <Checkbox
-                      name="stillborn"
-                      label={m.records_stillborn()}
-                      checked={r.death?.stillborn ?? false}
-                    />
-                  </div>
-                </Show>
-                <TextArea
-                  name="note"
-                  label={m.records_col_note()}
-                  value={r.note}
-                  rows={3}
-                  maxlength={FIELD_MAX.text}
-                  invalid={invalid('note')}
-                  class="@sm:col-span-2 @3xl:col-span-4"
-                />
-              </div>
-            </details>
 
             {/* Kept in view at the bottom of the window while scrolling. */}
             {/* A new record can be followed by the next one on its page: in
@@ -759,14 +912,8 @@ const textFieldLabels: Partial<Record<PersonField, () => string>> = {
 function PersonFields(props: {
   prefix: string;
   legend: string;
-  /**
-   * A baptised child's Stillborn box, drawn beside its death date: ticked
-   * as loaded, and `set` as it is clicked. Apart from `stillborn`, whether it
-   * is ticked now, so a click doesn't redraw the box.
-   */
-  stillbornBox?: { loaded: boolean; set: (value: boolean) => void };
-  /** A stillborn child: its death date is its birth, so the date gives way to a note. */
-  stillborn?: boolean;
+  /** Without its own box: inside a section that has one (a baptism's). */
+  plain?: boolean;
   fields: readonly PersonField[];
   person: RecordEditPerson | null;
   latin: string | null;
@@ -794,46 +941,8 @@ function PersonFields(props: {
             invalid={props.invalid(field('sex'))}
           />
         );
-      case 'deathDate':
-        // Stillborn: said instead of asked, keeping any date stored.
-        return (
-          <>
-            <Show
-              when={props.stillborn}
-              fallback={
-                <DateInput
-                  name={field(f)}
-                  label={m.record_edit_death_date()}
-                  value={value(f)}
-                  invalid={props.invalid(field(f))}
-                />
-              }
-            >
-              <div class="fieldset">
-                <span class="fieldset-legend">{m.record_edit_death_date()}</span>
-                <input
-                  type="hidden"
-                  name={field('deathDate')}
-                  value={formatPartialDate(value('deathDate'))}
-                />
-                <p class="py-2 text-sm text-base-content/60">{m.record_edit_death_stillborn()}</p>
-              </div>
-            </Show>
-            <Show when={props.stillbornBox}>
-              {(box) => (
-                <div class="fieldset flex flex-col justify-end pb-2">
-                  <Checkbox
-                    name="stillborn"
-                    label={m.records_stillborn()}
-                    checked={box().loaded}
-                    onChange={(value) => box().set(value)}
-                  />
-                </div>
-              )}
-            </Show>
-          </>
-        );
       case 'birthDate':
+      case 'deathDate':
         return (
           <DateInput
             name={field(f)}
@@ -896,8 +1005,15 @@ function PersonFields(props: {
   };
 
   return (
-    <fieldset class="fieldset rounded-box border border-base-300 p-4">
-      <legend class="fieldset-legend">{props.legend}</legend>
+    <fieldset class={['fieldset', !props.plain && 'rounded-box border border-base-300 p-4']}>
+      <legend
+        class={[
+          'fieldset-legend',
+          props.plain && 'text-xs tracking-wide text-base-content/70 uppercase',
+        ]}
+      >
+        {props.legend}
+      </legend>
       <Show when={props.person}>
         {(person) => <input type="hidden" name={field('id')} value={person().id} />}
       </Show>
@@ -931,6 +1047,84 @@ function PersonFields(props: {
 }
 
 // `wide` lays short fields four to a row on large screens.
+// The printed headings of a baptism register's columns, as the books of
+// the Lutheran consistory have them: quoted, so not translated.
+const printed = {
+  dates: 'День и часъ рожденія · День крещенія',
+  child: '№ и имя младенца',
+  parents: 'Имя, фамилія и вѣроисповѣданіе родителей; званіе',
+  where: 'Гдѣ и кѣмъ совершено Св. Крещеніе',
+  marks: 'Законно- · Незаконно- · Мертворожденные; мужеск. · женск. пола',
+};
+
+// A section of a register's form: its place in the register's order (`n`;
+// none for what follows the columns), what it asks, and the printed
+// heading of its column, to find it on the page.
+function RegisterSection(props: {
+  n?: number;
+  title: string;
+  printed?: string;
+  children: JSX.Element;
+}) {
+  return (
+    <section class="flex flex-col gap-2 rounded-box border border-base-300 p-4">
+      <header class="flex items-start gap-3">
+        <span
+          aria-hidden="true"
+          class={[
+            'flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+            props.n ? 'bg-base-content text-base-100' : 'bg-base-300',
+          ]}
+        >
+          {props.n ?? '+'}
+        </span>
+        <div class="flex flex-col gap-0.5">
+          <h2 class="font-semibold">{props.title}</h2>
+          <Show when={props.printed}>
+            {(heading) => (
+              <p class="font-serif text-sm text-base-content/60 italic">
+                {m.record_in_register({ heading: heading() })}
+              </p>
+            )}
+          </Show>
+        </div>
+      </header>
+      <div class="grid gap-x-4 @sm:grid-cols-2 @3xl:grid-cols-4">{props.children}</div>
+    </section>
+  );
+}
+
+// One of a few values as a row of buttons (radios): joined, or, with
+// `chips`, apart and wrapping.
+function Choice(props: {
+  name: string;
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  chips?: boolean;
+  class?: string;
+}) {
+  return (
+    <fieldset class={['fieldset', props.class]}>
+      <legend class="fieldset-legend">{props.label}</legend>
+      <div class={props.chips ? 'flex flex-wrap gap-1.5' : 'join w-full'}>
+        <For each={props.options}>
+          {(option) => (
+            <input
+              type="radio"
+              name={props.name}
+              value={option.value}
+              aria-label={option.label}
+              checked={option.value === props.value}
+              class={['btn btn-sm', props.chips ? 'rounded-full' : 'join-item grow']}
+            />
+          )}
+        </For>
+      </div>
+    </fieldset>
+  );
+}
+
 function Section(props: { title: string; children: JSX.Element; wide?: boolean }) {
   return (
     <section class="flex flex-col gap-1">
@@ -991,13 +1185,7 @@ const panelSaveBarClass =
 
 // Whether any of what the form folds away is set: then it starts open.
 const hasMore = (r: RecordEditData) =>
-  r.status !== 'ok' ||
-  !!r.note ||
-  !!r.baptism?.emergencyDate ||
-  !!r.baptism?.multipleBirth ||
-  !!r.baptism?.illegitimate ||
-  !!r.death?.burialPlaceText ||
-  !!r.death?.stillborn;
+  r.status !== 'ok' || !!r.note || !!r.death?.burialPlaceText || !!r.death?.stillborn;
 
 // A date as the page shows it (12.3.1895, 3.1895, 1895); the server reads
 // it back (parsePartialDate) and the pattern catches typos before sending.
