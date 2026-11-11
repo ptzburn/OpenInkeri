@@ -1226,8 +1226,11 @@ export const saveRecord = formAction(async (formData: FormData) => {
   // The page photo the form was opened from, likewise.
   const photo = listSource ? input.returnPhoto : undefined;
   if (input.next) {
+    // From a page photo, the next record's form opens beside it again.
     throw redirect(
-      paths.records.new({ kind: listKind, source: listSource, photo, after: String(rid) }),
+      photo
+        ? paths.sources(chosen.id).pages(photo)({ record: 'new', after: String(rid) })
+        : paths.records.new({ kind: listKind, source: listSource, after: String(rid) }),
     );
   }
   // Back to the photo, which lists the page's records.

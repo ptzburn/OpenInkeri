@@ -196,13 +196,16 @@ const nextAfter = (previous: RecordEditData): RecordEditData => {
  * with a toast, Save and add next to a new record's form that follows this
  * one, and Cancel goes to `cancelHref`. A save the server refuses keeps the
  * form as typed, says why and marks the fields at fault. An existing
- * record's form is followed by its Delete section.
+ * record's form is followed by its Delete section. Its fields lay out by the
+ * form's own width (container queries), so it fits a page or, with `panel`,
+ * the column beside a page photo, whose bottom its save bar keeps to.
  */
 export default function RecordEditForm(props: {
   id?: number;
   kind?: RecordKind;
   after?: number;
   returnTo: ListPlace;
+  panel?: boolean;
   cancelHref: string;
 }) {
   const options = createMemo(
@@ -314,7 +317,11 @@ export default function RecordEditForm(props: {
             </div>
           </Show>
           {/* While a save is in flight the router marks the form aria-busy. */}
-          <form method="post" action={saveRecord} class="group flex max-w-5xl flex-col gap-6">
+          <form
+            method="post"
+            action={saveRecord}
+            class="group @container flex max-w-5xl flex-col gap-6"
+          >
             <LeaveGuard />
             <input type="hidden" name="returnKind" value={props.returnTo.kind ?? ''} />
             <input type="hidden" name="returnQ" value={props.returnTo.q ?? ''} />
@@ -332,7 +339,7 @@ export default function RecordEditForm(props: {
               <Show
                 when={inSource() ? startSource() : undefined}
                 fallback={
-                  <div class="sm:col-span-2">
+                  <div class="@sm:col-span-2">
                     <Select
                       name="sourceId"
                       label={m.record_edit_source()}
@@ -344,7 +351,7 @@ export default function RecordEditForm(props: {
                 }
               >
                 {(source) => (
-                  <div class="fieldset sm:col-span-2">
+                  <div class="fieldset @sm:col-span-2">
                     <span class="fieldset-legend">{m.record_edit_source()}</span>
                     <input type="hidden" name="sourceId" value={source().id} />
                     <p class="py-2 font-medium">{source().title}</p>
@@ -494,7 +501,7 @@ export default function RecordEditForm(props: {
             </Show>
             <Show when={r.kind === 'deaths'}>
               <Section title={m.record_edit_death()} wide>
-                <div class="sm:col-span-2">
+                <div class="@sm:col-span-2">
                   <TextInput
                     name="causeText"
                     label={m.records_col_cause()}
@@ -508,7 +515,7 @@ export default function RecordEditForm(props: {
             {/* The rest: open when any of it is set, so nothing hides. */}
             <details class="rounded-box border border-base-300 p-4" open={hasMore(r)}>
               <summary class="cursor-pointer text-lg font-semibold">{m.record_edit_more()}</summary>
-              <div class="mt-2 grid gap-x-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div class="mt-2 grid gap-x-4 @sm:grid-cols-2 @3xl:grid-cols-4">
                 <Select
                   name="status"
                   label={m.record_edit_status()}
@@ -572,7 +579,7 @@ export default function RecordEditForm(props: {
                   rows={3}
                   maxlength={FIELD_MAX.text}
                   invalid={invalid('note')}
-                  class="sm:col-span-2 lg:col-span-4"
+                  class="@sm:col-span-2 @3xl:col-span-4"
                 />
               </div>
             </details>
@@ -585,7 +592,7 @@ export default function RecordEditForm(props: {
               cancelHref={props.cancelHref}
               saveAndNext={!r.id}
               primary={inSource() ? 'next' : 'save'}
-              class={saveBarClass(!r.id)}
+              class={props.panel ? panelSaveBarClass(!r.id) : saveBarClass(!r.id)}
             />
           </form>
           <Show when={r.id}>
@@ -800,7 +807,7 @@ function PersonFields(props: {
           </p>
         )}
       </Show>
-      <div class="grid gap-x-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="grid gap-x-4 @sm:grid-cols-2 @3xl:grid-cols-4">
         <NameFields
           prefix={props.prefix}
           value={value}
@@ -823,12 +830,21 @@ function Section(props: { title: string; children: JSX.Element; wide?: boolean }
   return (
     <section class="flex flex-col gap-1">
       <h2 class="text-lg font-semibold">{props.title}</h2>
-      <div class={['grid gap-x-4 sm:grid-cols-2', props.wide && 'lg:grid-cols-4']}>
+      <div class={['grid gap-x-4 @sm:grid-cols-2', props.wide && '@3xl:grid-cols-4']}>
         {props.children}
       </div>
     </section>
   );
 }
+
+// The save bar in the column beside a page photo, which pads its content
+// by 1rem on every side and scrolls it; as saveBarClass, `last` when nothing
+// follows the form.
+const panelSaveBarClass = (last: boolean) =>
+  [
+    'sticky bottom-0 z-10 -mx-4 min-h-18 justify-center border-t border-base-300 bg-base-100 px-4',
+    last ? '-mb-4' : '',
+  ].join(' ');
 
 // Whether any of what the form folds away is set: then it starts open.
 const hasMore = (r: RecordEditData) =>

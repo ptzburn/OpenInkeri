@@ -29,7 +29,7 @@ export default function PersonLinkField(props: { prefix: string }) {
   );
 
   return (
-    <details class="text-sm sm:col-span-2 lg:col-span-4">
+    <details class="text-sm @sm:col-span-2 @3xl:col-span-4">
       <summary class="cursor-pointer">{m.record_edit_link_person()}</summary>
       <div class="mt-2 flex flex-col gap-2">
         <label class="label gap-2">

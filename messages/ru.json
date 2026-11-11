@@ -251,6 +251,7 @@
   "source_page_fit": "По размеру окна",
   "source_page_records": "Записи на этой странице",
   "source_page_no_records": "С этой страницы пока ничего не переписано.",
+  "source_page_column": "Записи этой страницы",
   "records_add": "Добавить запись",
   "records_source": "Источник: {title}",
   "records_source_clear": "Все источники",

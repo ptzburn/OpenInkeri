@@ -373,6 +373,8 @@ vi.mock('~/data/records', async () => {
   const ru = (name: string) => ({ ru: name, fi: null });
   return {
     getRecords,
+    // Nothing transcribed from the photographed pages yet.
+    getPageRecords: vi.fn(async () => ({ kind: 'baptisms' as const, records: [] })),
     RECORDS_PAGE_SIZE: 50,
     getRecordEdit: vi.fn(async (id: number) =>
       id === 2
@@ -1166,6 +1168,40 @@ describe('adding and deleting records', () => {
       'href',
       '/sources/1/pages/2',
     );
+  });
+
+  test("a new record's form opens beside the page photo, on its page", async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/2?record=new');
+    const column = await screen.findByRole('complementary', { name: "This page's records" });
+    await waitFor(() => expect(column.querySelector('[name="page"]')).toHaveValue('221об'));
+    // The photo stays in view beside it.
+    expect(screen.getByRole('img', { name: /p\. 221об$/ })).toBeInTheDocument();
+    expect(field('returnPhoto')).toHaveValue('2');
+    expect(within(column).getByRole('link', { name: 'Cancel' })).toHaveAttribute(
+      'href',
+      '/sources/1/pages/2',
+    );
+  });
+
+  test('a record opened from its page photo causes no diagnostics', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/2?record=new');
+    await waitFor(() => expect(field('page')).toHaveValue('221об'));
+    cleanup();
+
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/2');
+    const add = await screen.findByRole('link', { name: 'Add record' });
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(add);
+        await waitFor(() => expect(field('page')).toHaveValue('221об'));
+        flush();
+      },
+      { scenario: 'page-photo-new-record' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
   });
 
   test('a locality named in a new record is added with it', async () => {

@@ -453,22 +453,20 @@ describe('/sources/:id', () => {
     expect(await screen.findByText('This source has no such page.')).toBeInTheDocument();
   });
 
-  test('a numbered page lists its records; admins add and edit them from here', async () => {
+  test('a numbered page lists its records beside it; admins open their forms there', async () => {
     me.current = { isAdmin: true };
     renderAt('/sources/1/pages/2');
-    const section = (await screen.findByRole('heading', { name: 'Records on this page' })).closest(
-      'section',
-    )!;
-    await within(section).findByText('Виктор');
-    expect(within(section).getByText('Пётр Адам')).toBeInTheDocument();
-    // The form starts on this page and returns here.
-    expect(within(section).getByRole('link', { name: 'Add record' })).toHaveAttribute(
+    const column = await screen.findByRole('complementary', { name: "This page's records" });
+    await within(column).findByText('Виктор');
+    expect(within(column).getByText('Пётр Адам')).toBeInTheDocument();
+    // The forms open in the column, beside the photo.
+    expect(within(column).getByRole('link', { name: 'Add record' })).toHaveAttribute(
       'href',
-      '/records/new?source=1&photo=2',
+      '/sources/1/pages/2?record=new',
     );
-    expect(within(section).getAllByRole('link', { name: 'Edit record' })[0]).toHaveAttribute(
+    expect(within(column).getAllByRole('link', { name: 'Edit record' })[0]).toHaveAttribute(
       'href',
-      '/records/41/edit?source=1&photo=2',
+      '/sources/1/pages/2?record=41',
     );
   });
 
@@ -483,6 +481,6 @@ describe('/sources/:id', () => {
   test('an unnumbered photo (a cover) has no records section', async () => {
     renderAt('/sources/1/pages/1');
     await screen.findByText('1 of 3');
-    expect(screen.queryByRole('heading', { name: 'Records on this page' })).toBeNull();
+    expect(screen.queryByRole('complementary', { name: "This page's records" })).toBeNull();
   });
 });
