@@ -14,10 +14,12 @@ import ZoomOutIcon from '~icons/ri/zoom-out-line';
 import type { QueryData } from '~/lib/query-data';
 import { useCanEdit } from '~/components/list-page';
 import PageRecords, { recordTitle } from '~/components/page-records';
+import type { RecordRow } from '~/data/records';
 import RecordEditForm from '~/components/record-edit-form';
 import { getPageRecords } from '~/data/records';
 import { getSourcePages } from '~/data/sources';
 import { pageName } from '~/lib/format';
+import type { RecordKind } from '~/lib/record-kinds';
 import { type PhotoMarks, inPhotoOrder, nextMark, photoBands } from '~/lib/photo-bands';
 import { photoUrl } from '~/lib/photos';
 import { idParam, stringParams } from '~/lib/route-params';
@@ -188,7 +190,7 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
           : [
               {
                 id: row.id,
-                label: recordTitle(page!.kind, row),
+                label: bandLabel(page!.kind, row),
                 top: now.top,
                 bottom: awaited(now),
               },
@@ -199,7 +201,7 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
         : [
             {
               id: row.id,
-              label: recordTitle(page!.kind, row),
+              label: bandLabel(page!.kind, row),
               top: row.photoTop,
               bottom: row.photoBottom,
             },
@@ -440,6 +442,10 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
     </main>
   );
 }
+
+// A band's label: the entry's number, if it has one, and who it is about.
+const bandLabel = (kind: RecordKind, row: RecordRow) =>
+  [row.entryNo, recordTitle(kind, row)].filter(Boolean).join(' · ');
 
 // Where on the photo an event is, as a fraction of its height from the top;
 // null when the photo has no height yet.

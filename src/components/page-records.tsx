@@ -54,6 +54,13 @@ export default function PageRecords(props: {
                 <Show when={row().lost}>
                   <span class="badge badge-soft badge-sm">{m.records_lost()}</span>
                 </Show>
+                <Show when={row().entryNo}>
+                  {(no) => (
+                    <span class="font-normal text-base-content/60 tabular-nums">
+                      {entryLabel(no())}
+                    </span>
+                  )}
+                </Show>
                 {recordTitle(props.kind, row())}
               </span>
               <Show when={details(props.kind, row())}>
@@ -84,6 +91,9 @@ const names = (...people: ({ ru: string | null; fi: string | null } | null)[]) =
     .map((p) => localName(p))
     .filter(Boolean)
     .join(', ');
+
+/** An entry's number as shown: "№ 41". */
+export const entryLabel = (entryNo: string) => `${m.records_col_entry_no()} ${entryNo}`;
 
 /** Who a record is about: the child, the couple, the deceased, the household or farm. */
 export function recordTitle(kind: RecordKind, row: RecordRow): string {

@@ -260,6 +260,7 @@ for (const r of body) {
         source_id: SOURCE_ID,
         section_id: sectionId,
         status: 'lost',
+        entry_no: null,
         note: title,
         raw: JSON.stringify({ [HEADERS[0]]: cells[0] }),
       });
@@ -312,6 +313,7 @@ for (const r of body) {
     source_id: SOURCE_ID,
     section_id: sectionId,
     status: lost ? 'lost' : 'ok',
+    entry_no: value(cells[3]),
     date: baptismDate,
     place_text: placeText,
     place_id: placeId,

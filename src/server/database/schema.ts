@@ -238,6 +238,10 @@ export const record = snakeCase.table(
       .references(() => source.id, { onDelete: 'restrict' }),
     sectionId: integer().references(() => sourceSection.id, { onDelete: 'set null' }),
     page: text(), // as numbered in the source: "221об"
+    // The entry's number as the register gives it ("41", "12а", "12, 13"):
+    // text, as written. Registers number anew each year, so it names an
+    // entry only with its year, and is never taken as unique.
+    entryNo: text(),
     // Where the entry starts and ends on its page's photo (source_page), as
     // fractions of the photo's height from the top: marked with two clicks
     // as the record is transcribed beside the photo, both or neither (a

@@ -183,6 +183,7 @@ async function recordRows(
       date: true,
       placeText: true,
       note: true,
+      entryNo: true,
       photoTop: true,
       photoBottom: true,
     },
@@ -233,6 +234,8 @@ async function recordRows(
 
   return rows.map((r) => ({
     id: r.id,
+    // Its number in the register, as written.
+    entryNo: r.entryNo,
     lost: r.status === 'lost',
     // Baptised, married or died.
     date: r.date,
@@ -332,6 +335,8 @@ export interface RecordEditData {
   sourceId: number | null;
   /** The page as the source numbers it ("221об"). */
   page: string | null;
+  /** The entry's number as the register gives it ("41", "12а"). */
+  entryNo: string | null;
   /** Where it starts and ends on its page's photo, as fractions of its height. */
   photoTop: number | null;
   photoBottom: number | null;
@@ -428,6 +433,7 @@ async function loadRecord(id: number) {
       version: true,
       sourceId: true,
       page: true,
+      entryNo: true,
       photoTop: true,
       photoBottom: true,
       status: true,
@@ -592,6 +598,7 @@ const common = {
   version,
   sourceId: v.pipe(v.string(), v.transform(Number), rowId),
   page: line(),
+  entryNo: line(),
   // Where it starts and ends on its page's photo, posted only by the form
   // beside the photo: absent leaves them as they are, empty clears them.
   photoTop: photoHeight,
@@ -1176,6 +1183,7 @@ export const saveRecord = formAction(async (formData: FormData) => {
   const fields = {
     sourceId: chosen.id,
     page: input.page as string | null,
+    entryNo: input.entryNo as string | null,
     ...(input.photoTop !== undefined && {
       photoTop: input.photoTop as number | null,
       photoBottom: input.photoBottom as number | null,

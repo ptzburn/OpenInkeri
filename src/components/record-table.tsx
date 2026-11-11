@@ -50,6 +50,7 @@ export default function RecordTable(props: {
 // The columns of each kind's table, before the edit link's.
 const columns: Record<RecordKind, (() => string)[]> = {
   baptisms: [
+    m.records_col_entry_no,
     m.records_col_born,
     m.records_col_baptised,
     m.records_col_child,
@@ -58,8 +59,15 @@ const columns: Record<RecordKind, (() => string)[]> = {
     m.records_col_village,
     m.records_col_note,
   ],
-  marriages: [m.records_col_married, m.records_col_groom, m.records_col_bride, m.records_col_note],
+  marriages: [
+    m.records_col_entry_no,
+    m.records_col_married,
+    m.records_col_groom,
+    m.records_col_bride,
+    m.records_col_note,
+  ],
   deaths: [
+    m.records_col_entry_no,
     m.records_col_died,
     m.records_col_buried,
     m.records_col_deceased,
@@ -89,6 +97,7 @@ function StatusIcon(props: { icon: typeof TwinsIcon; label: string; class?: stri
 }
 
 function RecordTableRow(props: { kind: RecordKind; row: RecordRow; editHref?: string }) {
+  const entryNo = () => <td class="tabular-nums whitespace-nowrap">{props.row.entryNo}</td>;
   const date = (value: string | null) => (
     <td class="tabular-nums whitespace-nowrap">{formatPartialDate(value)}</td>
   );
@@ -111,6 +120,7 @@ function RecordTableRow(props: { kind: RecordKind; row: RecordRow; editHref?: st
   return (
     <tr class={props.row.lost ? 'text-base-content/50' : undefined}>
       <Show when={props.kind === 'baptisms'}>
+        {entryNo()}
         {date(props.row.birthDate)}
         {date(props.row.date)}
         <td>
@@ -143,6 +153,7 @@ function RecordTableRow(props: { kind: RecordKind; row: RecordRow; editHref?: st
         {note()}
       </Show>
       <Show when={props.kind === 'marriages'}>
+        {entryNo()}
         {date(props.row.date)}
         <td>
           {lost()}
@@ -154,6 +165,7 @@ function RecordTableRow(props: { kind: RecordKind; row: RecordRow; editHref?: st
         {note()}
       </Show>
       <Show when={props.kind === 'deaths'}>
+        {entryNo()}
         {date(props.row.date)}
         {date(props.row.burialDate)}
         <td>

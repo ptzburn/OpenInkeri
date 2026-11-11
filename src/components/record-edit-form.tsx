@@ -132,6 +132,7 @@ const blank = (kind: RecordKind, sourceId: number | null = null): RecordEditData
   kind,
   sourceId,
   page: null,
+  entryNo: null,
   photoTop: null,
   photoBottom: null,
   language: null,
@@ -148,6 +149,11 @@ const blank = (kind: RecordKind, sourceId: number | null = null): RecordEditData
   members: [],
 });
 
+// The number after an entry's, when it is a plain number ("41" → "42"):
+// a register's entries follow on. Otherwise ("12а", "12, 13") none.
+const nextEntryNo = (entryNo: string | null) =>
+  entryNo && /^\d+$/.test(entryNo) ? String(Number(entryNo) + 1) : null;
+
 // The record after `previous` (Save and add next): on the same page of the
 // same source. A list's next household or farm is usually in the same
 // village, estate and list date; a register's next baptism usually has the
@@ -156,6 +162,7 @@ const blank = (kind: RecordKind, sourceId: number | null = null): RecordEditData
 const nextAfter = (previous: RecordEditData): RecordEditData => {
   const next = blank(previous.kind, previous.sourceId);
   next.page = previous.page;
+  next.entryNo = nextEntryNo(previous.entryNo);
   next.language = previous.language;
   if (isListKind(previous.kind)) {
     next.date = previous.date;
@@ -393,6 +400,16 @@ export default function RecordEditForm(props: {
                 maxlength={FIELD_MAX.line}
                 invalid={invalid('page')}
               />
+              <Show when={!isListKind(r.kind)}>
+                <TextInput
+                  name="entryNo"
+                  label={m.record_edit_entry_no()}
+                  value={r.entryNo}
+                  hint={m.record_edit_entry_no_hint()}
+                  maxlength={FIELD_MAX.line}
+                  invalid={invalid('entryNo')}
+                />
+              </Show>
               <Show when={isListKind(r.kind)}>
                 <TextInput
                   name="holdingNo"

@@ -527,7 +527,7 @@ describe('/records', () => {
     renderAt('/records?kind=marriages');
     const groom = await screen.findByText('Mikkel Skippari');
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
-    expect(headers).toEqual(['Married', 'Groom', 'Bride', 'Notes']);
+    expect(headers).toEqual(['No.', 'Married', 'Groom', 'Bride', 'Notes']);
     const row = groom.closest('tr')!;
     expect(row).toHaveTextContent('14.01.1918');
     // English shows the Finnish name of the village when it has one.
@@ -542,6 +542,7 @@ describe('/records', () => {
     const deceased = await screen.findByText('Aleksanteri Juosepinp. Tattari');
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
     expect(headers).toEqual([
+      'No.',
       'Died',
       'Buried',
       'Deceased',
