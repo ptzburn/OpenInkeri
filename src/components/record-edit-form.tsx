@@ -270,6 +270,17 @@ export default function RecordEditForm(props: {
     () => props.id,
     () => (props.id ? m.record_saved() : m.record_created()),
   );
+  // A baptism's Stillborn box as ticked, kept with the record it was ticked
+  // in (the form is keyed by its record): the child's death date then needs
+  // no field.
+  const [stillborn, setStillborn] = createSignal<{ record: RecordEditData; value: boolean } | null>(
+    null,
+    { name: 'edit-stillborn' },
+  );
+  const stillbornNow = (r: RecordEditData) => {
+    const ticked = stillborn();
+    return ticked && ticked.record === r ? ticked.value : !!r.baptism?.stillborn;
+  };
   // The parish of the source the record is (or starts) in: where a locality
   // added in the form starts.
   const sourceParishId = () => {
@@ -494,6 +505,15 @@ export default function RecordEditForm(props: {
                       <PersonFields
                         prefix={role}
                         legend={editedRoleLabels[role]()}
+                        stillbornBox={
+                          role === 'child' && r.kind === 'baptisms'
+                            ? {
+                                loaded: r.baptism?.stillborn ?? false,
+                                set: (value) => setStillborn({ record: r, value }),
+                              }
+                            : undefined
+                        }
+                        stillborn={role === 'child' && stillbornNow(r)}
                         fields={personFieldsOf(r.kind as keyof typeof editedRoles, role)}
                         person={r.people[role] ?? null}
                         latin={languageOf(r)}
@@ -593,11 +613,6 @@ export default function RecordEditForm(props: {
                       name="illegitimate"
                       label={m.records_illegitimate()}
                       checked={r.baptism?.illegitimate ?? false}
-                    />
-                    <Checkbox
-                      name="stillborn"
-                      label={m.records_stillborn()}
-                      checked={r.baptism?.stillborn ?? false}
                     />
                   </div>
                 </Show>
@@ -744,6 +759,14 @@ const textFieldLabels: Partial<Record<PersonField, () => string>> = {
 function PersonFields(props: {
   prefix: string;
   legend: string;
+  /**
+   * A baptised child's Stillborn box, drawn beside its death date: ticked
+   * as loaded, and `set` as it is clicked. Apart from `stillborn`, whether it
+   * is ticked now, so a click doesn't redraw the box.
+   */
+  stillbornBox?: { loaded: boolean; set: (value: boolean) => void };
+  /** A stillborn child: its death date is its birth, so the date gives way to a note. */
+  stillborn?: boolean;
   fields: readonly PersonField[];
   person: RecordEditPerson | null;
   latin: string | null;
@@ -771,8 +794,46 @@ function PersonFields(props: {
             invalid={props.invalid(field('sex'))}
           />
         );
-      case 'birthDate':
       case 'deathDate':
+        // Stillborn: said instead of asked, keeping any date stored.
+        return (
+          <>
+            <Show
+              when={props.stillborn}
+              fallback={
+                <DateInput
+                  name={field(f)}
+                  label={m.record_edit_death_date()}
+                  value={value(f)}
+                  invalid={props.invalid(field(f))}
+                />
+              }
+            >
+              <div class="fieldset">
+                <span class="fieldset-legend">{m.record_edit_death_date()}</span>
+                <input
+                  type="hidden"
+                  name={field('deathDate')}
+                  value={formatPartialDate(value('deathDate'))}
+                />
+                <p class="py-2 text-sm text-base-content/60">{m.record_edit_death_stillborn()}</p>
+              </div>
+            </Show>
+            <Show when={props.stillbornBox}>
+              {(box) => (
+                <div class="fieldset flex flex-col justify-end pb-2">
+                  <Checkbox
+                    name="stillborn"
+                    label={m.records_stillborn()}
+                    checked={box().loaded}
+                    onChange={(value) => box().set(value)}
+                  />
+                </div>
+              )}
+            </Show>
+          </>
+        );
+      case 'birthDate':
         return (
           <DateInput
             name={field(f)}
@@ -935,7 +996,6 @@ const hasMore = (r: RecordEditData) =>
   !!r.baptism?.emergencyDate ||
   !!r.baptism?.multipleBirth ||
   !!r.baptism?.illegitimate ||
-  !!r.baptism?.stillborn ||
   !!r.death?.burialPlaceText ||
   !!r.death?.stillborn;
 
@@ -961,7 +1021,12 @@ function DateInput(props: {
   );
 }
 
-function Checkbox(props: { name: string; label: string; checked: boolean }) {
+function Checkbox(props: {
+  name: string;
+  label: string;
+  checked: boolean;
+  onChange?: (checked: boolean) => void;
+}) {
   return (
     <label class="label gap-2">
       <input
@@ -969,6 +1034,7 @@ function Checkbox(props: { name: string; label: string; checked: boolean }) {
         name={props.name}
         checked={props.checked}
         class="checkbox checkbox-sm"
+        onChange={(event) => props.onChange?.(event.currentTarget.checked)}
       />
       {props.label}
     </label>

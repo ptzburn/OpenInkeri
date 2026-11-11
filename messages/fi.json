@@ -150,6 +150,7 @@
   "record_edit_sex_male": "Mies",
   "record_edit_sex_female": "Nainen",
   "record_edit_death_date": "Kuollut",
+  "record_edit_death_stillborn": "Ei tarvita: lapsi syntyi kuolleena.",
   "record_edit_origin": "Alkuperä",
   "record_edit_remove_hint": "Jos tyhjennät henkilön kaikki kentät, hänet poistetaan merkinnästä.",
   "record_edit_conflict": "Joku muu muutti merkintää sillä välin. Lataa sivu uudelleen nähdäksesi muutokset.",

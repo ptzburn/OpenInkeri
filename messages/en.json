@@ -150,6 +150,7 @@
   "record_edit_sex_male": "Male",
   "record_edit_sex_female": "Female",
   "record_edit_death_date": "Died",
+  "record_edit_death_stillborn": "Not needed: the child was stillborn.",
   "record_edit_origin": "Origin",
   "record_edit_remove_hint": "Clearing all of a person’s fields removes them from the record.",
   "record_edit_conflict": "Someone else changed this record meanwhile. Reload the page to see their changes.",

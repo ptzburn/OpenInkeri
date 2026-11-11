@@ -1246,6 +1246,22 @@ describe('adding and deleting records', () => {
     expect(artifact).toHaveNoDiagnostics();
   });
 
+  test("a stillborn child's death date is said, not asked", async () => {
+    me.current = { isAdmin: true };
+    renderAt('/records/new?source=1');
+    await waitFor(() => expect(field('child.deathDate')).toBeTruthy());
+    expect(field('child.deathDate')).not.toHaveAttribute('type', 'hidden');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Stillborn' }));
+    // The field gives way to a note; the date stored (none here) still posts.
+    expect(await screen.findByText('Not needed: the child was stillborn.')).toBeInTheDocument();
+    expect(field('child.deathDate')).toHaveAttribute('type', 'hidden');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Stillborn' }));
+    await waitFor(() =>
+      expect(screen.queryByText('Not needed: the child was stillborn.')).toBeNull(),
+    );
+    expect(field('child.deathDate')).not.toHaveAttribute('type', 'hidden');
+  });
+
   test('a locality named in a new record is added with it', async () => {
     me.current = { isAdmin: true };
     renderAt('/records/new?source=2');

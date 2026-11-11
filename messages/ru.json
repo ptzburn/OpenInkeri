@@ -150,6 +150,7 @@
   "record_edit_sex_male": "Мужской",
   "record_edit_sex_female": "Женский",
   "record_edit_death_date": "Дата смерти",
+  "record_edit_death_stillborn": "Не нужна: ребёнок родился мёртвым.",
   "record_edit_origin": "Происхождение",
   "record_edit_remove_hint": "Если очистить все поля человека, он будет удалён из записи.",
   "record_edit_conflict": "Кто-то другой тем временем изменил эту запись. Перезагрузите страницу, чтобы увидеть изменения.",
