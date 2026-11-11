@@ -55,6 +55,13 @@ declare module "virtual:file-routes" {
       $$route?: undefined;
     },
     {
+      path: "/api/photos/:size/:name";
+      page: false;
+      $GET: FileRouteLazyRef<typeof import("./src/routes/api/photos/[size]/[name]")>;
+      $HEAD: FileRouteLazyRef<typeof import("./src/routes/api/photos/[size]/[name]")>;
+      $$route?: undefined;
+    },
+    {
       path: "/";
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/index")>;
@@ -155,6 +162,18 @@ declare module "virtual:file-routes" {
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/sources/[id]/edit")>;
       $$route: FileRouteEagerRef<typeof import("./src/routes/sources/[id]/edit")>;
+    },
+    {
+      path: "/sources/:id/";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/sources/[id]/index")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/sources/[id]/index")>;
+    },
+    {
+      path: "/sources/:id/pages/:n";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/sources/[id]/pages/[n]")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/sources/[id]/pages/[n]")>;
     },
     {
       path: "/sources/";
@@ -354,6 +373,14 @@ declare module "virtual:file-routes" {
       children?: undefined;
     },
     {
+      path: "/sources/:id/";
+      id: "/sources/:id/";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/sources/[id]/index")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/sources/[id]/index")>;
+      children?: undefined;
+    },
+    {
       path: "/people/:id/edit";
       id: "/people/:id/edit";
       page: true;
@@ -383,6 +410,14 @@ declare module "virtual:file-routes" {
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/people/link/[persona]")>;
       $$route: FileRouteEagerRef<typeof import("./src/routes/people/link/[persona]")>;
+      children?: undefined;
+    },
+    {
+      path: "/sources/:id/pages/:n";
+      id: "/sources/:id/pages/:n";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/sources/[id]/pages/[n]")>;
+      $$route: FileRouteEagerRef<typeof import("./src/routes/sources/[id]/pages/[n]")>;
       children?: undefined;
     }
   ];

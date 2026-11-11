@@ -28,6 +28,7 @@ const { me, sources } = vi.hoisted(() => {
         archiveReference: 'ЦГИА СПб, ф. 19, оп. 1',
         note: null,
         records: 6630,
+        pages: 3,
       },
       {
         id: 5,
@@ -40,6 +41,7 @@ const { me, sources } = vi.hoisted(() => {
         archiveReference: null,
         note: null,
         records: 0,
+        pages: 0,
       },
     ],
   };
@@ -80,6 +82,28 @@ vi.mock('~/data/sources', async () => {
             language: row.language,
             note: row.note,
             records: row.records,
+          }
+        : null;
+    }),
+    getSourcePages: vi.fn(async (id: number) => {
+      const row = sources.list().find((s) => s.id === id);
+      return row
+        ? {
+            id: row.id,
+            title: row.title,
+            kind: row.kind,
+            parish: row.parish,
+            yearFrom: row.yearFrom,
+            yearTo: row.yearTo,
+            archiveReference: row.archiveReference,
+            // The register's cover (unnumbered), then two numbered pages.
+            pages: Array.from({ length: row.pages }, (_, i) => ({
+              position: i + 1,
+              label: i === 0 ? null : `${i}об`,
+              key: `${i}`.padStart(32, 'a'),
+              width: 2500,
+              height: 1900,
+            })),
           }
         : null;
     }),
@@ -285,5 +309,77 @@ describe('/sources', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Source “Туутари и Хиетамяки: налогоплательщики 1696” deleted.',
     );
+  });
+});
+
+describe('/sources/:id', () => {
+  test("the list counts a source's page photos and opens them", async () => {
+    renderAt('/sources');
+    const row = (await screen.findByText('Губаницы: список рожденных и крещенных')).closest('tr')!;
+    expect(within(row).getByRole('link', { name: '3' })).toHaveAttribute('href', '/sources/1');
+  });
+
+  test("a source's pages are thumbnails in order, for anyone", async () => {
+    renderAt('/sources/1');
+    await screen.findByRole('heading', {
+      level: 1,
+      name: 'Губаницы: список рожденных и крещенных',
+    });
+    const links = screen.getAllByRole('link').filter((a) => a.querySelector('img'));
+    expect(links.map((a) => a.textContent)).toEqual(['photo 1', 'p. 1об', 'p. 2об']);
+    expect(links.map((a) => a.getAttribute('href'))).toEqual([
+      '/sources/1/pages/1',
+      '/sources/1/pages/2',
+      '/sources/1/pages/3',
+    ]);
+    expect(links[1].querySelector('img')).toHaveAttribute(
+      'src',
+      `/api/photos/thumbs/${'1'.padStart(32, 'a')}.webp`,
+    );
+  });
+
+  test('a source without photos says so', async () => {
+    renderAt('/sources/5');
+    expect(await screen.findByText('This source has no page photos yet.')).toBeInTheDocument();
+  });
+
+  test('a page turns by its links and the arrow keys, and zooms to full size', async () => {
+    renderAt('/sources/1/pages/2');
+    const photo = await screen.findByRole('img', {
+      name: 'Губаницы: список рожденных и крещенных, p. 1об',
+    });
+    expect(photo).toHaveAttribute('src', `/api/photos/pages/${'1'.padStart(32, 'a')}.webp`);
+    expect(screen.getByText('2 of 3')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Previous page' })).toHaveAttribute(
+      'href',
+      '/sources/1/pages/1',
+    );
+
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+        await waitFor(() => expect(window.location.pathname).toBe('/sources/1/pages/3'));
+        await screen.findByText('3 of 3');
+        flush();
+      },
+      { scenario: 'source-page-next' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+    // The last page has no next.
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Full size' }));
+    expect(await screen.findByRole('button', { name: 'Fit to window' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    await waitFor(() => expect(window.location.pathname).toBe('/sources/1/pages/2'));
+  });
+
+  test('a page the source has not says so', async () => {
+    renderAt('/sources/1/pages/9');
+    expect(await screen.findByText('This source has no such page.')).toBeInTheDocument();
   });
 });

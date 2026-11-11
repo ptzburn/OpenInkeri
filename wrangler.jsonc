@@ -19,6 +19,10 @@
     "directory": "./dist/client",
     "binding": "ASSETS",
   },
+  // The photographs of the sources' pages (src/server/photos.ts), put there
+  // by scripts/import-pages.ts. Local dev keeps the bucket under .wrangler/;
+  // production's bucket is created once by hand (see README "Deploying").
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "openinkeri-photos" }],
   "d1_databases": [
     {
       "binding": "DB",

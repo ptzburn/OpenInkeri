@@ -28,6 +28,10 @@ export const relations = {
       parish: r.one.parish({ from: r.source.parishId, to: r.parish.id }),
       sections: r.many.sourceSection({ from: r.source.id, to: r.sourceSection.sourceId }),
       records: r.many.record({ from: r.source.id, to: r.record.sourceId }),
+      pages: r.many.sourcePage({ from: r.source.id, to: r.sourcePage.sourceId }),
+    },
+    sourcePage: {
+      source: r.one.source({ from: r.sourcePage.sourceId, to: r.source.id, optional: false }),
     },
     sourceSection: {
       source: r.one.source({ from: r.sourceSection.sourceId, to: r.source.id, optional: false }),

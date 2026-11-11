@@ -3,7 +3,7 @@ import { For, Show, createMemo } from 'solid-js';
 import AddIcon from '~icons/ri/add-line';
 
 import type { QueryData } from '~/lib/query-data';
-import { localName } from '~/lib/format';
+import { localName, yearSpan } from '~/lib/format';
 import { type SourceLanguage, sourceLanguages } from '~/lib/record-kinds';
 import { recordKindLabels, sourceLanguageLabels } from '~/components/labels';
 import EditLinkCell from '~/components/edit-link-cell';
@@ -56,6 +56,7 @@ export default function Sources() {
               <th>{m.sources_col_years()}</th>
               <th>{m.sources_col_language()}</th>
               <th class="text-right">{m.sources_col_records()}</th>
+              <th class="text-right">{m.sources_col_pages()}</th>
               <th>{m.form_note()}</th>
               <ActionsHeader when={canEdit()} span={2} />
             </tr>
@@ -76,10 +77,6 @@ export default function Sources() {
     </ListPage>
   );
 }
-
-// "1892–1919", or the one year there is.
-const years = (from: number | null, to: number | null) =>
-  from && to && from !== to ? `${from}–${to}` : String(from ?? to ?? '');
 
 // A language's name, or its code when the app has no name for it.
 const languageName = (code: string | null) =>
@@ -106,13 +103,20 @@ function SourceTableRow(props: { source: SourceRow; canEdit: boolean; editHref?:
       <td class="whitespace-nowrap">{recordKindLabels[props.source.kind]()}</td>
       <td>{localName(props.source.parish)}</td>
       <td class="whitespace-nowrap tabular-nums">
-        {years(props.source.yearFrom, props.source.yearTo)}
+        {yearSpan(props.source.yearFrom, props.source.yearTo)}
       </td>
       <td>{languageName(props.source.language)}</td>
       <td class="text-right tabular-nums">
         <Show when={props.source.records} fallback={0}>
           <a href={recordsHref()} class="link">
             {props.source.records}
+          </a>
+        </Show>
+      </td>
+      <td class="text-right tabular-nums">
+        <Show when={props.source.pages} fallback={0}>
+          <a href={paths.sources(props.source.id)()} class="link">
+            {props.source.pages}
           </a>
         </Show>
       </td>

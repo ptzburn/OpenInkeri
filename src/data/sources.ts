@@ -1,8 +1,8 @@
 // The sources pages' data: server functions ('use server') behind router
 // queries and actions, like ./parishes.ts. A source is one register or
 // list (a book, an archival file) that records are transcribed from. The
-// list is for signed-in users; creating, editing and deleting sources is
-// for admins. A save writes the source and a change_log entry in one D1
+// list is for signed-in users; a source's page photographs are for anyone;
+// creating, editing and deleting sources is for admins. A save writes the source and a change_log entry in one D1
 // batch.
 import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
@@ -14,7 +14,7 @@ import { type RecordKind, recordKinds, sourceLanguages } from '~/lib/record-kind
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
-import { parish, record, source } from '~/server/database/schema';
+import { parish, record, source, sourcePage } from '~/server/database/schema';
 import {
   type Refusals,
   deleteRow,
@@ -59,6 +59,29 @@ export interface SourceRow {
   archiveReference: string | null;
   note: string | null;
   records: number;
+  /** How many page photographs it has. */
+  pages: number;
+}
+
+/** One page photograph: `key` names its copies (~/lib/photos). */
+export interface SourcePageRow {
+  position: number;
+  label: string | null;
+  key: string;
+  width: number;
+  height: number;
+}
+
+export interface SourcePagesData {
+  id: number;
+  title: string;
+  kind: RecordKind;
+  parish: { ru: string; fi: string | null } | null;
+  yearFrom: number | null;
+  yearTo: number | null;
+  archiveReference: string | null;
+  /** In the source's order. */
+  pages: SourcePageRow[];
 }
 
 export interface SourceEditData {
@@ -76,11 +99,11 @@ export interface SourceEditData {
   records: number;
 }
 
-/** Every source, by type and title, with its parish and how many records it holds. */
+/** Every source, by type and title, with its parish and how many records and page photographs it holds. */
 export const getSources = query(async (): Promise<SourceRow[]> => {
   'use server';
   signedIn();
-  const [sources, counts] = await Promise.all([
+  const [sources, counts, pageCounts] = await Promise.all([
     db.query.source.findMany({
       columns: {
         id: true,
@@ -95,13 +118,19 @@ export const getSources = query(async (): Promise<SourceRow[]> => {
       with: { parish: { columns: { nameRu: true, nameFi: true } } },
     }),
     db.select({ sourceId: record.sourceId, n: count() }).from(record).groupBy(record.sourceId),
+    db
+      .select({ sourceId: sourcePage.sourceId, n: count() })
+      .from(sourcePage)
+      .groupBy(sourcePage.sourceId),
   ]);
   const records = new Map(counts.map((row) => [row.sourceId, row.n]));
+  const pages = new Map(pageCounts.map((row) => [row.sourceId, row.n]));
   return sources
     .map(({ parish, ...s }) => ({
       ...s,
       parish: namesOf(parish),
       records: records.get(s.id) ?? 0,
+      pages: pages.get(s.id) ?? 0,
     }))
     .sort(
       (a, b) =>
@@ -109,6 +138,35 @@ export const getSources = query(async (): Promise<SourceRow[]> => {
         a.title.localeCompare(b.title, 'ru'),
     );
 }, 'sources');
+
+/**
+ * One source with its page photographs, in order, for its pages (anyone may
+ * see them), or null if there is none.
+ */
+export const getSourcePages = query(async (id: number): Promise<SourcePagesData | null> => {
+  'use server';
+  const row = await db.query.source.findFirst({
+    where: { id: v.parse(rowId, id) },
+    columns: {
+      id: true,
+      title: true,
+      kind: true,
+      yearFrom: true,
+      yearTo: true,
+      archiveReference: true,
+    },
+    with: {
+      parish: { columns: { nameRu: true, nameFi: true } },
+      pages: {
+        columns: { position: true, label: true, key: true, width: true, height: true },
+        orderBy: { position: 'asc' },
+      },
+    },
+  });
+  if (!row) return null;
+  const { parish, ...rest } = row;
+  return { ...rest, parish: namesOf(parish) };
+}, 'source-pages');
 
 async function loadSource(id: number) {
   return db.query.source.findFirst({

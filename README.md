@@ -75,6 +75,15 @@ Production is the `openinkeri` Worker at https://openinkeri.hokkanen.io, with th
 
 Migrations run before the new code goes live, so the code already running must keep working on the new schema. Add tables and nullable or defaulted columns first; rename or drop only in a later release, once no deployed code uses the old shape. Review generated SQL in the pull request; [CLAUDE.md](CLAUDE.md) lists what needs extra care on D1.
 
+The sources' page photographs live in the `openinkeri-photos` R2 bucket (the `PHOTOS` binding), as WebP copies, not the originals. Create the bucket once before the first deploy that binds it: `pnpm exec wrangler r2 bucket create openinkeri-photos`. Photos go in one folder (one register) at a time, to the local bucket and database first, then to production with `--remote`; the source must already exist in that database:
+
+```bash
+node scripts/import-pages.ts --source <id> "<folder>"           # local
+node scripts/import-pages.ts --source <id> --remote "<folder>"  # production
+```
+
+Running it again with the same folder uploads only new photos and drops pages whose photo has left the folder. See the script's header for how photos are ordered and labelled.
+
 To undo a bad migration, restore the database to the bookmark in that run's log: `pnpm exec wrangler d1 time-travel restore DB --bookmark=<bookmark>`. This overwrites the database, including every write since the bookmark; usually a new migration that fixes forward is better. Roll back the Worker with `pnpm exec wrangler rollback`.
 
 The Worker's secrets (`BETTER_AUTH_SECRET`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and optionally `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and `VK_CLIENT_ID`/`VK_CLIENT_SECRET`; production has its own GitHub OAuth app with the callback `https://openinkeri.hokkanen.io/api/auth/callback/github`, and the Google and VK apps list `https://openinkeri.hokkanen.io/api/auth/callback/google` and `/vk`) live on Cloudflare and survive deploys. Change one with `pnpm exec wrangler secret put <NAME>`. To deploy by hand, set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in `.env` (or run `npx wrangler login`), then `pnpm db:migrate:remote` and `pnpm run deploy`.
