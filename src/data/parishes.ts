@@ -171,6 +171,9 @@ const form = v.object({
   churchText: line(),
   churchPlaceId: optionalId,
   churchCreate: createFlag,
+  // The box asking to move a church locality that belongs to another
+  // parish (or to none) into this one.
+  churchMove: createFlag,
   note: text,
 });
 
@@ -188,13 +191,18 @@ const parishRefusals: Refusals = {
  * The church's locality is typed by name and linked to the locality it
  * names (the form does this as the admin types; here for a form posted
  * before JavaScript loaded); one not known yet is added in this parish when
- * the form asks (src/server/linked-rows.ts).
+ * the form asks (src/server/linked-rows.ts). A locality of another parish
+ * (or of none) moves into this one when the form asks (`churchMove`), in
+ * the same batch, with its own change_log entry.
  */
 export const saveParish = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
-  const { id, version, churchText, churchCreate, ...fields } = parseOrRefuse(form, entries);
+  const { id, version, churchText, churchCreate, churchMove, ...fields } = parseOrRefuse(
+    form,
+    entries,
+  );
   const before = id ? await rowForEdit(loadParish, id, version, parishRefusals) : null;
   // The church's locality: the one linked, the one the text names, or the
   // one to add, in this parish.
@@ -232,6 +240,28 @@ export const saveParish = formAction(async (formData: FormData) => {
         added.push(village);
         fields.churchPlaceId = village.id;
       }
+      // The church locality, moved into this parish when the form asks.
+      const moving =
+        churchMove && church.id && !church.add
+          ? await db.query.place.findFirst({
+              where: { id: church.id },
+              columns: { id: true, nameRu: true, nameFi: true, parishId: true, version: true },
+            })
+          : null;
+      const move =
+        moving && moving.parishId !== parishId
+          ? [
+              db
+                .update(place)
+                .set({ parishId, version: moving.version + 1, ...stamp })
+                .where(and(eq(place.id, moving.id), eq(place.version, moving.version))),
+              logChange(by, 'place', moving.id, 'update', moving, {
+                ...moving,
+                parishId,
+                version: moving.version + 1,
+              }),
+            ]
+          : [];
       const after = before ? { ...before, ...fields, version: before.version + 1 } : fields;
       await db.batch([
         before
@@ -241,6 +271,7 @@ export const saveParish = formAction(async (formData: FormData) => {
               .where(and(eq(parish.id, before.id), eq(parish.version, before.version)))
           : db.update(parish).set(fields).where(eq(parish.id, parishId)),
         logChange(by, 'parish', parishId, before ? 'update' : 'create', before, after),
+        ...move,
         ...added.flatMap((row) => row.statements),
       ]);
     },
