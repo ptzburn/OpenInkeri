@@ -11,8 +11,9 @@ import type { RecordKind } from '~/lib/record-kinds';
 import { m } from '~/paraglide/messages.js';
 
 /**
- * The list of `rows`, all of `kind`. A record marked on the photo carries
- * its band's number (its place in the list). With `editHref` (admins), each
+ * The list of `rows`, all of `kind`, in the order given (the page's: see
+ * inPhotoOrder). Each starts with a swatch like its band on the photo, an
+ * empty one while it isn't marked there. With `editHref` (admins), each
  * opens its form. `hovered` is the record pointed at, here or on the photo;
  * `onHover` says which one the pointer is on here.
  */
@@ -26,7 +27,7 @@ export default function PageRecords(props: {
   return (
     <ol class="flex flex-col">
       <For each={props.rows} keyed={(row) => row.id}>
-        {(row, i) => (
+        {(row) => (
           <li
             class={[
               'flex items-start gap-2 border-b border-base-200 px-1 py-2 last:border-b-0',
@@ -36,20 +37,24 @@ export default function PageRecords(props: {
             onMouseLeave={() => props.onHover?.(null)}
           >
             <span
+              role="img"
               class={[
-                'badge badge-sm mt-0.5 w-7 shrink-0 tabular-nums',
-                row().photoTop === null ? 'badge-ghost' : 'badge-primary',
+                'mt-1.5 h-3 w-4 shrink-0 rounded-xs',
+                row().photoTop === null
+                  ? 'border border-dashed border-base-content/40'
+                  : 'border-t-2 border-primary bg-primary/25',
               ]}
-              title={row().photoTop === null ? m.source_page_unmarked() : undefined}
-            >
-              {i() + 1}
-            </span>
+              aria-label={
+                row().photoTop === null ? m.source_page_unmarked() : m.source_page_marked()
+              }
+              title={row().photoTop === null ? m.source_page_unmarked() : m.source_page_marked()}
+            />
             <div class="flex min-w-0 flex-1 flex-col gap-0.5">
               <span class="flex flex-wrap items-center gap-1 font-medium">
                 <Show when={row().lost}>
                   <span class="badge badge-soft badge-sm">{m.records_lost()}</span>
                 </Show>
-                {title(props.kind, row())}
+                {recordTitle(props.kind, row())}
               </span>
               <Show when={details(props.kind, row())}>
                 {(text) => <span class="text-sm text-base-content/70">{text()}</span>}
@@ -80,9 +85,8 @@ const names = (...people: ({ ru: string | null; fi: string | null } | null)[]) =
     .filter(Boolean)
     .join(', ');
 
-// Who the record is about: the child, the couple, the deceased, the
-// household or farm.
-function title(kind: RecordKind, row: RecordRow): string {
+/** Who a record is about: the child, the couple, the deceased, the household or farm. */
+export function recordTitle(kind: RecordKind, row: RecordRow): string {
   switch (kind) {
     case 'baptisms':
       return localName(row.child) || '—';

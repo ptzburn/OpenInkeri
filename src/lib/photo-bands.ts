@@ -25,3 +25,14 @@ export function photoBands<T extends PhotoMark>(marks: T[]): (T & { bottom: numb
     bottom: Math.min(1, sorted[i + 1]?.top ?? mark.top + usual),
   }));
 }
+
+/**
+ * Records in the order of their page's photo: those marked on it from the
+ * top down, then the others as they came (in the order they were typed),
+ * so a page transcribed in any order still lists as the page reads.
+ */
+export function inPhotoOrder<T extends { photoTop: number | null }>(rows: T[]): T[] {
+  const marked = rows.filter((row) => row.photoTop !== null);
+  const unmarked = rows.filter((row) => row.photoTop === null);
+  return [...marked.sort((a, b) => a.photoTop! - b.photoTop!), ...unmarked];
+}

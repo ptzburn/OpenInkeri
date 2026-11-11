@@ -1198,10 +1198,10 @@ describe('adding and deleting records', () => {
     photo.getBoundingClientRect = () => ({ top: 100, height: 400 }) as DOMRect;
     fireEvent.click(photo, { clientY: 200 });
     await waitFor(() => expect(field('photoTop')).toHaveValue('0.25'));
-    // Its band shows at once, numbered after the page's records.
+    // Its band shows at once.
     const band = document.querySelector<HTMLElement>('main section a.absolute')!;
     expect(band.style.top).toBe('25%');
-    expect(band).toHaveTextContent('1');
+    expect(band).toHaveTextContent('New record');
     expect(
       screen.getByText('Marked on the photo. Click the photo again to move the mark.'),
     ).toBeInTheDocument();

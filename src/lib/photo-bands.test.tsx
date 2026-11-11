@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vite-plus/test';
 
-import { photoBands } from './photo-bands';
+import { inPhotoOrder, photoBands } from './photo-bands';
 
 describe('photoBands', () => {
   test('each band runs down to the next mark, whatever order the marks come in', () => {
@@ -25,5 +25,19 @@ describe('photoBands', () => {
 
   test("a mark's other fields ride along", () => {
     expect(photoBands([{ id: 7, top: 0.1, n: 3 }])[0]).toMatchObject({ id: 7, n: 3 });
+  });
+});
+
+describe('inPhotoOrder', () => {
+  test('marked records top down, then the unmarked as they came', () => {
+    const rows = [
+      { id: 1, photoTop: 0.4 },
+      { id: 2, photoTop: null },
+      { id: 3, photoTop: 0.2 },
+      { id: 4, photoTop: null },
+    ];
+    expect(inPhotoOrder(rows).map((r) => r.id)).toEqual([3, 1, 2, 4]);
+    // The rows given are left as they were.
+    expect(rows.map((r) => r.id)).toEqual([1, 2, 3, 4]);
   });
 });

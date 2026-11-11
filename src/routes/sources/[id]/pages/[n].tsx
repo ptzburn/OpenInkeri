@@ -13,12 +13,12 @@ import ZoomOutIcon from '~icons/ri/zoom-out-line';
 
 import type { QueryData } from '~/lib/query-data';
 import { useCanEdit } from '~/components/list-page';
-import PageRecords from '~/components/page-records';
+import PageRecords, { recordTitle } from '~/components/page-records';
 import RecordEditForm from '~/components/record-edit-form';
 import { getPageRecords } from '~/data/records';
 import { getSourcePages } from '~/data/sources';
 import { pageName } from '~/lib/format';
-import { photoBands } from '~/lib/photo-bands';
+import { inPhotoOrder, photoBands } from '~/lib/photo-bands';
 import { photoUrl } from '~/lib/photos';
 import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
@@ -37,8 +37,10 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 // Save and add next, which the new one follows), and ?record=<id> a
 // record's form. Saving, deleting or cancelling comes back to the list.
 // While a form is open, a click on the photo marks where its entry starts;
-// the records marked show as numbered bands over the photo, each down to
-// the next mark, lit with their row in the list as the pointer is on it.
+// the records marked show as bands over the photo, named by who each is
+// about, each down to the next mark, lit with their row in the list as the
+// pointer is on it. The list follows the page: marked from the top down,
+// then the rest.
 const crumbs: Crumbs = async ({ params }) => {
   const id = idParam(params.id);
   const n = idParam(params.n);
@@ -153,17 +155,19 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
   const clearMark = () => {
     setPending({ form: formKey(), top: null });
   };
-  // The bands over the photo: the records marked on it, numbered by their
-  // place in the list, the one whose form is open where it was just marked.
+  // The bands over the photo: the records marked on it, each named by who
+  // it is about, the one whose form is open where it was just marked.
   const bands = () => {
-    const rows = records()?.records ?? [];
+    const page = records();
     const open = formOpen();
     const mark = markOf();
-    const marks = rows.flatMap((row, i) => {
+    const marks = (page?.records ?? []).flatMap((row) => {
       const top = String(row.id) === open && mark !== undefined ? mark : row.photoTop;
-      return top === null ? [] : [{ id: row.id, n: i + 1, top }];
+      return top === null ? [] : [{ id: row.id, label: recordTitle(page!.kind, row), top }];
     });
-    if (open === 'new' && mark != null) marks.push({ id: 0, n: rows.length + 1, top: mark });
+    if (open === 'new' && mark != null) {
+      marks.push({ id: 0, label: m.record_new_title(), top: mark });
+    }
     return photoBands(marks);
   };
   const lit = (id: number) =>
@@ -299,15 +303,15 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                         }}
                         aria-label={
                           canEdit() && !formOpen()
-                            ? `${m.record_edit_open()} ${band().n}`
+                            ? `${m.record_edit_open()}: ${band().label}`
                             : undefined
                         }
                         aria-hidden={canEdit() && !formOpen() ? undefined : 'true'}
                         onMouseEnter={() => setHovered(band().id)}
                         onMouseLeave={() => setHovered(null)}
                       >
-                        <span class="absolute top-1 left-1 badge badge-sm badge-primary tabular-nums">
-                          {band().n}
+                        <span class="absolute top-1 left-1 badge max-w-[60%] badge-sm badge-primary">
+                          <span class="truncate">{band().label}</span>
                         </span>
                       </a>
                     )}
@@ -362,7 +366,7 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                         >
                           <PageRecords
                             kind={records()!.kind}
-                            rows={records()!.records}
+                            rows={inPhotoOrder(records()!.records)}
                             hovered={hovered()}
                             onHover={setHovered}
                             editHref={

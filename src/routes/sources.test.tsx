@@ -486,21 +486,20 @@ describe('/sources/:id', () => {
     expect(screen.queryByRole('complementary', { name: "This page's records" })).toBeNull();
   });
 
-  test('the records marked on the photo show as numbered bands, lit with their row', async () => {
+  test('marked records show as bands named by who they are about; the list follows the page', async () => {
     renderAt('/sources/1/pages/2');
     const column = await screen.findByRole('complementary', { name: "This page's records" });
     const victor = (await within(column).findByText('Виктор')).closest('li')!;
-    // Numbered by their place in the list; only the marked one has a band.
+    // Only the marked one has a band, named, where it starts.
     const bands = document.querySelectorAll<HTMLElement>('main section a.absolute');
     expect(bands).toHaveLength(1);
-    expect(bands[0]).toHaveTextContent('1');
+    expect(bands[0]).toHaveTextContent('Виктор');
     expect(bands[0].style.top).toBe('25%');
-    expect(within(victor).getByText('1')).toBeInTheDocument();
+    expect(within(victor).getByRole('img', { name: 'Marked on the photo' })).toBeInTheDocument();
+    const peter = within(column).getByText('Пётр Адам').closest('li')!;
     expect(
-      within(within(column).getByText('Пётр Адам').closest('li')!).getByTitle(
-        'Not marked on the photo yet',
-      ),
-    ).toHaveTextContent('2');
+      within(peter).getByRole('img', { name: 'Not marked on the photo yet' }),
+    ).toBeInTheDocument();
     // Pointing at the row lights its band, and the band its row.
     fireEvent.mouseEnter(victor);
     await waitFor(() => expect(bands[0]).toHaveClass('bg-primary/25'));

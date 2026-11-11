@@ -251,6 +251,7 @@
   "source_page_no_records": "Nothing has been transcribed from this page yet.",
   "source_page_column": "This page's records",
   "source_page_unmarked": "Not marked on the photo yet",
+  "source_page_marked": "Marked on the photo",
   "source_page_mark_here": "Entry starts here",
   "record_mark_none": "Not marked on the photo yet: click the photo at the first line of this entry.",
   "record_mark_set": "Marked on the photo. Click the photo again to move the mark.",
