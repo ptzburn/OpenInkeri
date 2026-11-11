@@ -67,7 +67,7 @@ export default function SourcePages(props: RouteProps<'/sources/:id/'>) {
               fallback={<p class="py-6 text-center text-base-content/60">{m.source_no_pages()}</p>}
             >
               <ul class="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-3">
-                <For each={s().pages} keyed={(page) => page.key}>
+                <For each={s().pages} keyed={(page) => page.position}>
                   {(page) => (
                     <li>
                       <a

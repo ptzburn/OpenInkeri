@@ -338,6 +338,29 @@ describe('/sources/:id', () => {
     );
   });
 
+  test('opening a page from the thumbnails and zooming it causes no diagnostics', async () => {
+    // A first visit loads the page's code; the capture is the second.
+    renderAt('/sources/1/pages/1');
+    await screen.findByText('1 of 3');
+    cleanup();
+
+    renderAt('/sources/1');
+    const thumbnail = await screen.findByText('p. 1об');
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(thumbnail.closest('a')!);
+        await screen.findByText('2 of 3');
+        fireEvent.click(screen.getByRole('button', { name: 'Full size' }));
+        await screen.findByRole('button', { name: 'Fit to window' });
+        fireEvent.click(screen.getByRole('img', { name: /p\. 1об$/ }));
+        await screen.findByRole('button', { name: 'Full size' });
+        flush();
+      },
+      { scenario: 'source-pages-open-zoom' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+  });
+
   test('a source without photos says so', async () => {
     renderAt('/sources/5');
     expect(await screen.findByText('This source has no page photos yet.')).toBeInTheDocument();
@@ -366,7 +389,9 @@ describe('/sources/:id', () => {
     );
     expect(artifact).toHaveNoDiagnostics();
     // The last page has no next.
-    expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled();
+    const next = screen.getByRole('link', { name: 'Next page' });
+    expect(next).not.toHaveAttribute('href');
+    expect(next).toHaveAttribute('aria-disabled', 'true');
 
     fireEvent.click(screen.getByRole('button', { name: 'Full size' }));
     expect(await screen.findByRole('button', { name: 'Fit to window' })).toHaveAttribute(

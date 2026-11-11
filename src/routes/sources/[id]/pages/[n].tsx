@@ -70,7 +70,11 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
     },
     { name: 'source-page-at' },
   );
+  // Kept as the pages turn: one read at full size is likely read so on.
   const [zoomed, setZoomed] = createSignal(false, { name: 'source-page-zoomed' });
+  const toggleZoom = () => {
+    setZoomed((z) => !z);
+  };
   const navigate = useNavigate();
 
   onSettled(() => {
@@ -107,22 +111,24 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                 <span class="max-sm:sr-only">{m.source_all_pages()}</span>
               </a>
               <div class="join ml-auto">
-                <PageLink href={a().prev} label={m.source_page_prev()} icon={PrevIcon} />
+                <PageLink href={a().prev} label={m.source_page_prev()}>
+                  <PrevIcon class="size-5" aria-hidden="true" />
+                </PageLink>
                 <span class="join-item flex items-center px-3 text-sm whitespace-nowrap tabular-nums">
                   {pageName(a().page.position, a().page.label)}
                   <span class="ml-2 text-base-content/60">
                     {m.source_photo_of({ n: a().index + 1, count: a().source.pages.length })}
                   </span>
                 </span>
-                <PageLink href={a().next} label={m.source_page_next()} icon={NextIcon} />
+                <PageLink href={a().next} label={m.source_page_next()}>
+                  <NextIcon class="size-5" aria-hidden="true" />
+                </PageLink>
               </div>
               <button
                 type="button"
                 class="btn btn-ghost btn-sm"
                 aria-pressed={zoomed() ? 'true' : 'false'}
-                onClick={() => {
-                  setZoomed((z) => !z);
-                }}
+                onClick={toggleZoom}
               >
                 <Show when={zoomed()} fallback={<ZoomInIcon class="size-4" aria-hidden="true" />}>
                   <ZoomOutIcon class="size-4" aria-hidden="true" />
@@ -149,9 +155,7 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                     ? 'h-auto max-w-none cursor-zoom-out'
                     : 'h-auto max-h-[calc(100dvh-9rem)] w-auto max-w-full cursor-zoom-in object-contain'
                 }
-                onClick={() => {
-                  setZoomed((z) => !z);
-                }}
+                onClick={toggleZoom}
               />
             </div>
           </>
@@ -164,27 +168,18 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
 const pageHref = (source: number, position: number) =>
   paths.sources(source).pages(String(position))();
 
-/** Previous or next: a link, or a disabled button at either end. */
-function PageLink(props: {
-  href: string | undefined;
-  label: string;
-  icon: (props: JSX.SvgSVGAttributes<SVGSVGElement>) => JSX.Element;
-}) {
-  const Icon = (): JSX.Element => <props.icon class="size-5" aria-hidden="true" />;
+/** Previous or next: a link, disabled (no href) at either end. */
+function PageLink(props: { href: string | undefined; label: string; children: JSX.Element }) {
   return (
-    <Show
-      when={props.href}
-      fallback={
-        <button type="button" class="btn join-item btn-sm" disabled aria-label={props.label}>
-          <Icon />
-        </button>
-      }
+    <a
+      href={props.href}
+      class={['btn join-item btn-sm', { 'btn-disabled': !props.href }]}
+      role="link"
+      aria-disabled={props.href ? undefined : 'true'}
+      aria-label={props.label}
+      title={props.label}
     >
-      {(href) => (
-        <a href={href()} class="btn join-item btn-sm" aria-label={props.label} title={props.label}>
-          <Icon />
-        </a>
-      )}
-    </Show>
+      {props.children}
+    </a>
   );
 }
