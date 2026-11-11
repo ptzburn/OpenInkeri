@@ -177,7 +177,15 @@ async function recordRows(
     where: { RAW: filter },
     orderBy: { id: 'asc' },
     ...page,
-    columns: { id: true, status: true, date: true, placeText: true, note: true, photoTop: true },
+    columns: {
+      id: true,
+      status: true,
+      date: true,
+      placeText: true,
+      note: true,
+      photoTop: true,
+      photoBottom: true,
+    },
     with: {
       place: { columns: { nameRu: true, nameFi: true } },
       baptism: {
@@ -259,8 +267,9 @@ async function recordRows(
         }))
       : [],
     note: r.note,
-    // Where it starts on its page's photo (0 the top, 1 the bottom).
+    // Where it starts and ends on its page's photo (0 the top, 1 the bottom).
     photoTop: r.photoTop,
+    photoBottom: r.photoBottom,
   }));
 }
 
@@ -323,8 +332,9 @@ export interface RecordEditData {
   sourceId: number | null;
   /** The page as the source numbers it ("221об"). */
   page: string | null;
-  /** Where it starts on its page's photo, as a fraction of its height. */
+  /** Where it starts and ends on its page's photo, as fractions of its height. */
   photoTop: number | null;
+  photoBottom: number | null;
   /** The language of the original register: ru, fi, sv… */
   language: string | null;
   version: number;
@@ -419,6 +429,7 @@ async function loadRecord(id: number) {
       sourceId: true,
       page: true,
       photoTop: true,
+      photoBottom: true,
       status: true,
       date: true,
       placeText: true,
@@ -554,6 +565,15 @@ const checkbox = v.pipe(
 );
 const recordId = v.pipe(v.string(), v.transform(Number), rowId);
 
+// A height on a page's photo (0 its top, 1 its bottom), or empty for none.
+const photoHeight = v.optional(
+  v.pipe(
+    v.string(),
+    v.transform((s) => (s === '' ? null : Number(s))),
+    v.nullable(v.pipe(v.number(), v.minValue(0), v.maxValue(1))),
+  ),
+);
+
 // What every kind's form posts.
 const common = {
   // Where the list was (kind, search, page, source), or the source's page
@@ -572,15 +592,10 @@ const common = {
   version,
   sourceId: v.pipe(v.string(), v.transform(Number), rowId),
   page: line(),
-  // Where it starts on its page's photo, posted only by the form beside the
-  // photo: absent leaves it as it is, empty clears it.
-  photoTop: v.optional(
-    v.pipe(
-      v.string(),
-      v.transform((s) => (s === '' ? null : Number(s))),
-      v.nullable(v.pipe(v.number(), v.minValue(0), v.maxValue(1))),
-    ),
-  ),
+  // Where it starts and ends on its page's photo, posted only by the form
+  // beside the photo: absent leaves them as they are, empty clears them.
+  photoTop: photoHeight,
+  photoBottom: photoHeight,
   status: v.picklist(recordStatuses),
   date: partialDate,
   note: text,
@@ -871,7 +886,8 @@ async function createLinked(entries: Record<string, unknown>, input: Values, by:
  * from (the redirect revalidates, so the list shows the change), or with
  * Save and add next to a new record's form that
  * starts from this one (see getRecordEdit's use in the form). The record's kind comes from the database, not the
- * form. Refused, with the fields at fault, when a value doesn't read; and
+ * form. Refused, with the fields at fault, when a value doesn't read; when
+ * its start is marked on its page's photo without an end below it; and
  * when the record changed since the page loaded it (its version moved on),
  * so one admin's save doesn't silently undo another's. The check reads the
  * version just before the batch, so two saves within the same moment could
@@ -914,6 +930,13 @@ export const saveRecord = formAction(async (formData: FormData) => {
   if (indexes.length > MAX_MEMBERS) throw refuse({ message: m.form_invalid() }, 400);
   const parsedInput = parseOrRefuse(formOf(kind, indexes), entries);
   const input = parsedInput as typeof parsedInput & Values;
+  // Marked on its page's photo: its start and its end, the end below.
+  if (input.photoTop !== undefined && !marksRead(input.photoTop, input.photoBottom)) {
+    throw refuse(
+      { message: m.form_invalid(), fields: { photoTop: m.record_mark_unfinished() } },
+      400,
+    );
+  }
   if (existing && existing.version !== input.version) {
     throw refuse({ message: recordRefusals.conflict() }, 409);
   }
@@ -1153,7 +1176,10 @@ export const saveRecord = formAction(async (formData: FormData) => {
   const fields = {
     sourceId: chosen.id,
     page: input.page as string | null,
-    ...(input.photoTop !== undefined && { photoTop: input.photoTop as number | null }),
+    ...(input.photoTop !== undefined && {
+      photoTop: input.photoTop as number | null,
+      photoBottom: input.photoBottom as number | null,
+    }),
     status: input.status,
     date: input.date,
     placeId,
@@ -1271,6 +1297,11 @@ export const saveRecord = formAction(async (formData: FormData) => {
   }
   throw redirect(backToList(input));
 }, 'save-record');
+
+// Whether a record's marks on its page's photo go together: none, or a
+// start with an end below it.
+const marksRead = (top: number | null | undefined, bottom: number | null | undefined) =>
+  top == null ? bottom == null : bottom != null && bottom > top;
 
 // The records list as a form came from it (kind, search, page, source), or
 // the source's page photo (source, photo). The redirect is built from these,

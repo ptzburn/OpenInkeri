@@ -145,6 +145,7 @@ vi.mock('~/data/records', () => ({
       note: null,
       // Виктор is marked on the photo, Пётр Адам not yet.
       photoTop: id === 41 ? 0.25 : null,
+      photoBottom: id === 41 ? 0.35 : null,
     });
     return {
       kind: 'baptisms' as const,
@@ -495,6 +496,7 @@ describe('/sources/:id', () => {
     expect(bands).toHaveLength(1);
     expect(bands[0]).toHaveTextContent('Виктор');
     expect(bands[0].style.top).toBe('25%');
+    expect(parseFloat(bands[0].style.height)).toBeCloseTo(10);
     expect(within(victor).getByRole('img', { name: 'Marked on the photo' })).toBeInTheDocument();
     const peter = within(column).getByText('Пётр Адам').closest('li')!;
     expect(

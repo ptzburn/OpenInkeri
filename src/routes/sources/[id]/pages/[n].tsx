@@ -18,7 +18,7 @@ import RecordEditForm from '~/components/record-edit-form';
 import { getPageRecords } from '~/data/records';
 import { getSourcePages } from '~/data/sources';
 import { pageName } from '~/lib/format';
-import { inPhotoOrder, photoBands } from '~/lib/photo-bands';
+import { type PhotoMarks, inPhotoOrder, nextMark, photoBands } from '~/lib/photo-bands';
 import { photoUrl } from '~/lib/photos';
 import { idParam, stringParams } from '~/lib/route-params';
 import { m } from '~/paraglide/messages.js';
@@ -36,8 +36,9 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 // column, starting on this page (?after= the record saved just before with
 // Save and add next, which the new one follows), and ?record=<id> a
 // record's form. Saving, deleting or cancelling comes back to the list.
-// While a form is open, a click on the photo marks where its entry starts;
-// the records marked show as bands over the photo, named by who each is
+// While a form is open, a click on the photo marks where its entry starts,
+// and the next one below it where it ends (both are needed); the records
+// marked show as bands over the photo, named by who each is
 // about, each down to the next mark, lit with their row in the list as the
 // pointer is on it. The list follows the page: marked from the top down,
 // then the rest.
@@ -119,15 +120,15 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
     record: string,
   ) => paths.sources(shown.source.id).pages(String(shown.page.position))({ record });
 
-  // The mark just clicked on the photo for the form open beside it (null:
-  // taken off), kept with which form it is for (?record= and ?after=), so
-  // the next record's form starts unmarked; it is posted with the form
-  // (record.photo_top).
-  const [pending, setPending] = createSignal<{ form: string; top: number | null } | null>(null, {
+  // The marks just clicked on the photo for the form open beside it, where
+  // its entry starts and ends (nulls: taken off), kept with which form they
+  // are for (?record= and ?after=), so the next record's form starts
+  // unmarked; they are posted with the form (record.photo_top, photo_bottom).
+  const [pending, setPending] = createSignal<{ form: string; marks: PhotoMarks } | null>(null, {
     name: 'source-page-mark',
   });
   // Where the pointer is on the photo while a form is open: the guide line
-  // showing where a click would mark the entry's start.
+  // showing what a click there would mark.
   const [pointer, setPointer] = createSignal<number | null>(null, {
     name: 'source-page-pointer',
   });
@@ -138,35 +139,74 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
   // The form open beside the photo, for an admin: which, or undefined.
   const formOpen = () => (canEdit() ? search.record : undefined);
   const formKey = () => `${search.record ?? ''}:${search.after ?? ''}`;
-  const markOf = () => {
+  // The marks just clicked for the open form, if any.
+  const marksClicked = () => {
     const mark = pending();
-    return mark && mark.form === formKey() ? mark.top : undefined;
+    return mark && mark.form === formKey() ? mark.marks : undefined;
   };
-  // With a form open, a click on the photo marks where its entry starts;
-  // else it zooms.
+  // The open form's marks: just clicked, else its record's.
+  const marksNow = (): PhotoMarks => {
+    const clicked = marksClicked();
+    if (clicked) return clicked;
+    const row = records()?.records.find((r) => String(r.id) === formOpen());
+    return { top: row?.photoTop ?? null, bottom: row?.photoBottom ?? null };
+  };
+  // What a click at `y` marks: the end, below a start that has none; else
+  // the start (again, once both are marked).
+  const clickMarks = (y: number) => nextMark(marksNow(), y);
+  // With a form open, a click on the photo marks its entry's start, then
+  // its end; else it zooms.
   const photoClick = (event: MouseEvent & { currentTarget: HTMLImageElement }) => {
     if (!formOpen()) return toggleZoom();
-    const top = heightAt(event);
-    if (top !== null) setPending({ form: formKey(), top });
+    const y = heightAt(event);
+    if (y === null) return;
+    const now = marksNow();
+    setPending({
+      form: formKey(),
+      marks: clickMarks(y) === 'end' ? { top: now.top, bottom: y } : { top: y, bottom: null },
+    });
   };
   const photoMove = (event: MouseEvent & { currentTarget: HTMLImageElement }) => {
     if (formOpen()) setPointer(heightAt(event));
   };
-  const clearMark = () => {
-    setPending({ form: formKey(), top: null });
+  const clearMarks = () => {
+    setPending({ form: formKey(), marks: { top: null, bottom: null } });
   };
   // The bands over the photo: the records marked on it, each named by who
-  // it is about, the one whose form is open where it was just marked.
+  // it is about; the one whose form is open as it is being marked, down to
+  // the pointer while its end is still to come.
   const bands = () => {
     const page = records();
     const open = formOpen();
-    const mark = markOf();
+    const now = open ? marksNow() : null;
+    const awaited = (marks: PhotoMarks) =>
+      marks.bottom ?? Math.max(marks.top!, pointer() ?? marks.top!);
     const marks = (page?.records ?? []).flatMap((row) => {
-      const top = String(row.id) === open && mark !== undefined ? mark : row.photoTop;
-      return top === null ? [] : [{ id: row.id, label: recordTitle(page!.kind, row), top }];
+      if (String(row.id) === open && now) {
+        return now.top === null
+          ? []
+          : [
+              {
+                id: row.id,
+                label: recordTitle(page!.kind, row),
+                top: now.top,
+                bottom: awaited(now),
+              },
+            ];
+      }
+      return row.photoTop === null
+        ? []
+        : [
+            {
+              id: row.id,
+              label: recordTitle(page!.kind, row),
+              top: row.photoTop,
+              bottom: row.photoBottom,
+            },
+          ];
     });
-    if (open === 'new' && mark != null) {
-      marks.push({ id: 0, label: m.record_new_title(), top: mark });
+    if (open === 'new' && now?.top != null) {
+      marks.push({ id: 0, label: m.record_new_title(), top: now.top, bottom: awaited(now) });
     }
     return photoBands(marks);
   };
@@ -196,7 +236,7 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
   });
 
   return (
-    <main class="flex min-w-0 flex-1 flex-col lg:h-[calc(100dvh-4rem)] lg:flex-row">
+    <main class="flex min-w-0 flex-1 flex-col lg:h-[calc(100dvh-4rem)] lg:flex-none lg:flex-row">
       <Show when={at()} fallback={<p class="p-4">{m.source_page_missing()}</p>}>
         {(a) => (
           <>
@@ -271,14 +311,16 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                     onMouseMove={photoMove}
                     onMouseLeave={() => setPointer(null)}
                   />
-                  <Show when={formOpen() && pointer() !== null ? pointer() : undefined}>
-                    {(y) => (
+                  <Show when={formOpen() && pointer() !== null ? { y: pointer()! } : undefined}>
+                    {(guide) => (
                       <div
                         class="pointer-events-none absolute inset-x-0 border-t-2 border-dashed border-primary"
-                        style={{ top: `${y() * 100}%` }}
+                        style={{ top: `${guide().y * 100}%` }}
                       >
                         <span class="absolute right-2 -translate-y-1/2 badge badge-sm badge-primary">
-                          {m.source_page_mark_here()}
+                          {clickMarks(guide().y) === 'end'
+                            ? m.source_page_mark_end()
+                            : m.source_page_mark_here()}
                         </span>
                       </div>
                     )}
@@ -350,7 +392,7 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                     </Show>
                   </Show>
                 </nav>
-                <div class="min-h-0 flex-1 p-4 lg:overflow-y-auto">
+                <div class="min-h-0 flex-1 px-4 pt-4 lg:overflow-y-auto">
                   {/* Keyed: each record (and each next one) gets a fresh form. */}
                   <Show
                     when={canEdit() ? search.record : undefined}
@@ -384,8 +426,8 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                         after={idParam(search.after) ?? undefined}
                         returnTo={here(a())}
                         cancelHref={pageHref(a().source.id, a().page.position)}
-                        mark={markOf()}
-                        onClearMark={clearMark}
+                        marks={marksClicked()}
+                        onClearMarks={clearMarks}
                       />
                     )}
                   </Show>

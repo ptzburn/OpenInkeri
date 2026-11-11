@@ -42,6 +42,7 @@ import {
   saveRecord,
 } from '~/data/records';
 import { getSourcePages } from '~/data/sources';
+import type { PhotoMarks } from '~/lib/photo-bands';
 import type { Crumb } from '~/lib/breadcrumbs';
 import { idParam } from '~/lib/route-params';
 import { type RecordKind, baptismLocations, recordStatuses, sexes } from '~/lib/record-kinds';
@@ -132,6 +133,7 @@ const blank = (kind: RecordKind, sourceId: number | null = null): RecordEditData
   sourceId,
   page: null,
   photoTop: null,
+  photoBottom: null,
   language: null,
   version: 0,
   status: 'ok',
@@ -202,9 +204,9 @@ const nextAfter = (previous: RecordEditData): RecordEditData => {
  * record's form is followed by its Delete section. Its fields lay out by the
  * form's own width (container queries), so it fits a page or, with `panel`,
  * the column beside a page photo, whose bottom its save bar keeps to. There
- * it also posts where the entry starts on the photo: `mark`, just clicked
- * (null: taken off with `onClearMark`), else the record's own; and says at
- * its top whether the record is marked and how to mark it.
+ * it also posts where the entry starts and ends on the photo: `marks`, just
+ * clicked (nulls: taken off with `onClearMarks`), else the record's own;
+ * and says at its top how far the record is marked and what to click next.
  */
 export default function RecordEditForm(props: {
   id?: number;
@@ -212,8 +214,8 @@ export default function RecordEditForm(props: {
   after?: number;
   returnTo: ListPlace;
   panel?: boolean;
-  mark?: number | null;
-  onClearMark?: () => void;
+  marks?: PhotoMarks;
+  onClearMarks?: () => void;
   cancelHref: string;
 }) {
   const options = createMemo(
@@ -341,11 +343,17 @@ export default function RecordEditForm(props: {
               <input
                 type="hidden"
                 name="photoTop"
-                value={(props.mark !== undefined ? props.mark : r.photoTop) ?? ''}
+                value={(props.marks ? props.marks.top : r.photoTop) ?? ''}
+              />
+              <input
+                type="hidden"
+                name="photoBottom"
+                value={(props.marks ? props.marks.bottom : r.photoBottom) ?? ''}
               />
               <PhotoMarkStatus
-                marked={(props.mark !== undefined ? props.mark : r.photoTop) !== null}
-                onClear={props.onClearMark}
+                marks={props.marks ?? { top: r.photoTop, bottom: r.photoBottom }}
+                fault={invalid('photoTop')}
+                onClear={props.onClearMarks}
               />
             </Show>
             <input type="hidden" name="version" value={r.version} />
@@ -611,7 +619,7 @@ export default function RecordEditForm(props: {
               cancelHref={props.cancelHref}
               saveAndNext={!r.id}
               primary={inSource() ? 'next' : 'save'}
-              class={props.panel ? panelSaveBarClass(!r.id) : saveBarClass(!r.id)}
+              class={props.panel ? panelSaveBarClass : saveBarClass(!r.id)}
             />
           </form>
           <Show when={r.id}>
@@ -856,25 +864,39 @@ function Section(props: { title: string; children: JSX.Element; wide?: boolean }
   );
 }
 
-// Whether the record is marked on its page's photo, and what to do about it:
-// the form's first step beside the photo.
-function PhotoMarkStatus(props: { marked: boolean; onClear?: () => void }) {
+// How far the record is marked on its page's photo, and what to click next:
+// the form's first step beside the photo. Its start and end, or neither; a
+// save with only the start is refused, and says why here (`fault`) until
+// the end is marked.
+function PhotoMarkStatus(props: { marks: PhotoMarks; fault?: Fault; onClear?: () => void }) {
+  const step = () =>
+    props.marks.top === null ? 'none' : props.marks.bottom === null ? 'start' : 'both';
+  const fault = () => (step() === 'both' ? undefined : props.fault);
   return (
     <div
       aria-live="polite"
-      class={['alert alert-soft text-sm', props.marked ? 'alert-success' : 'alert-info']}
+      class={[
+        'alert alert-soft text-sm',
+        fault()
+          ? 'alert-error'
+          : { none: 'alert-info', start: 'alert-warning', both: 'alert-success' }[step()],
+      ]}
     >
       <Show
-        when={props.marked}
-        fallback={
-          <>
-            <CrosshairIcon class="size-5 shrink-0" aria-hidden="true" />
-            <span>{m.record_mark_none()}</span>
-          </>
-        }
+        when={step() === 'both'}
+        fallback={<CrosshairIcon class="size-5 shrink-0" aria-hidden="true" />}
       >
         <MarkedIcon class="size-5 shrink-0" aria-hidden="true" />
-        <span>{m.record_mark_set()}</span>
+      </Show>
+      <span>
+        {fault() ??
+          {
+            none: m.record_mark_none(),
+            start: m.record_mark_start(),
+            both: m.record_mark_set(),
+          }[step()]}
+      </span>
+      <Show when={step() !== 'none'}>
         <button type="button" class="btn btn-ghost btn-xs" onClick={() => props.onClear?.()}>
           {m.record_mark_clear()}
         </button>
@@ -884,13 +906,10 @@ function PhotoMarkStatus(props: { marked: boolean; onClear?: () => void }) {
 }
 
 // The save bar in the column beside a page photo, which pads its content
-// by 1rem on every side and scrolls it; as saveBarClass, `last` when nothing
-// follows the form.
-const panelSaveBarClass = (last: boolean) =>
-  [
-    'sticky bottom-0 z-10 -mx-4 min-h-18 justify-center border-t border-base-300 bg-base-100 px-4',
-    last ? '-mb-4' : '',
-  ].join(' ');
+// by 1rem but at the bottom, where the bar keeps to its edge (a sticky bar
+// stops short of a scroller's padding, and the form showed under it).
+const panelSaveBarClass =
+  'sticky bottom-0 z-10 -mx-4 min-h-18 justify-center border-t border-base-300 bg-base-100 px-4 py-2';
 
 // Whether any of what the form folds away is set: then it starts open.
 const hasMore = (r: RecordEditData) =>

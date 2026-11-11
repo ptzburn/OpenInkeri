@@ -1184,7 +1184,7 @@ describe('adding and deleting records', () => {
     );
   });
 
-  test('a click on the photo marks where the new record starts, and is posted with it', async () => {
+  test("two clicks on the photo mark where the new record's entry starts and ends", async () => {
     me.current = { isAdmin: true };
     renderAt('/sources/1/pages/2?record=new');
     await waitFor(() => expect(field('page')).toHaveValue('221об'));
@@ -1196,18 +1196,32 @@ describe('adding and deleting records', () => {
     ).toBeInTheDocument();
     const photo = screen.getByRole('img', { name: /p\. 221об$/ });
     photo.getBoundingClientRect = () => ({ top: 100, height: 400 }) as DOMRect;
+    // The start; its band shows at once, the end still to come.
     fireEvent.click(photo, { clientY: 200 });
     await waitFor(() => expect(field('photoTop')).toHaveValue('0.25'));
-    // Its band shows at once.
+    expect(field('photoBottom')).toHaveValue('');
     const band = document.querySelector<HTMLElement>('main section a.absolute')!;
     expect(band.style.top).toBe('25%');
     expect(band).toHaveTextContent('New record');
     expect(
-      screen.getByText('Marked on the photo. Click the photo again to move the mark.'),
+      screen.getByText('Start marked. Now click the photo where this entry ends.'),
     ).toBeInTheDocument();
-    // Taken off again: nothing is posted, and the band goes.
+    // Pointing below the start, the guide line says a click marks the end.
+    fireEvent.mouseMove(photo, { clientY: 260 });
+    expect(await screen.findByText('Entry ends here')).toBeInTheDocument();
+    fireEvent.click(photo, { clientY: 260 });
+    await waitFor(() => expect(field('photoBottom')).toHaveValue('0.4'));
+    expect(field('photoTop')).toHaveValue('0.25');
+    expect(
+      screen.getByText('Start and end marked. Click the photo to mark them again.'),
+    ).toBeInTheDocument();
+    // Once both are marked, a click starts again from the start.
+    fireEvent.mouseMove(photo, { clientY: 300 });
+    expect(await screen.findByText('Entry starts here')).toBeInTheDocument();
+    // Taken off: nothing is posted, and the band goes.
     fireEvent.click(screen.getByRole('button', { name: 'Remove mark' }));
     await waitFor(() => expect(field('photoTop')).toHaveValue(''));
+    expect(field('photoBottom')).toHaveValue('');
     expect(document.querySelector('main section a.absolute')).toBeNull();
   });
 
