@@ -62,6 +62,12 @@ declare module "virtual:file-routes" {
       $$route?: undefined;
     },
     {
+      path: "/api/sources/:id/pages";
+      page: false;
+      $POST: FileRouteLazyRef<Pick<typeof import("./src/routes/api/sources/[id]/pages"), Extract<"POST", keyof typeof import("./src/routes/api/sources/[id]/pages")>>>;
+      $$route?: undefined;
+    },
+    {
       path: "/";
       page: true;
       $component: FileRouteLazyRef<Pick<typeof import("./src/routes/index"), Extract<"default", keyof typeof import("./src/routes/index")>>>;

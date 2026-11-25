@@ -267,6 +267,38 @@
   "source_page_marked": "Merkitty kuvaan",
   "source_page_mark_here": "Merkintä alkaa tästä",
   "source_page_mark_end": "Merkintä päättyy tähän",
+  "source_photos_add": "Lisää kuvia",
+  "source_photos_add_folder": "Lisää kansio",
+  "source_photos_hint": "Ne tulevat viimeisen sivun jälkeen tiedostonimien järjestyksessä. Nimi, joka päättyy ”s. 12”, on sivu 12: korjaa sivunumerot ennen lähettämistä.",
+  "source_photos_col_file": "Tiedosto",
+  "source_photos_col_status": "Tila",
+  "source_photos_upload": "Lähetä kuvat ({count})",
+  "source_photos_stop": "Pysäytä",
+  "source_photos_close": "Sulje",
+  "source_photos_waiting": "Jonossa",
+  "source_photos_uploading": "Lähetetään…",
+  "source_photos_added": "Lisätty",
+  "source_photos_skipped": "On jo lähteessä",
+  "source_photos_done": "Lisätty: {added}. Oli jo: {skipped}. Ei lisätty: {failed}.",
+  "source_photo_not_image": "Tiedostoa ei voi lukea kuvana.",
+  "source_photo_too_large": "Kuva on yli 20 Mt.",
+  "source_photo_quota": "Tämän kuun ilmainen kuvankäsittely on käytetty. Yritä uudelleen ensi kuussa.",
+  "source_photo_remove": "Poista kuva",
+  "source_photo_remove_text": "Poistaa tämän kuvan ja sen pikkukuvan lähteestä. Seuraavat sivut siirtyvät yhden eteenpäin.",
+  "source_photo_remove_records": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "Tältä sivulta on kirjattu {count} merkintä. Se säilyy, ja sitä muokataan tästä lähtien sen omalla sivulla.",
+        "countPlural=*": "Tältä sivulta on kirjattu {count} merkintää. Ne säilyvät, ja niitä muokataan tästä lähtien omilla sivuillaan."
+      }
+    }
+  ],
+  "source_photo_removed": "Kuva poistettu.",
+  "source_photo_remove_unconfirmed": "Poistoa ei vahvistettu.",
+  "source_photo_missing": "Kuvaa ei enää ole lähteessä.",
+  "source_photo_changed": "Sivut muuttuivat tämän ollessa auki. Lataa sivu uudelleen.",
   "record_mark_none": "Ei vielä merkitty kuvaan: napsauta kuvaa tämän merkinnän ensimmäisen rivin kohdalta.",
   "record_mark_start": "Alku merkitty. Napsauta nyt kuvaa kohdasta, johon merkintä päättyy.",
   "record_mark_set": "Alku ja loppu merkitty. Merkitse uudelleen napsauttamalla kuvaa.",

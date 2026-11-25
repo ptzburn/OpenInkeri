@@ -347,12 +347,13 @@ vi.mock('~/data/people', () => ({
   }),
 }));
 // New records are transcribed beside their page's photo, which reads the
-// source's pages: the baptisms' (1) has two photos, the deaths' (2) and the
+// source's pages (and offers admins its removal): the baptisms' (1) has two photos, the deaths' (2) and the
 // households' (3) one each.
 const { sourceKinds } = vi.hoisted(() => ({
   sourceKinds: { 1: 'baptisms', 2: 'deaths', 3: 'households' } as Record<number, string>,
 }));
-vi.mock('~/data/sources', () => {
+vi.mock('~/data/sources', async () => {
+  const { formAction } = await import('@solidjs/router');
   const photo = (position: number, label: string | null) => ({
     position,
     label,
@@ -366,6 +367,7 @@ vi.mock('~/data/sources', () => {
     3: { title: 'Губаницы: общий список', pages: [photo(1, '4')] },
   };
   return {
+    deleteSourcePage: formAction(async () => {}, 'delete-source-page'),
     getSourcePages: vi.fn(async (id: number) =>
       sources[id]
         ? {

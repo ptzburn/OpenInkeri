@@ -75,14 +75,18 @@ Production is the `openinkeri` Worker at https://openinkeri.hokkanen.io, with th
 
 Migrations run before the new code goes live, so the code already running must keep working on the new schema. Add tables and nullable or defaulted columns first; rename or drop only in a later release, once no deployed code uses the old shape. Review generated SQL in the pull request; [CLAUDE.md](CLAUDE.md) lists what needs extra care on D1.
 
-The sources' page photographs live in the `openinkeri-photos` R2 bucket (the `PHOTOS` binding), as WebP copies, not the originals; only signed-in users see them, through `/api/photos`, never from the bucket directly. Create the bucket once before the first deploy that binds it: `pnpm exec wrangler r2 bucket create openinkeri-photos`. Photos go in one folder (one register) at a time, to the local bucket and database first, then to production with `--remote`; the source must already exist in that database:
+The sources' page photographs live in the `openinkeri-photos` R2 bucket (the `PHOTOS` binding), as WebP copies, not the originals; only signed-in users see them, through `/api/photos`, never from the bucket directly. Create the bucket once before the first deploy that binds it: `pnpm exec wrangler r2 bucket create openinkeri-photos`.
+
+Admins add photos on a source's page (Add photos, Add a folder) and remove them from a photo's page. The copies are made by Cloudflare Images through the `IMAGES` binding, which needs no setup beyond `wrangler.jsonc`. Each photo uses two transformations (the copy and its thumbnail); the Free plan includes 5,000 a month, and past that an upload is refused with a message until the next month. Local dev runs an offline stand-in on sharp, which costs nothing.
+
+A whole folder can also go in from the command line, one folder (one register) at a time, to the local bucket and database first, then to production with `--remote`; the source must already exist in that database:
 
 ```bash
 node scripts/import-pages.ts --source <id> "<folder>"           # local
 node scripts/import-pages.ts --source <id> --remote "<folder>"  # production
 ```
 
-Running it again with the same folder uploads only new photos and drops pages whose photo has left the folder. See the script's header for how photos are ordered and labelled.
+Running it again with the same folder uploads only new photos and drops pages whose photo has left the folder, including pages added in the app that the folder lacks. See the script's header for how photos are ordered and labelled.
 
 To undo a bad migration, restore the database to the bookmark in that run's log: `pnpm exec wrangler d1 time-travel restore DB --bookmark=<bookmark>`. This overwrites the database, including every write since the bookmark; usually a new migration that fixes forward is better. Roll back the Worker with `pnpm exec wrangler rollback`.
 

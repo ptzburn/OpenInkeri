@@ -505,11 +505,12 @@ export function Select(props: {
 }
 
 /** Whether this browser runs invoker commands (commandfor/command) itself. */
-const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype;
+export const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype;
 
 /**
  * The confirmation of a delete, as a native modal dialog (daisyUI's modal),
- * for an action whose form posts `id`, `version` and `confirm=on`: its title
+ * for an action whose form posts `id`, `version` (for a row that has one)
+ * and `confirm=on`: its title
  * and text, what still depends on the row (`inUse`, which leaves only
  * Cancel), Cancel (also Escape and the backdrop) and the delete; the server
  * checks the confirmation again, and what depends on the row, in case
@@ -522,7 +523,7 @@ const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype
 export function DeleteDialog<U>(props: {
   action: FormAction<[FormData], U>;
   id: number;
-  version: number;
+  version?: number;
   title: string;
   text: string;
   inUse?: string;
@@ -575,7 +576,9 @@ export function DeleteDialog<U>(props: {
         {/* While the delete is in flight the router marks the form aria-busy. */}
         <form method="post" action={action} class="group">
           <input type="hidden" name="id" value={props.id} />
-          <input type="hidden" name="version" value={props.version} />
+          <Show when={props.version !== undefined}>
+            <input type="hidden" name="version" value={props.version} />
+          </Show>
           <input type="hidden" name="confirm" value="on" />
           {props.children}
           <div class="modal-action">

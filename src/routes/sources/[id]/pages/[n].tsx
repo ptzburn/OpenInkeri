@@ -10,6 +10,7 @@ import NextIcon from '~icons/ri/arrow-right-s-line';
 import GridIcon from '~icons/ri/layout-grid-line';
 import ZoomInIcon from '~icons/ri/zoom-in-line';
 import ZoomOutIcon from '~icons/ri/zoom-out-line';
+import RemoveIcon from '~icons/ri/delete-bin-line';
 
 import type { QueryData } from '~/lib/query-data';
 import { useCanEdit } from '~/components/list-page';
@@ -17,7 +18,8 @@ import PageRecords, { recordTitle } from '~/components/page-records';
 import type { RecordRow } from '~/data/records';
 import RecordEditForm from '~/components/record-edit-form';
 import { getPageRecords } from '~/data/records';
-import { getSourcePages } from '~/data/sources';
+import { DeleteDialog, invokerCommands } from '~/components/form-fields';
+import { type SourcePageRow, deleteSourcePage, getSourcePages } from '~/data/sources';
 import { pageName } from '~/lib/format';
 import type { RecordKind } from '~/lib/record-kinds';
 import { type PhotoMarks, inPhotoOrder, nextMark, photoBands } from '~/lib/photo-bands';
@@ -283,6 +285,9 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
                     {zoomed() ? m.source_page_fit() : m.source_page_full()}
                   </span>
                 </button>
+                <Show when={canEdit()}>
+                  <RemovePhoto page={a().page} records={records()?.records.length ?? 0} />
+                </Show>
               </nav>
               <div
                 class={[
@@ -471,5 +476,40 @@ function PageLink(props: { href: string | undefined; label: string; children: JS
     >
       {props.children}
     </a>
+  );
+}
+
+// An admin's removal of the photo shown, once confirmed: the pages after it
+// move up, and the `records` transcribed from it stay, as the dialog says.
+function RemovePhoto(props: { page: SourcePageRow; records: number }) {
+  let dialog: HTMLDialogElement | undefined;
+  return (
+    <>
+      <button
+        type="button"
+        commandfor={`delete-${props.page.id}`}
+        command="show-modal"
+        class="btn text-error btn-ghost btn-sm"
+        onClick={() => {
+          if (!invokerCommands()) dialog?.showModal();
+        }}
+      >
+        <RemoveIcon class="size-4" aria-hidden="true" />
+        <span class="max-sm:sr-only">{m.source_photo_remove()}</span>
+      </button>
+      <DeleteDialog
+        action={deleteSourcePage}
+        id={props.page.id}
+        title={m.source_photo_remove()}
+        text={[
+          m.source_photo_remove_text(),
+          props.records ? m.source_photo_remove_records({ count: props.records }) : '',
+        ].join(' ')}
+        deleted={m.source_photo_removed()}
+        ref={(el) => (dialog = el)}
+      >
+        <input type="hidden" name="key" value={props.page.key} />
+      </DeleteDialog>
+    </>
   );
 }

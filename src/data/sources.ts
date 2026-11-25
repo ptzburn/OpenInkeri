@@ -3,7 +3,8 @@
 // list (a book, an archival file) that records are transcribed from. The
 // list and its page photographs are for signed-in users; creating, editing
 // and deleting sources is for admins. A save writes the source and a change_log entry in one D1
-// batch.
+// batch. Admins add page photos through src/routes/api/sources/[id]/pages.ts
+// and remove them here (both in src/server/page-photos.ts).
 import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
 import { and, count, eq } from 'drizzle-orm';
@@ -44,6 +45,7 @@ import {
   newParish,
   parishNamed,
 } from '~/server/linked-rows';
+import { removePage } from '~/server/page-photos';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -65,6 +67,7 @@ export interface SourceRow {
 
 /** One page photograph: `key` names its copies (~/lib/photos). */
 export interface SourcePageRow {
+  id: number;
   position: number;
   label: string | null;
   key: string;
@@ -156,7 +159,7 @@ export const getSourcePages = query(async (id: number): Promise<SourcePagesData 
     with: {
       parish: { columns: { nameRu: true, nameFi: true } },
       pages: {
-        columns: { position: true, label: true, key: true, width: true, height: true },
+        columns: { id: true, position: true, label: true, key: true, width: true, height: true },
         orderBy: { position: 'asc' },
       },
     },
@@ -345,3 +348,25 @@ export const deleteSource = formAction(async (formData: FormData) => {
   });
   throw redirect(paths.sources());
 }, 'delete-source');
+
+// What a page photo's Remove dialog posts: the page, the photo it showed
+// (positions shift as pages come and go) and the confirmation.
+const pageDeletion = v.object({
+  id: v.pipe(v.string(), v.transform(Number), rowId),
+  key: v.pipe(v.string(), v.regex(/^[0-9a-f]{16,64}$/)),
+  confirm: v.literal('on'),
+});
+
+/**
+ * Removes a page photo from its source once confirmed in its dialog (see
+ * removePage: the pages after it move up, and records transcribed from it
+ * stay), then redirects to the source's pages. Refused when the page is gone
+ * or shows another photo since the dialog opened.
+ */
+export const deleteSourcePage = formAction(async (formData: FormData) => {
+  'use server';
+  const user = adminOnly();
+  const { id, key } = parseDeletion(pageDeletion, formData, m.source_photo_remove_unconfirmed);
+  const sourceId = await removePage(id, key, { userId: user.id });
+  throw redirect(paths.sources(sourceId)());
+}, 'delete-source-page');

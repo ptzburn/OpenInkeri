@@ -15,6 +15,7 @@ const { me, sources } = vi.hoisted(() => {
   const sources = {
     saved: [] as FormData[],
     deleted: [] as FormData[],
+    removed: [] as FormData[],
     failWith: null as null | FormError,
     list: () => [
       {
@@ -62,8 +63,12 @@ vi.mock('~/data/parishes', () => ({
     },
   ]),
 }));
+// A source with its pages, as a router query, so an upload can revalidate it.
+const { sourcePages } = vi.hoisted(() => ({
+  sourcePages: { reads: 0 },
+}));
 vi.mock('~/data/sources', async () => {
-  const { formAction } = await import('@solidjs/router');
+  const { formAction, query } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   return {
     getSources: vi.fn(async () => sources.list()),
@@ -85,7 +90,8 @@ vi.mock('~/data/sources', async () => {
           }
         : null;
     }),
-    getSourcePages: vi.fn(async (id: number) => {
+    getSourcePages: query(async (id: number) => {
+      sourcePages.reads++;
       const row = sources.list().find((s) => s.id === id);
       return row
         ? {
@@ -98,6 +104,7 @@ vi.mock('~/data/sources', async () => {
             archiveReference: row.archiveReference,
             // The register's cover (unnumbered), then two numbered pages.
             pages: Array.from({ length: row.pages }, (_, i) => ({
+              id: 100 + i,
               position: i + 1,
               label: i === 0 ? null : `${i}об`,
               key: `${i}`.padStart(32, 'a'),
@@ -106,7 +113,7 @@ vi.mock('~/data/sources', async () => {
             })),
           }
         : null;
-    }),
+    }, 'source-pages'),
     saveSource: formAction(async (form: FormData) => {
       if (sources.failWith) throw sources.failWith;
       sources.saved.push(form);
@@ -116,6 +123,11 @@ vi.mock('~/data/sources', async () => {
       sources.deleted.push(form);
       throw redirect('/sources');
     }, 'delete-source'),
+    // Like the server: back to the source's pages.
+    deleteSourcePage: formAction(async (form: FormData) => {
+      sources.removed.push(form);
+      throw redirect('/sources/1');
+    }, 'delete-source-page'),
   };
 });
 
@@ -165,7 +177,9 @@ afterEach(() => {
   me.current = null;
   sources.saved = [];
   sources.deleted = [];
+  sources.removed = [];
   sources.failWith = null;
+  vi.restoreAllMocks();
 });
 
 describe('/sources', () => {
@@ -496,5 +510,131 @@ describe('/sources/:id', () => {
     await waitFor(() => expect(bands[0]).toHaveClass('bg-primary/10'));
     fireEvent.mouseEnter(bands[0]);
     await waitFor(() => expect(victor).toHaveClass('bg-base-200'));
+  });
+
+  test('admins add photos: listed in file-name order, with the page each name gives', async () => {
+    renderAt('/sources/1');
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByRole('button', { name: 'Add photos' })).toBeNull();
+    cleanup();
+
+    me.current = { isAdmin: true };
+    renderAt('/sources/1');
+    await screen.findByRole('button', { name: 'Add photos' });
+    expect(screen.getByRole('button', { name: 'Add a folder' })).toBeInTheDocument();
+    const photo = (name: string, type = 'image/jpeg') => new File([name], name, { type });
+    // A folder's other files stay out; numbers sort by value.
+    fireEvent.change(screen.getByLabelText('Add photos', { selector: 'input' }), {
+      target: {
+        files: [
+          photo('1903 s. 10.jpg'),
+          photo('Thumbs.db', ''),
+          photo('1903 s. 2.jpg'),
+          photo('0 vv kansi.jpg'),
+        ],
+      },
+    });
+    const list = await screen.findByRole('region', { name: 'Add photos' });
+    const rows = () => [...list.querySelectorAll('tbody tr')] as HTMLTableRowElement[];
+    expect(rows().map((r) => r.cells[0].textContent)).toEqual([
+      '0 vv kansi.jpg',
+      '1903 s. 2.jpg',
+      '1903 s. 10.jpg',
+    ]);
+    // The page a name gives, to correct; a cover has none.
+    expect(
+      rows().map((r) => (r.cells[1].querySelector('input') as HTMLInputElement).value),
+    ).toEqual(['', '2', '10']);
+    expect(within(list).getByRole('button', { name: 'Upload photos (3)' })).toBeInTheDocument();
+    // Cancel empties the list.
+    fireEvent.click(within(list).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('region', { name: 'Add photos' })).toBeNull());
+  });
+
+  test('uploading sends each photo with its page and hash, and says how each went', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/1');
+    await screen.findByRole('button', { name: 'Add photos' });
+    // The server: the first is added, the second is there already, the third isn't a photo.
+    const answers = [
+      { status: 'added', position: 4 },
+      { status: 'skipped', position: 2 },
+      { status: 'refused', message: 'This file can’t be read as a photo.' },
+    ];
+    const fetch = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(async () => Response.json(answers.shift()));
+    const photo = (name: string) => new File([name], name, { type: 'image/jpeg' });
+    fireEvent.change(screen.getByLabelText('Add photos', { selector: 'input' }), {
+      target: { files: [photo('1903 s. 3.jpg'), photo('1903 s. 1об.jpg'), photo('1903 s. 5.jpg')] },
+    });
+    const list = await screen.findByRole('region', { name: 'Add photos' });
+    // A page corrected before uploading.
+    fireEvent.input(within(list).getByRole('textbox', { name: 'Page: 1903 s. 5.jpg' }), {
+      target: { value: '5об' },
+    });
+    const reads = sourcePages.reads;
+
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(within(list).getByRole('button', { name: 'Upload photos (3)' }));
+        await within(list).findByRole('status');
+      },
+      { scenario: 'page-photos-upload' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+    expect(within(list).getByRole('status')).toHaveTextContent(
+      'Added: 1. Already there: 1. Not added: 1.',
+    );
+    const rows = [...list.querySelectorAll('tbody tr')] as HTMLTableRowElement[];
+    expect(rows.map((r) => r.cells[2].textContent)).toEqual([
+      'Added',
+      'Already in this source',
+      'This file can’t be read as a photo.',
+    ]);
+    // One at a time, in page order, the photo as the body.
+    const calls = fetch.mock.calls as [string, RequestInit][];
+    const sent = calls.map(([url, init]) => {
+      const query = new URL(url, 'http://localhost').searchParams;
+      return { name: query.get('name'), label: query.get('label'), body: (init.body as File).name };
+    });
+    expect(sent).toEqual([
+      { name: '1903 s. 1об.jpg', label: '1об', body: '1903 s. 1об.jpg' },
+      { name: '1903 s. 3.jpg', label: '3', body: '1903 s. 3.jpg' },
+      { name: '1903 s. 5.jpg', label: '5об', body: '1903 s. 5.jpg' },
+    ]);
+    const [url, init] = calls[0];
+    expect(url).toMatch(/^\/api\/sources\/1\/pages\?.*&hash=[0-9a-f]{64}$/);
+    expect(init.method).toBe('POST');
+    // The added photo's thumbnail is fetched with the source's pages.
+    await waitFor(() => expect(sourcePages.reads).toBeGreaterThan(reads));
+  });
+
+  test('admins remove a photo, told what happens to the records on its page', async () => {
+    renderAt('/sources/1/pages/2');
+    await screen.findByRole('complementary', { name: "This page's records" });
+    expect(screen.queryByRole('button', { name: 'Remove photo' })).toBeNull();
+    cleanup();
+
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/2');
+    const column = await screen.findByRole('complementary', { name: "This page's records" });
+    await within(column).findByText('Виктор');
+    fireEvent.click(screen.getByRole('button', { name: 'Remove photo' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent(
+      'Removes this photo and its thumbnail from the source. The pages after it move up by one. ' +
+        '2 records were transcribed from this page. They stay, and are edited on their own pages from then on.',
+    );
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove photo' }));
+
+    await waitFor(() => expect(window.location.pathname).toBe('/sources/1'));
+    const [removed] = sources.removed;
+    expect(removed.get('id')).toBe('101');
+    expect(removed.get('key')).toBe('1'.padStart(32, 'a'));
+    expect(removed.get('confirm')).toBe('on');
+    // A page has no version: the photo's key stands for it.
+    expect(removed.has('version')).toBe(false);
+    expect(await screen.findByRole('status')).toHaveTextContent('Photo removed.');
   });
 });

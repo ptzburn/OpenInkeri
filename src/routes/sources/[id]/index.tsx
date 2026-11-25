@@ -6,6 +6,8 @@ import { env } from 'virtual:solid-env/client';
 
 import type { QueryData } from '~/lib/query-data';
 import { recordKindLabels } from '~/components/labels';
+import { useCanEdit } from '~/components/list-page';
+import PageUpload from '~/components/page-upload';
 import { getSourcePages } from '~/data/sources';
 import { localName, pageName, yearSpan } from '~/lib/format';
 import { photoUrl } from '~/lib/photos';
@@ -17,7 +19,7 @@ import type { Crumbs } from '~/lib/breadcrumbs';
 // A source's page photographs, as thumbnails in the source's order; each
 // opens its page (./pages/[n].tsx). Signed-in users only: getSourcePages
 // redirects a signed-out visitor to sign-in, and the photos' route
-// (src/routes/api/photos) refuses one.
+// (src/routes/api/photos) refuses one. Admins add photos here (PageUpload).
 const crumbs: Crumbs = async ({ params }) => {
   const id = idParam(params.id);
   const source = id ? await getSourcePages(id) : null;
@@ -43,6 +45,7 @@ export default function SourcePages(props: RouteProps<'/sources/:id/'>) {
     },
     { name: 'source-pages' },
   );
+  const canEdit = useCanEdit('source-pages-me');
 
   return (
     <main class="flex min-w-0 flex-1 flex-col gap-4 p-4 lg:p-8">
@@ -62,6 +65,9 @@ export default function SourcePages(props: RouteProps<'/sources/:id/'>) {
                 <Show when={s().archiveReference}>{(reference) => <span>{reference()}</span>}</Show>
               </p>
             </header>
+            <Show when={canEdit()}>
+              <PageUpload sourceId={s().id} />
+            </Show>
             <Show
               when={s().pages.length}
               fallback={<p class="py-6 text-center text-base-content/60">{m.source_no_pages()}</p>}

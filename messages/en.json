@@ -267,6 +267,38 @@
   "source_page_marked": "Marked on the photo",
   "source_page_mark_here": "Entry starts here",
   "source_page_mark_end": "Entry ends here",
+  "source_photos_add": "Add photos",
+  "source_photos_add_folder": "Add a folder",
+  "source_photos_hint": "They go after the last page, in the order of their file names. A name ending in “s. 12” is page 12: correct any page before uploading.",
+  "source_photos_col_file": "File",
+  "source_photos_col_status": "Status",
+  "source_photos_upload": "Upload photos ({count})",
+  "source_photos_stop": "Stop",
+  "source_photos_close": "Close",
+  "source_photos_waiting": "Waiting",
+  "source_photos_uploading": "Uploading…",
+  "source_photos_added": "Added",
+  "source_photos_skipped": "Already in this source",
+  "source_photos_done": "Added: {added}. Already there: {skipped}. Not added: {failed}.",
+  "source_photo_not_image": "This file can’t be read as a photo.",
+  "source_photo_too_large": "The photo is larger than 20 MB.",
+  "source_photo_quota": "This month’s free photo processing is used up. Try again next month.",
+  "source_photo_remove": "Remove photo",
+  "source_photo_remove_text": "Removes this photo and its thumbnail from the source. The pages after it move up by one.",
+  "source_photo_remove_records": [
+    {
+      "declarations": ["input count", "local countPlural = count: plural"],
+      "selectors": ["countPlural"],
+      "match": {
+        "countPlural=one": "{count} record was transcribed from this page. It stays, and is edited on its own page from then on.",
+        "countPlural=*": "{count} records were transcribed from this page. They stay, and are edited on their own pages from then on."
+      }
+    }
+  ],
+  "source_photo_removed": "Photo removed.",
+  "source_photo_remove_unconfirmed": "The removal was not confirmed.",
+  "source_photo_missing": "This photo is no longer in the source.",
+  "source_photo_changed": "The pages changed since this one was opened. Reload the page.",
   "record_mark_none": "Not marked on the photo yet: click the photo at the first line of this entry.",
   "record_mark_start": "Start marked. Now click the photo where this entry ends.",
   "record_mark_set": "Start and end marked. Click the photo to mark them again.",

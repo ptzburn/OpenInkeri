@@ -21,6 +21,10 @@
 // a new one is added, and pages whose photo has left the folder are removed
 // (their copies stay in the bucket; nothing else names them).
 //
+// Admins can also add photos in the app (src/routes/api/sources/[id]/pages.ts),
+// which reads names the same way (~/lib/photos). Since the folder is the
+// whole source, a page added there that the folder lacks is removed here.
+//
 // Run it on the local database first, then with --remote. Wrangler does the
 // writing: the copies with `r2 bulk put`, the rows with `d1 execute`.
 import { execFileSync } from 'node:child_process';
@@ -31,15 +35,13 @@ import process from 'node:process';
 import { parseArgs } from 'node:util';
 import sharp from 'sharp';
 
-import { photoKey } from '../src/lib/photos.ts';
+import { byFileName, pageLabelOf, photoKey } from '../src/lib/photos.ts';
 import { type Row, inserts, sqlValue } from './import-common.ts';
 
 const BUCKET = 'openinkeri-photos';
 const PAGE = { size: 2500, quality: 80 };
 const THUMB = { size: 400, quality: 70 };
 const PHOTO = /\.(jpe?g|png|tiff?|heic|webp)$/i;
-// "1903 s. 5.JPG" → "5"; "1904 s. 221об.jpg" → "221об".
-const LABEL = /\bs\.\s*(\S+?)\.[^.]+$/i;
 
 const { values: args, positionals } = parseArgs({
   allowPositionals: true,
@@ -97,10 +99,9 @@ const known = new Map(
 
 // --- The photos -----------------------------------------------------------------
 
-const byName = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 const files = readdirSync(folder)
   .filter((name) => PHOTO.test(name) && !name.startsWith('.'))
-  .sort(byName.compare);
+  .sort(byFileName);
 if (files.length === 0) {
   console.error(`No photos in ${folder}.`);
   process.exit(1);
@@ -152,7 +153,7 @@ for (const [i, name] of files.entries()) {
   rows.push({
     source_id: sourceId,
     position: i + 1,
-    label: name.match(LABEL)?.[1] ?? null,
+    label: pageLabelOf(name),
     file: name,
     file_hash: fileHash,
     key: page.key,
