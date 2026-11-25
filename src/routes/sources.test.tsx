@@ -16,6 +16,7 @@ const { me, sources } = vi.hoisted(() => {
     saved: [] as FormData[],
     deleted: [] as FormData[],
     removed: [] as FormData[],
+    numbered: [] as FormData[],
     failWith: null as null | FormError,
     list: () => [
       {
@@ -114,10 +115,12 @@ vi.mock('~/data/sources', async () => {
           }
         : null;
     }, 'source-pages'),
+    // Like the server: a new source opens on its page (here the empty
+    // list's, 5), an edit returns to the list.
     saveSource: formAction(async (form: FormData) => {
       if (sources.failWith) throw sources.failWith;
       sources.saved.push(form);
-      throw redirect('/sources');
+      throw redirect(form.get('id') ? '/sources' : '/sources/5');
     }, 'save-source'),
     deleteSource: formAction(async (form: FormData) => {
       sources.deleted.push(form);
@@ -128,6 +131,11 @@ vi.mock('~/data/sources', async () => {
       sources.removed.push(form);
       throw redirect('/sources/1');
     }, 'delete-source-page'),
+    // Like the server: back to the photo, now numbered.
+    numberSourcePage: formAction(async (form: FormData) => {
+      sources.numbered.push(form);
+      throw redirect('/sources/1/pages/1');
+    }, 'number-source-page'),
   };
 });
 
@@ -178,6 +186,7 @@ afterEach(() => {
   sources.saved = [];
   sources.deleted = [];
   sources.removed = [];
+  sources.numbered = [];
   sources.failWith = null;
   vi.restoreAllMocks();
 });
@@ -241,7 +250,9 @@ describe('/sources', () => {
     fireEvent.input(field('yearFrom')!, { target: { value: '1920' } });
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
 
-    await waitFor(() => expect(window.location.pathname).toBe('/sources'));
+    // On to its page, where its photos are added.
+    await waitFor(() => expect(window.location.pathname).toBe('/sources/5'));
+    expect(await screen.findByRole('button', { name: 'Add photos' })).toBeInTheDocument();
     const [saved] = sources.saved;
     expect(saved.get('kind')).toBe('marriages');
     expect(saved.get('yearFrom')).toBe('1920');
@@ -484,6 +495,25 @@ describe('/sources/:id', () => {
     renderAt('/sources/1/pages/1');
     await screen.findByText('1 of 3');
     expect(screen.queryByRole('complementary', { name: "This page's records" })).toBeNull();
+    expect(screen.queryByRole('textbox', { name: /Page/ })).toBeNull();
+  });
+
+  test('an admin gives an unnumbered photo its page number', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/1');
+    const column = await screen.findByRole('complementary', { name: "This page's records" });
+    expect(column).toHaveTextContent('This photo has no page number');
+    const page = within(column).getByRole('textbox', { name: /Page/ });
+    expect(page).toBeRequired();
+    fireEvent.input(page, { target: { value: '1об' } });
+    fireEvent.submit(page.closest('form')!);
+
+    await waitFor(() => expect(sources.numbered).toHaveLength(1));
+    const [numbered] = sources.numbered;
+    expect(numbered.get('id')).toBe('100');
+    expect(numbered.get('key')).toBe('0'.padStart(32, 'a'));
+    expect(numbered.get('label')).toBe('1об');
+    expect(await screen.findByText('Page number saved.')).toBeInTheDocument();
   });
 
   test('marked records show as bands named by who they are about; the list follows the page', async () => {

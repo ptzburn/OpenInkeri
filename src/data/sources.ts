@@ -45,7 +45,7 @@ import {
   newParish,
   parishNamed,
 } from '~/server/linked-rows';
-import { removePage } from '~/server/page-photos';
+import { numberPage, removePage } from '~/server/page-photos';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -245,12 +245,12 @@ const sourceRefusals: Refusals = {
 
 /**
  * Creates a source (no id in the form) or saves the edit page's form over
- * one, then redirects to the sources list. Its records are transcribed
- * beside its page photos once scripts/import-pages.ts has brought them in.
- * Refused, with the fields at fault, when a
- * value doesn't read (or the years run backwards); when the type would
- * change while records belong to the source (their details are the type's);
- * and when the source changed since the page loaded it.
+ * one, then redirects: a new source to its page, where its photos are
+ * added (its records are transcribed beside them), an edit to the sources
+ * list. Refused, with the fields at fault, when a value doesn't read (or
+ * the years run backwards); when the type would change while records
+ * belong to the source (their details are the type's); and when the source
+ * changed since the page loaded it.
  *
  * The parish is typed by name and linked to the parish it names (the form
  * does this as the admin types; here for a form posted before JavaScript
@@ -290,7 +290,7 @@ export const saveSource = formAction(async (formData: FormData) => {
     fields.parishId = created.id;
   }
 
-  await writing(
+  const saved = await writing(
     'Saving a source',
     async () => {
       if (before) {
@@ -306,6 +306,7 @@ export const saveSource = formAction(async (formData: FormData) => {
           }),
           ...added.flatMap((row) => row.statements),
         ]);
+        return before.id;
       } else {
         // The change_log entry needs the new id, so it is written after the
         // insert rather than in one batch with it.
@@ -317,11 +318,13 @@ export const saveSource = formAction(async (formData: FormData) => {
           logChange(by, 'source', created.id, 'create', null, fields),
           ...added.flatMap((row) => row.statements),
         ]);
+        return created.id;
       }
     },
     { undo: () => deleteCreated(added) },
   );
-  throw redirect(paths.sources());
+  // A new source opens on its page, where its photos are added.
+  throw redirect(before ? paths.sources() : paths.sources(saved)());
 }, 'save-source');
 
 const deletion = deletionForm();
@@ -349,13 +352,15 @@ export const deleteSource = formAction(async (formData: FormData) => {
   throw redirect(paths.sources());
 }, 'delete-source');
 
-// What a page photo's Remove dialog posts: the page, the photo it showed
-// (positions shift as pages come and go) and the confirmation.
-const pageDeletion = v.object({
+// A page photo's form names the page and the photo it showed: positions
+// shift as pages come and go, so the photo is what stays the same.
+const pagePhoto = {
   id: v.pipe(v.string(), v.transform(Number), rowId),
   key: v.pipe(v.string(), v.regex(/^[0-9a-f]{16,64}$/)),
-  confirm: v.literal('on'),
-});
+};
+
+// What a page photo's Remove dialog posts, with the confirmation.
+const pageDeletion = v.object({ ...pagePhoto, confirm: v.literal('on') });
 
 /**
  * Removes a page photo from its source once confirmed in its dialog (see
@@ -370,3 +375,20 @@ export const deleteSourcePage = formAction(async (formData: FormData) => {
   const sourceId = await removePage(id, key, { userId: user.id });
   throw redirect(paths.sources(sourceId)());
 }, 'delete-source-page');
+
+// What the page number form of a photo that has none posts.
+const pageNumbering = v.object({ ...pagePhoto, label: requiredLine() });
+
+/**
+ * Gives a page photo that has none its page number, as the register writes
+ * it (see numberPage), then redirects to the photo, where its records are
+ * transcribed from then on. Refused when the number doesn't read, and when
+ * the page is gone, is another photo now, or has a number already.
+ */
+export const numberSourcePage = formAction(async (formData: FormData) => {
+  'use server';
+  const user = adminOnly();
+  const { id, key, label } = parseOrRefuse(pageNumbering, Object.fromEntries(formData));
+  const page = await numberPage(id, key, label, { userId: user.id });
+  throw redirect(paths.sources(page.sourceId).pages(String(page.position))());
+}, 'number-source-page');

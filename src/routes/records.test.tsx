@@ -368,6 +368,7 @@ vi.mock('~/data/sources', async () => {
   };
   return {
     deleteSourcePage: formAction(async () => {}, 'delete-source-page'),
+    numberSourcePage: formAction(async () => {}, 'number-source-page'),
     getSourcePages: vi.fn(async (id: number) =>
       sources[id]
         ? {

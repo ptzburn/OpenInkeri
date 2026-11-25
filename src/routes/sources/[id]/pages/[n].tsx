@@ -18,8 +18,20 @@ import PageRecords, { recordTitle } from '~/components/page-records';
 import type { RecordRow } from '~/data/records';
 import RecordEditForm from '~/components/record-edit-form';
 import { getPageRecords } from '~/data/records';
-import { DeleteDialog, invokerCommands } from '~/components/form-fields';
-import { type SourcePageRow, deleteSourcePage, getSourcePages } from '~/data/sources';
+import {
+  DeleteDialog,
+  FormActions,
+  TextInput,
+  invokerCommands,
+  useEditForm,
+} from '~/components/form-fields';
+import {
+  type SourcePageRow,
+  deleteSourcePage,
+  getSourcePages,
+  numberSourcePage,
+} from '~/data/sources';
+import { FIELD_MAX } from '~/lib/field-limits';
 import { pageName } from '~/lib/format';
 import type { RecordKind } from '~/lib/record-kinds';
 import { type PhotoMarks, inPhotoOrder, nextMark, photoBands } from '~/lib/photo-bands';
@@ -369,7 +381,21 @@ export default function SourcePage(props: RouteProps<'/sources/:id/pages/:n'>) {
               </div>
             </section>
 
-            <Show when={a().page.label}>
+            {/* An unnumbered photo (a cover) has no records; an admin may
+                give it its number, if it is a page after all. */}
+            <Show
+              when={a().page.label}
+              fallback={
+                <Show when={canEdit()}>
+                  <aside
+                    class="border-base-300 p-4 max-lg:border-t lg:w-[30rem] lg:shrink-0 lg:border-l"
+                    aria-label={m.source_page_column()}
+                  >
+                    <NumberPage page={a().page} />
+                  </aside>
+                </Show>
+              }
+            >
               <aside
                 class="flex min-h-0 flex-col border-base-300 max-lg:border-t lg:w-[30rem] lg:shrink-0 lg:border-l"
                 aria-label={m.source_page_column()}
@@ -511,5 +537,32 @@ function RemovePhoto(props: { page: SourcePageRow; records: number }) {
         <input type="hidden" name="key" value={props.page.key} />
       </DeleteDialog>
     </>
+  );
+}
+
+// An admin's page number for a photo that has none, such as one uploaded
+// without it: once numbered, its records are transcribed beside it.
+function NumberPage(props: { page: SourcePageRow }) {
+  const { error, invalid } = useEditForm(
+    numberSourcePage,
+    () => props.page.id,
+    () => m.source_page_numbered(),
+  );
+  return (
+    <form method="post" action={numberSourcePage} class="group flex flex-col gap-3">
+      <p class="text-sm text-base-content/70">{m.source_page_unnumbered()}</p>
+      <input type="hidden" name="id" value={props.page.id} />
+      <input type="hidden" name="key" value={props.page.key} />
+      <TextInput
+        name="label"
+        label={m.record_edit_page()}
+        value={null}
+        required
+        maxlength={FIELD_MAX.line}
+        hint={m.record_edit_page_hint()}
+        invalid={invalid('label')}
+      />
+      <FormActions error={error()} cancelHref="" noCancel />
+    </form>
   );
 }

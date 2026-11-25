@@ -14,7 +14,7 @@
 import 'server-only';
 import { env } from 'cloudflare:workers';
 import { getRequestEvent } from '@solidjs/web';
-import { and, eq, gt, lt, sql } from 'drizzle-orm';
+import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
@@ -202,4 +202,28 @@ export async function removePage(id: number, key: string, by: Writer): Promise<n
     await photos().delete([photoKey('pages', before.key), photoKey('thumbs', before.key)]);
   }
   return before.sourceId;
+}
+
+/**
+ * Gives page `id`, if it is still the photo `key` and has no page number,
+ * the number `label`, logging the change. Only a photo without one: records
+ * find their photo by its number, so changing one would move them to
+ * another photo. Refused when the page is gone, is another photo now, or
+ * has a number already. Returns where the page is.
+ */
+export async function numberPage(id: number, key: string, label: string, by: Writer) {
+  const before = await db.query.sourcePage.findFirst({ where: { id } });
+  if (!before) throw refuse({ message: m.source_photo_missing() }, 404);
+  if (before.key !== key) throw refuse({ message: m.source_photo_changed() }, 409);
+  if (before.label !== null) throw refuse({ message: m.source_page_numbered_already() }, 409);
+  await writing('Numbering a page photo', () =>
+    db.batch([
+      db
+        .update(sourcePage)
+        .set({ label })
+        .where(and(eq(sourcePage.id, id), isNull(sourcePage.label))),
+      logChange(by, 'source_page', id, 'update', before, { ...before, label }),
+    ]),
+  );
+  return { sourceId: before.sourceId, position: before.position };
 }
