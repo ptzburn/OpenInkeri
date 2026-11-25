@@ -1,8 +1,8 @@
 # Agent Guide
 
-This is a SolidJS 2.x project (`solid-js` 2.0 release candidate). Solid is not React: components run once (there is no re-render), reactivity is fine-grained through signals, and effects/memos have Solid-specific semantics. Do not port React patterns.
+This is a SolidJS 2.x project (`solid-js` 2.0). Solid is not React: components run once (there is no re-render), reactivity is fine-grained through signals, and effects/memos have Solid-specific semantics. Do not port React patterns.
 
-Solid 2 is also not Solid 1. Most Solid code you have seen is 1.x, and much of it is wrong here. When unsure about an API, check the docs (below) instead of relying on memory.
+Solid 2 is also not Solid 1, nor its 2.0 betas and release candidates. Most Solid code you have seen is 1.x, and much of it is wrong here. When unsure about an API, check the docs (below) instead of relying on memory.
 
 ## Solid 2 rules (vs. Solid 1 habits)
 
@@ -16,8 +16,9 @@ Solid 2 is also not Solid 1. Most Solid code you have seen is 1.x, and much of i
 - **Async is built into computations:** no `createResource`. Use `createMemo(() => fetchX(id()))` under `<Loading>`; `isPending(() => x())` for refetch state; `refresh(x)` to refetch; `action` + `createOptimistic`/`createOptimisticStore` for mutations. No `startTransition`/`useTransition`.
 - **Components:** `Suspense` → `Loading`, `ErrorBoundary` → `Errored` (fallback gets an error accessor), `SuspenseList` → `Reveal`, `Index` → `<For keyed={false}>`, `<Ctx.Provider>` → `<Ctx value={...}>`, `<Dynamic>` → `dynamic(() => source)`.
 - **JSX:** no `classList` (use object/array `class`), no `use:` directives (use `ref` callbacks), no `on:`/`attr:`/`bool:` prefixes, no `/*@once*/`.
+- **Bindings:** an event handler is bound once, so read reactive values inside the handler function (`onClick={() => (on() ? a() : b())}`), not in the expression that picks it. A `ref` callback owns nothing: create memos, effects and cleanups in the component body. A `value`/`checked` binding re-runs whenever another binding of its template changes (an `aria-invalid` after a refused save), so an input the user edits keeps its text in a signal set from `onInput` (a writable derivation `createSignal(() => props.value)` when it starts from a prop), or the re-run writes the old value over what was typed.
 
-Full list: [Migrating from Solid 1.x](https://v2.solidjs.com/migration/from-solid-1.md).
+Full list: [Migrating from Solid 1.x](https://docs.solidjs.com/migration/from-solid-1.md).
 
 The linter (`eslint-plugin-solid` v2 rules, configured in vite.config.ts) catches many of these. Run `npm run check` (format, lint, type check) after editing components and fix what it reports.
 
@@ -31,10 +32,10 @@ Validation: keep it on the server and keep validation libraries out of the brows
 
 ## Documentation (fetch on demand)
 
-The Solid 2 docs at https://v2.solidjs.com are written for agents as well as people:
+The Solid 2 docs at https://docs.solidjs.com are written for agents as well as people:
 
-- `https://v2.solidjs.com/llms.txt` — index with a one-line summary of every page. Start here to find the right page.
-- Every page is available as Markdown: append `.md` to the path (e.g. `https://v2.solidjs.com/concepts/reactivity.md`). Relative links inside a page resolve against `https://v2.solidjs.com`.
+- `https://docs.solidjs.com/llms.txt` — index with a one-line summary of every page. Start here to find the right page.
+- Every page is available as Markdown: append `.md` to the path (e.g. `https://docs.solidjs.com/concepts/reactivity.md`). Relative links inside a page resolve against `https://docs.solidjs.com`.
 - Do **not** fetch `llms-full.txt` — it is ~1.4 MB.
 
 Read the relevant page before using an API you haven't used in this codebase, before introducing a new pattern (stores, async data, actions, boundaries, routing, SSR), and whenever behavior surprises you. Particularly useful: Concepts → Reactivity, Async reactivity; Guides → Thinking in Solid, Avoid unnecessary effects, Testing; the API reference under `/reference/`.

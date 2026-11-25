@@ -328,6 +328,7 @@ describe('editing a person', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Check the marked fields.');
     expect(name).toHaveAttribute('aria-invalid', 'true');
     expect(name.nextElementSibling).toHaveTextContent('Give a name in Russian or in Finnish.');
+    expect(name).toHaveValue('');
 
     people.failWith = null;
     fireEvent.input(name, { target: { value: 'Мария Ивановна' } });

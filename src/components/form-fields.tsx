@@ -225,6 +225,10 @@ export function TextInput(props: {
   /** Told what is typed, for a form that follows the value (the coordinates' map). */
   onInput?: (value: string) => void;
 }) {
+  // The value given, then as typed until the value given changes. Held here
+  // because the input's bindings re-run together: when a refused save marks
+  // it aria-invalid, the value it writes back is the one typed.
+  const [value, setValue] = createSignal(() => props.value ?? '', { name: 'text-input' });
   return (
     <label class="fieldset">
       {/* One child: the legend is a row that spreads its children apart. */}
@@ -238,14 +242,17 @@ export function TextInput(props: {
       </span>
       <input
         name={props.name}
-        value={props.value ?? ''}
+        value={value()}
         required={props.required}
         maxlength={props.maxlength ?? FIELD_MAX.text}
         pattern={props.pattern}
         inputmode={props.inputmode}
         class="validator input w-full"
         aria-invalid={ariaInvalid(props.invalid)}
-        onInput={(event) => props.onInput?.(event.currentTarget.value)}
+        onInput={(event) => {
+          setValue(event.currentTarget.value);
+          props.onInput?.(event.currentTarget.value);
+        }}
       />
       <FieldError fault={props.invalid} error={props.error} />
       <Show when={props.hint}>

@@ -234,7 +234,7 @@ function Spouse(props: { person: RecordRow['groom'] }) {
         <div class="flex flex-col">
           <span class="font-medium">{localName(p())}</span>
           <span class="text-xs text-base-content/60">
-            <Show when={p().age}>{(age) => m.records_age({ age: age() })}</Show>
+            <Show when={p().age}>{(age) => <>{m.records_age({ age: age() })}</>}</Show>
             <Show when={p().age && (p().residence || p().residenceAsWritten)}> · </Show>
             <Place place={p().residence} asWritten={p().residenceAsWritten} />
           </span>

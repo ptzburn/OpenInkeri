@@ -1,6 +1,6 @@
 # OpenInkeri
 
-A SolidJS 2 app (`solid-js` 2.0 release candidate) with streaming SSR, deployed to Cloudflare Workers.
+A SolidJS 2 app (`solid-js` 2.0) with streaming SSR, deployed to Cloudflare Workers.
 
 ## Setup
 
@@ -199,7 +199,7 @@ Run these with pnpm (`pnpm <script>`; use `pnpm run deploy` for deploy, since `p
 | `db:studio`         | Opens Drizzle Studio on the local D1 database (run `pnpm db:migrate` or `pnpm dev` first).                       |
 | `auth:generate`     | Regenerates the better-auth tables in `src/server/database/auth-schema.ts` after changing auth options.          |
 
-Learn more on the [Solid 2 docs](https://v2.solidjs.com) and come chat on the [Solid Discord](https://discord.com/invite/solidjs).
+Learn more on the [Solid 2 docs](https://docs.solidjs.com) and come chat on the [Solid Discord](https://discord.com/invite/solidjs).
 
 ## Deployment
 

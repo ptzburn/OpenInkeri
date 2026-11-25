@@ -7,7 +7,7 @@
   },
   "permissions": {
     "allow": [
-      "WebFetch(domain:v2.solidjs.com)",
+      "WebFetch(domain:docs.solidjs.com)",
       "WebFetch(domain:v2-rebuild--solid-docs-v2.netlify.app)",
       "WebFetch(domain:orm.drizzle.team)",
       "WebFetch(domain:better-auth.com)",
