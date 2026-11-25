@@ -26,13 +26,7 @@ import {
   sexLabels,
 } from '~/components/labels';
 import LeaveGuard from '~/components/leave-guard';
-import {
-  PARTIAL_DATE_PATTERN,
-  formatPartialDate,
-  localName,
-  localTerm,
-  pageName,
-} from '~/lib/format';
+import { PARTIAL_DATE_PATTERN, formatPartialDate, localName, localTerm } from '~/lib/format';
 import {
   type RecordEditData,
   type RecordEditPerson,
@@ -87,7 +81,6 @@ export const listPlaceOf = (search: ListPlace): ListPlace => ({
   q: search.q,
   page: search.page,
   source: search.source,
-  photo: search.photo,
 });
 
 // The source's page photo a form was opened from, if any.
@@ -97,33 +90,17 @@ const photoOf = (place: ListPlace) => {
   return source && position ? { source, position } : null;
 };
 
-/** Where a record's form returns to: the page photo it was opened from, or the records list. */
+/** Where a record's own edit page returns to: the records list. */
 export function returnHref(place: ListPlace): string {
-  const photo = photoOf(place);
-  if (photo) return paths.sources(photo.source).pages(String(photo.position))();
   const { kind, q, page, source } = place;
   return paths.records({ kind, q, page, source });
 }
 
-/**
- * The breadcrumbs of a record's form (`label`, the form's own step): from
- * the page photo it was opened from (Sources, the source, the page), or
- * from the records list.
- */
-export async function recordFormCrumbs(place: ListPlace, label: string): Promise<Crumb[]> {
-  const photo = photoOf(place);
-  const source = photo ? await getSourcePages(photo.source) : null;
-  const page = source?.pages.find((p) => p.position === photo?.position);
-  if (source && page) {
-    return [
-      { label: m.sources_title(), href: paths.sources() },
-      { label: source.title, href: paths.sources(source.id)() },
-      { label: pageName(page.position, page.label), href: returnHref(place) },
-      { label },
-    ];
-  }
-  return [{ label: m.records_title(), href: returnHref(place) }, { label }];
-}
+/** The breadcrumbs of a record's own edit page (`label`, its own step), from the records list. */
+export const recordFormCrumbs = (place: ListPlace, label: string): Crumb[] => [
+  { label: m.records_title(), href: returnHref(place) },
+  { label },
+];
 
 // What a new record's form starts from: empty, of the list's type, in the
 // source the list shows if any.
@@ -192,21 +169,21 @@ const nextAfter = (previous: RecordEditData): RecordEditData => {
 };
 
 /**
- * The admin's form for one record, or for a new one without `id`: of the
- * type of the source the list shows (`returnTo.source`, which the new record
- * then stays in: the source isn't asked again, and Save and add next leads),
- * else of type `kind`; or following record `after` on its page. Opened from
- * a page photo (`returnTo.photo`), a new record starts on that page. Its source
- * and page, the record, its kind's details and the people it names
- * (~/lib/record-people). A register's form has one person in each role; a
- * list's (a household, a farm) has all its people, and more can be added:
- * one blank person is always at the end (also before JavaScript loads), and
- * Add person brings another. A locality, clergyman or relation the record
- * names that isn't known yet can be added in its field (LookupField). It
- * posts to the saveRecord action (and works before JavaScript loads); a save
- * redirects to the list at `returnTo` (a new record to the list's last page)
- * with a toast, Save and add next to a new record's form that follows this
- * one, and Cancel goes to `cancelHref`. A save the server refuses keeps the
+ * The admin's form for one record, or for a new one without `id`, which is
+ * transcribed beside its page's photo (`returnTo.source` and
+ * `returnTo.photo`): of the source's type and in it (the source isn't asked
+ * again, and Save and add next leads), on that page, or following record
+ * `after` on its page. Its source and page, the record, its kind's details
+ * and the people it names (~/lib/record-people). A register's form has one
+ * person in each role; a list's (a household, a farm) has all its people,
+ * and more can be added: one blank person is always at the end (also
+ * before JavaScript loads), and Add person brings another. A locality,
+ * clergyman or relation the record names that isn't known yet can be added
+ * in its field (LookupField). It posts to the saveRecord action (and works
+ * before JavaScript loads); a save redirects with a toast, a new record to
+ * its page's photo (Save and add next with the form of the record that
+ * follows it), an edit to the list at `returnTo` or the photo it was opened
+ * from; Cancel goes to `cancelHref`. A save the server refuses keeps the
  * form as typed, says why and marks the fields at fault. An existing
  * record's form is followed by its Delete section. Its fields lay out by the
  * form's own width (container queries), so it fits a page or, with `panel`,
@@ -217,7 +194,6 @@ const nextAfter = (previous: RecordEditData): RecordEditData => {
  */
 export default function RecordEditForm(props: {
   id?: number;
-  kind?: RecordKind;
   after?: number;
   returnTo: ListPlace;
   panel?: boolean;
@@ -251,9 +227,9 @@ export default function RecordEditForm(props: {
     (): Promise<QueryData<typeof getRecordEdit>> | RecordEditData => {
       if (props.id) return getRecordEdit(props.id);
       const source = startSource();
-      const kind = source?.kind ?? props.kind ?? 'baptisms';
+      const kind = source?.kind ?? 'baptisms';
       const after = props.after;
-      // A record of another type than the list's starts empty.
+      // A record of another type than the source's starts empty.
       if (after) {
         return getRecordEdit(after).then((previous) =>
           previous?.kind === kind ? nextAfter(previous) : blank(kind, source?.id ?? null),
@@ -568,15 +544,6 @@ export default function RecordEditForm(props: {
     <Show when={record()} keyed fallback={<p>{m.record_edit_missing()}</p>}>
       {(r) => (
         <>
-          {/* A record needs a source of its type to go in. */}
-          <Show when={options() && !sourcesOf(r.kind).length}>
-            <div role="alert" class="alert alert-warning alert-soft">
-              <span>{m.record_no_sources()}</span>
-              <a href={paths.sources.new()} class="link">
-                {m.sources_add()}
-              </a>
-            </div>
-          </Show>
           {/* While a save is in flight the router marks the form aria-busy. */}
           <form
             method="post"

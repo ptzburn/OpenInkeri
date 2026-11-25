@@ -96,11 +96,11 @@ export function TableBox(props: { children: JSX.Element }) {
   );
 }
 
-/** The header cell over the edit links (EditLinkCell), for those who may edit; `span` when the rows have more action cells. */
-export function ActionsHeader(props: { when: boolean; span?: number }) {
+/** The header cell over the edit links (EditLinkCell), for those who may edit. */
+export function ActionsHeader(props: { when: boolean }) {
   return (
     <Show when={props.when}>
-      <th colspan={props.span}>
+      <th>
         <span class="sr-only">{m.records_col_actions()}</span>
       </th>
     </Show>

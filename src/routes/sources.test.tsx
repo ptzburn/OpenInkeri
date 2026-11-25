@@ -190,17 +190,6 @@ describe('/sources', () => {
     // Only admins add or edit.
     expect(screen.queryByRole('link', { name: 'Add source' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Edit source' })).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Add records' })).toBeNull();
-  });
-
-  test("an admin adds records from a source's row, into that source", async () => {
-    me.current = { isAdmin: true };
-    renderAt('/sources');
-    const links = await screen.findAllByRole('link', { name: 'Add records' });
-    expect(links.map((a) => a.getAttribute('href'))).toEqual([
-      '/records/new?source=1',
-      '/records/new?kind=taxpayers&source=5',
-    ]);
   });
 
   test('opening a source to edit from the list causes no diagnostics', async () => {
@@ -242,7 +231,6 @@ describe('/sources', () => {
     const [saved] = sources.saved;
     expect(saved.get('kind')).toBe('marriages');
     expect(saved.get('yearFrom')).toBe('1920');
-    expect(saved.get('next')).toBeNull();
     expect(await screen.findByRole('status')).toHaveTextContent(
       'Source “Губаницы: венчания 1920-х” added.',
     );
@@ -266,12 +254,10 @@ describe('/sources', () => {
     expect(
       screen.getByRole('checkbox', { name: 'Also add a locality of this name, as its church' }),
     ).toBeChecked();
-    // Saved and straight on to its first record.
-    fireEvent.click(screen.getByRole('button', { name: 'Save and add records' }));
+    fireEvent.submit(field('title')!.closest('form')!);
 
     await waitFor(() => expect(sources.saved).toHaveLength(1));
     const [saved] = sources.saved;
-    expect(saved.get('next')).toBe('on');
     expect(saved.get('parishText')).toBe('Туутари');
     expect(saved.get('parishId')).toBe('');
     expect(saved.get('parishCreate')).toBe('on');
@@ -280,12 +266,10 @@ describe('/sources', () => {
     expect(saved.get('parishNew.church')).toBe('on');
   });
 
-  test('an existing source has no Save and add records', async () => {
+  test('an existing source shows its parish by name, linked', async () => {
     me.current = { isAdmin: true };
     renderAt('/sources/1/edit');
     await waitFor(() => expect(field('title')).toBeTruthy());
-    expect(screen.queryByRole('button', { name: 'Save and add records' })).toBeNull();
-    // Its parish shows by name, linked.
     expect(field('parishText')).toHaveValue('Hevaa'); // English shows the Finnish name
     expect(field('parishId')).toHaveValue('5');
   });

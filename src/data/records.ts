@@ -491,6 +491,38 @@ export const getRecordEdit = query(async (id: number): Promise<RecordEditData | 
   return { ...rest, kind, language: source.language, people, members: [] };
 }, 'record-edit');
 
+// The position of the photo of page `label` among its source's, if the
+// source has one.
+async function photoOfPage(sourceId: number, label: string | null) {
+  if (!label) return null;
+  const found = await db.query.sourcePage.findFirst({
+    where: { sourceId, label },
+    columns: { position: true },
+  });
+  return found?.position ?? null;
+}
+
+/**
+ * For a record's own edit page, which is for records whose page has no
+ * photo (those imported from transcriptions): a record on a photographed
+ * page is edited beside its photo, so this redirects there with its form
+ * open. True otherwise, also when there is no such record.
+ */
+export const requireRecordOffPhoto = query(async (id: number) => {
+  'use server';
+  adminOnly();
+  const rid = v.parse(rowId, id);
+  const found = await db.query.record.findFirst({
+    where: { id: rid },
+    columns: { sourceId: true, page: true },
+  });
+  const photo = found && (await photoOfPage(found.sourceId, found.page));
+  if (photo) {
+    throw redirect(paths.sources(found.sourceId).pages(String(photo))({ record: String(rid) }));
+  }
+  return true;
+}, 'record-off-photo');
+
 /**
  * The sources, places, clergy and relations an edited record can point to,
  * by name, with the spellings that name them (the form links a value as
@@ -888,17 +920,19 @@ async function createLinked(entries: Record<string, unknown>, input: Values, by:
 }
 
 /**
- * Saves the edit page's form over a record, then redirects to the records
- * list where the admin came from, or the source's page photo it was opened
- * from (the redirect revalidates, so the list shows the change), or with
- * Save and add next to a new record's form that
- * starts from this one (see getRecordEdit's use in the form). The record's kind comes from the database, not the
- * form. Refused, with the fields at fault, when a value doesn't read; when
- * its start is marked on its page's photo without an end below it; and
- * when the record changed since the page loaded it (its version moved on),
- * so one admin's save doesn't silently undo another's. The check reads the
- * version just before the batch, so two saves within the same moment could
- * still both pass.
+ * Saves a record's form over it, then redirects (which revalidates, so the
+ * list shows the change): a new record to its page's photo, with Save and
+ * add next to the next record's form beside it, which starts from this one
+ * (see getRecordEdit's use in the form); an edit to the records list where
+ * the admin came from, or to the page photo it was opened from. The
+ * record's kind comes from the database, not the form. Refused, with the
+ * fields at fault, when a value doesn't read; when a new record's page has
+ * no photo in its source, since records are transcribed beside their
+ * page's photo; when its start is marked on that photo without an end
+ * below it; and when the record changed since the page loaded it (its
+ * version moved on), so one admin's save doesn't silently undo another's.
+ * The check reads the version just before the batch, so two saves within
+ * the same moment could still both pass.
  *
  * A place or relation as written is linked to the one it names (see
  * linkSpellings) when the form didn't link it.
@@ -937,6 +971,11 @@ export const saveRecord = formAction(async (formData: FormData) => {
   if (indexes.length > MAX_MEMBERS) throw refuse({ message: m.form_invalid() }, 400);
   const parsedInput = parseOrRefuse(formOf(kind, indexes), entries);
   const input = parsedInput as typeof parsedInput & Values;
+  // A new record is transcribed beside its page's photo, where it returns.
+  const photo = existing ? null : await photoOfPage(chosen.id, input.page as string | null);
+  if (!existing && !photo) {
+    throw refuse({ message: m.form_invalid(), fields: { page: m.record_new_needs_photo() } }, 400);
+  }
   // Marked on its page's photo: its start and its end, the end below.
   if (input.photoTop !== undefined && !marksRead(input.photoTop, input.photoBottom)) {
     throw refuse(
@@ -1269,39 +1308,11 @@ export const saveRecord = formAction(async (formData: FormData) => {
       await db.batch(linkStatements(personaId, personId, by));
     }
   });
-  const listKind = kind === 'baptisms' ? undefined : kind; // the default
-  // The source the list was narrowed to, while the record is still in it.
-  const listSource = input.returnSource === chosen.id ? String(chosen.id) : undefined;
-  // The page photo the form was opened from, likewise.
-  const photo = listSource ? input.returnPhoto : undefined;
-  if (input.next) {
-    // From a page photo, the next record's form opens beside it again.
-    throw redirect(
-      photo
-        ? paths.sources(chosen.id).pages(photo)({ record: 'new', after: String(rid) })
-        : paths.records.new({ kind: listKind, source: listSource, after: String(rid) }),
-    );
-  }
-  // Back to the photo, which lists the page's records.
-  if (photo) throw redirect(backToList(input));
-  // A new record is the last of its type (or of its source, when the list
-  // shows one), so the list opens on its last page, unsearched; an edit
-  // returns to where the admin came from.
-  if (created) {
-    const total = await db.$count(
-      record,
-      listSource
-        ? eq(record.sourceId, chosen.id)
-        : sql`${record.sourceId} in (select ${source.id} from ${source} where ${source.kind} = ${kind})`,
-    );
-    const last = Math.ceil(total / RECORDS_PAGE_SIZE);
-    throw redirect(
-      paths.records({
-        kind: listKind,
-        source: listSource,
-        page: last > 1 ? String(last) : undefined,
-      }),
-    );
+  // A new record returns to its page's photo, which lists the page's
+  // records; with Save and add next, the next one's form opens beside it.
+  if (photo) {
+    const page = paths.sources(chosen.id).pages(String(photo));
+    throw redirect(input.next ? page({ record: 'new', after: String(rid) }) : page());
   }
   throw redirect(backToList(input));
 }, 'save-record');

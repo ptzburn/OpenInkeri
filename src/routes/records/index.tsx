@@ -4,13 +4,7 @@ import { For, Show, createMemo } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { recordKindLabels } from '~/components/labels';
-import ListPage, {
-  AddLink,
-  CountBadge,
-  ListBody,
-  useCanEdit,
-  useListBusy,
-} from '~/components/list-page';
+import ListPage, { CountBadge, ListBody, useCanEdit, useListBusy } from '~/components/list-page';
 import RecordTable from '~/components/record-table';
 import Pagination from '~/components/pagination';
 import SearchBox from '~/components/search-box';
@@ -85,14 +79,8 @@ export default function Records() {
     <ListPage
       title={m.records_title()}
       aside={
-        <>
-          <CountBadge count={list()?.total} />
-          {/* A new record of the open tab's type; the list's place rides
-              along for Cancel. */}
-          <Show when={canEdit()}>
-            <AddLink href={paths.records.new(listPlace())} label={m.records_add()} />
-          </Show>
-        </>
+        // No Add record: records are transcribed beside their page's photo.
+        <CountBadge count={list()?.total} />
       }
     >
       {/* Every tab links to /records, so the current one is marked by kind. */}

@@ -1,7 +1,6 @@
 import { useNavigate } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createMemo } from 'solid-js';
-import AddIcon from '~icons/ri/add-line';
 
 import type { QueryData } from '~/lib/query-data';
 import { localName, yearSpan } from '~/lib/format';
@@ -59,7 +58,7 @@ export default function Sources() {
               <th class="text-right">{m.sources_col_records()}</th>
               <th class="text-right">{m.sources_col_pages()}</th>
               <th>{m.form_note()}</th>
-              <ActionsHeader when={canEdit()} span={2} />
+              <ActionsHeader when={canEdit()} />
             </tr>
           </thead>
           <tbody>
@@ -84,16 +83,15 @@ const languageName = (code: string | null) =>
   sourceLanguages.find((l) => l === code) ? sourceLanguageLabels[code as SourceLanguage]() : code;
 
 function SourceTableRow(props: { source: SourceRow; canEdit: boolean; editHref?: string }) {
-  // The row opens the source (its page photos): its title is the link, and
-  // a click anywhere else on the row follows it, but for the row's own
-  // links (the records count, Add records, Edit). The records count opens
-  // the source's records; Add records a new record's form in the source (an
-  // admin transcribes it from there).
-  const listPlace = () => ({
-    kind: props.source.kind === 'baptisms' ? undefined : props.source.kind,
-    source: String(props.source.id),
-  });
-  const recordsHref = () => paths.records(listPlace());
+  // The row opens the source (its page photos, where an admin transcribes
+  // its records): its title is the link, and a click anywhere else on the
+  // row follows it, but for the row's own links (the records count, Edit).
+  // The records count opens the source's records.
+  const recordsHref = () =>
+    paths.records({
+      kind: props.source.kind === 'baptisms' ? undefined : props.source.kind,
+      source: String(props.source.id),
+    });
   const sourceHref = () => paths.sources(props.source.id)();
   const navigate = useNavigate();
   const open = (event: MouseEvent) => {
@@ -127,18 +125,6 @@ function SourceTableRow(props: { source: SourceRow; canEdit: boolean; editHref?:
       <td class="max-w-64 truncate text-base-content/70" title={props.source.note ?? undefined}>
         {props.source.note}
       </td>
-      <Show when={props.canEdit}>
-        <td class="w-0 text-right">
-          <a
-            href={paths.records.new(listPlace())}
-            class="btn btn-square btn-ghost btn-xs"
-            aria-label={m.sources_add_records()}
-            title={m.sources_add_records()}
-          >
-            <AddIcon class="size-4" aria-hidden="true" />
-          </a>
-        </td>
-      </Show>
       <EditLinkCell href={props.editHref} label={m.source_edit_open()} />
     </tr>
   );

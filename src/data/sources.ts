@@ -207,8 +207,6 @@ const year = v.pipe(
 
 const form = v.pipe(
   v.object({
-    // Save and add records: the new source's first record's form follows.
-    next: v.optional(v.literal('on')),
     id: optionalId, // empty for a new source
     version,
     title: requiredLine(),
@@ -244,8 +242,9 @@ const sourceRefusals: Refusals = {
 
 /**
  * Creates a source (no id in the form) or saves the edit page's form over
- * one, then redirects to the sources list, or with Save and add records to
- * the form of its first record. Refused, with the fields at fault, when a
+ * one, then redirects to the sources list. Its records are transcribed
+ * beside its page photos once scripts/import-pages.ts has brought them in.
+ * Refused, with the fields at fault, when a
  * value doesn't read (or the years run backwards); when the type would
  * change while records belong to the source (their details are the type's);
  * and when the source changed since the page loaded it.
@@ -259,7 +258,7 @@ export const saveSource = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
-  const { id, version, next, parishText, parishCreate, ...fields } = parseOrRefuse(form, entries);
+  const { id, version, parishText, parishCreate, ...fields } = parseOrRefuse(form, entries);
   const before = id ? await rowForEdit(loadSource, id, version, sourceRefusals) : null;
   if (before && before.kind !== fields.kind && (await countRecords(before.id))) {
     throw refuse({ message: m.form_invalid(), fields: { kind: m.source_kind_locked() } }, 409);
@@ -288,7 +287,6 @@ export const saveSource = formAction(async (formData: FormData) => {
     fields.parishId = created.id;
   }
 
-  let sourceId = before?.id;
   await writing(
     'Saving a source',
     async () => {
@@ -312,7 +310,6 @@ export const saveSource = formAction(async (formData: FormData) => {
           .insert(source)
           .values({ ...fields, createdBy: user.id, ...stamp })
           .returning({ id: source.id });
-        sourceId = created.id;
         await db.batch([
           logChange(by, 'source', created.id, 'create', null, fields),
           ...added.flatMap((row) => row.statements),
@@ -321,14 +318,6 @@ export const saveSource = formAction(async (formData: FormData) => {
     },
     { undo: () => deleteCreated(added) },
   );
-  if (next) {
-    throw redirect(
-      paths.records.new({
-        kind: fields.kind === 'baptisms' ? undefined : fields.kind,
-        source: String(sourceId),
-      }),
-    );
-  }
   throw redirect(paths.sources());
 }, 'save-source');
 

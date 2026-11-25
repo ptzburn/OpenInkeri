@@ -106,8 +106,6 @@ export function FormActions(props: {
   error?: FormError;
   cancelHref: string;
   saveAndNext?: boolean;
-  /** What Save and next does here, when not "Save and add next". */
-  nextLabel?: string;
   /** Which button is the primary one; Save unless said otherwise. */
   primary?: 'save' | 'next';
   class?: string;
@@ -155,7 +153,7 @@ export function FormActions(props: {
               props.primary === 'next' && 'order-first btn-primary',
             ]}
           >
-            {props.nextLabel ?? m.form_save_and_next()}
+            {m.form_save_and_next()}
           </button>
         </Show>
         <Show when={!props.noCancel}>
