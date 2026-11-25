@@ -1,4 +1,4 @@
-import { Show, createMemo, createSignal } from 'solid-js';
+import { Show, createMemo, createSignal, untrack } from 'solid-js';
 
 import type { QueryData } from '~/lib/query-data';
 import { FIELD_MAX } from '~/lib/field-limits';
@@ -146,7 +146,7 @@ export default function PlaceEditForm(props: {
         const [kind, setKind] = createSignal<PlaceKind>(p.kind, { name: 'place-kind' });
         // A new place starts in the parish the list was narrowed to.
         const [parishId, setParishId] = createSignal(
-          p.id ? p.parishId : Number(props.returnTo.parish) || null,
+          p.id ? p.parishId : Number(untrack(() => props.returnTo.parish)) || null,
           { name: 'place-parish-id' },
         );
         // The parish as typed and the one linked, as the field reports them:

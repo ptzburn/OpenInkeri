@@ -106,13 +106,13 @@ export function FormActions(props: {
   error?: FormError;
   cancelHref: string;
   saveAndNext?: boolean;
-  /** What Save and next does here, when not "Save and add next". */
-  nextLabel?: string;
   /** Which button is the primary one; Save unless said otherwise. */
   primary?: 'save' | 'next';
   class?: string;
   /** The id of the form to submit, where the bar is outside it. */
   form?: string;
+  /** Without Cancel: where the page has its own way back (a tab). */
+  noCancel?: boolean;
 }) {
   return (
     <div class={['flex flex-col gap-3', props.class]}>
@@ -153,12 +153,14 @@ export function FormActions(props: {
               props.primary === 'next' && 'order-first btn-primary',
             ]}
           >
-            {props.nextLabel ?? m.form_save_and_next()}
+            {m.form_save_and_next()}
           </button>
         </Show>
-        <a href={props.cancelHref} class="btn">
-          {m.form_cancel()}
-        </a>
+        <Show when={!props.noCancel}>
+          <a href={props.cancelHref} class="btn">
+            {m.form_cancel()}
+          </a>
+        </Show>
       </div>
     </div>
   );
@@ -221,6 +223,10 @@ export function TextInput(props: {
   /** Told what is typed, for a form that follows the value (the coordinates' map). */
   onInput?: (value: string) => void;
 }) {
+  // The value given, then as typed until the value given changes. Held here
+  // because the input's bindings re-run together: when a refused save marks
+  // it aria-invalid, the value it writes back is the one typed.
+  const [value, setValue] = createSignal(() => props.value ?? '', { name: 'text-input' });
   return (
     <label class="fieldset">
       {/* One child: the legend is a row that spreads its children apart. */}
@@ -234,14 +240,17 @@ export function TextInput(props: {
       </span>
       <input
         name={props.name}
-        value={props.value ?? ''}
+        value={value()}
         required={props.required}
         maxlength={props.maxlength ?? FIELD_MAX.text}
         pattern={props.pattern}
         inputmode={props.inputmode}
         class="validator input w-full"
         aria-invalid={ariaInvalid(props.invalid)}
-        onInput={(event) => props.onInput?.(event.currentTarget.value)}
+        onInput={(event) => {
+          setValue(event.currentTarget.value);
+          props.onInput?.(event.currentTarget.value);
+        }}
       />
       <FieldError fault={props.invalid} error={props.error} />
       <Show when={props.hint}>
@@ -496,11 +505,12 @@ export function Select(props: {
 }
 
 /** Whether this browser runs invoker commands (commandfor/command) itself. */
-const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype;
+export const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype;
 
 /**
  * The confirmation of a delete, as a native modal dialog (daisyUI's modal),
- * for an action whose form posts `id`, `version` and `confirm=on`: its title
+ * for an action whose form posts `id`, `version` (for a row that has one)
+ * and `confirm=on`: its title
  * and text, what still depends on the row (`inUse`, which leaves only
  * Cancel), Cancel (also Escape and the backdrop) and the delete; the server
  * checks the confirmation again, and what depends on the row, in case
@@ -513,7 +523,7 @@ const invokerCommands = () => 'commandForElement' in HTMLButtonElement.prototype
 export function DeleteDialog<U>(props: {
   action: FormAction<[FormData], U>;
   id: number;
-  version: number;
+  version?: number;
   title: string;
   text: string;
   inUse?: string;
@@ -566,7 +576,9 @@ export function DeleteDialog<U>(props: {
         {/* While the delete is in flight the router marks the form aria-busy. */}
         <form method="post" action={action} class="group">
           <input type="hidden" name="id" value={props.id} />
-          <input type="hidden" name="version" value={props.version} />
+          <Show when={props.version !== undefined}>
+            <input type="hidden" name="version" value={props.version} />
+          </Show>
           <input type="hidden" name="confirm" value="on" />
           {props.children}
           <div class="modal-action">

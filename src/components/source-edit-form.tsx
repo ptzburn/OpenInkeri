@@ -183,13 +183,9 @@ export default function SourceEditForm(props: { id?: number; cancelHref: string 
               />
             </div>
 
-            {/* A new source is usually added to transcribe it: its first
-                record's form can follow. */}
             <FormActions
               error={error()}
               cancelHref={props.cancelHref}
-              saveAndNext={!s.id}
-              nextLabel={m.source_save_and_records()}
               class="border-t border-base-300 pt-4"
             />
           </form>

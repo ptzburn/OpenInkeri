@@ -198,6 +198,32 @@ export const sourceSection = snakeCase.table(
   (t) => [index('source_section_source_idx').on(t.sourceId)],
 );
 
+// A photograph of one page of a source, as the browser shows it: a WebP copy
+// and its thumbnail in the PHOTOS bucket (R2), named by the copy's hash
+// (see src/lib/photos.ts), put there by scripts/import-pages.ts from the
+// originals, which stay in the family's archive. `position` orders the
+// pages as the source has them; `label` is the page as the source numbers
+// it, the text record.page holds (null for a cover or an unnumbered leaf).
+export const sourcePage = snakeCase.table(
+  'source_page',
+  {
+    id: integer().primaryKey(),
+    sourceId: integer()
+      .notNull()
+      .references(() => source.id, { onDelete: 'cascade' }),
+    position: integer().notNull(),
+    label: text(),
+    file: text().notNull(), // the original's file name
+    fileHash: text().notNull(), // of the original, so a second import skips it
+    key: text().notNull(), // the copy's hash: pages/<key>.webp, thumbs/<key>.webp
+    width: integer().notNull(), // of the copy
+    height: integer().notNull(),
+    bytes: integer().notNull(),
+    createdAt: integer({ mode: 'timestamp_ms' }).default(now).notNull(),
+  },
+  (t) => [uniqueIndex('source_page_position_idx').on(t.sourceId, t.position)],
+);
+
 export { recordStatuses };
 
 // One entry in a source: a baptism, a wedding, a death, or one household or
@@ -212,6 +238,16 @@ export const record = snakeCase.table(
       .references(() => source.id, { onDelete: 'restrict' }),
     sectionId: integer().references(() => sourceSection.id, { onDelete: 'set null' }),
     page: text(), // as numbered in the source: "221об"
+    // The entry's number as the register gives it ("41", "12а", "12, 13"):
+    // text, as written. Registers number anew each year, so it names an
+    // entry only with its year, and is never taken as unique.
+    entryNo: text(),
+    // Where the entry starts and ends on its page's photo (source_page), as
+    // fractions of the photo's height from the top: marked with two clicks
+    // as the record is transcribed beside the photo, both or neither (a
+    // record marked before ends were asked for may have only its start).
+    photoTop: real(),
+    photoBottom: real(),
     status: text({ enum: recordStatuses }).default('ok').notNull(),
     date: text(), // baptism, wedding or death date; the list's date for lists
     // For the map's timeline: grouping by place and year needs no date parsing.

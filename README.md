@@ -1,6 +1,6 @@
 # OpenInkeri
 
-A SolidJS 2 app (`solid-js` 2.0 release candidate) with streaming SSR, deployed to Cloudflare Workers.
+A SolidJS 2 app (`solid-js` 2.0) with streaming SSR, deployed to Cloudflare Workers.
 
 ## Setup
 
@@ -74,6 +74,19 @@ git config --global user.email "you@example.com"
 Production is the `openinkeri` Worker at https://openinkeri.hokkanen.io, with the `openinkeri` D1 database. GitHub Actions deploys it (`.github/workflows/ci.yml`): every push to `main` that passes the checks, tests and build records the database's Time Travel bookmark, applies pending migrations (`pnpm db:migrate:remote`), then deploys the Worker. The workflow needs two repository secrets, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
 Migrations run before the new code goes live, so the code already running must keep working on the new schema. Add tables and nullable or defaulted columns first; rename or drop only in a later release, once no deployed code uses the old shape. Review generated SQL in the pull request; [CLAUDE.md](CLAUDE.md) lists what needs extra care on D1.
+
+The sources' page photographs live in the `openinkeri-photos` R2 bucket (the `PHOTOS` binding), as WebP copies, not the originals; only signed-in users see them, through `/api/photos`, never from the bucket directly. Create the bucket once before the first deploy that binds it: `pnpm exec wrangler r2 bucket create openinkeri-photos`.
+
+Admins add photos on a source's page (Add photos, Add a folder) and remove them from a photo's page. The copies are made by Cloudflare Images through the `IMAGES` binding, which needs no setup beyond `wrangler.jsonc`. Each photo uses two transformations (the copy and its thumbnail); the Free plan includes 5,000 a month, and past that an upload is refused with a message until the next month. Local dev runs an offline stand-in on sharp, which costs nothing.
+
+A whole folder can also go in from the command line, one folder (one register) at a time, to the local bucket and database first, then to production with `--remote`; the source must already exist in that database:
+
+```bash
+node scripts/import-pages.ts --source <id> "<folder>"           # local
+node scripts/import-pages.ts --source <id> --remote "<folder>"  # production
+```
+
+Running it again with the same folder uploads only new photos and drops pages whose photo has left the folder, including pages added in the app that the folder lacks. See the script's header for how photos are ordered and labelled.
 
 To undo a bad migration, restore the database to the bookmark in that run's log: `pnpm exec wrangler d1 time-travel restore DB --bookmark=<bookmark>`. This overwrites the database, including every write since the bookmark; usually a new migration that fixes forward is better. Roll back the Worker with `pnpm exec wrangler rollback`.
 
@@ -190,7 +203,7 @@ Run these with pnpm (`pnpm <script>`; use `pnpm run deploy` for deploy, since `p
 | `db:studio`         | Opens Drizzle Studio on the local D1 database (run `pnpm db:migrate` or `pnpm dev` first).                       |
 | `auth:generate`     | Regenerates the better-auth tables in `src/server/database/auth-schema.ts` after changing auth options.          |
 
-Learn more on the [Solid 2 docs](https://v2.solidjs.com) and come chat on the [Solid Discord](https://discord.com/invite/solidjs).
+Learn more on the [Solid 2 docs](https://docs.solidjs.com) and come chat on the [Solid Discord](https://discord.com/invite/solidjs).
 
 ## Deployment
 

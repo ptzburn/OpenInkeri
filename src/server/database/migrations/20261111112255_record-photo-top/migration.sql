@@ -1,0 +1,1 @@
+ALTER TABLE `record` ADD `photo_top` real;

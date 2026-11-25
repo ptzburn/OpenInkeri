@@ -90,7 +90,7 @@ export default function NameFields(props: {
         onInput={(text, form) => typed('Fi', text, form)}
       />
       <input type="hidden" name={field('split')} value={corrected() ? 'manual' : 'auto'} />
-      <details class="mb-2 text-sm sm:col-span-2 lg:col-span-4" open={partsInvalid()}>
+      <details class="mb-2 text-sm @sm:col-span-2 @3xl:col-span-4" open={partsInvalid()}>
         <summary class="cursor-pointer">
           <span class="font-medium">{m.record_edit_name_parts()}</span>
           <Show when={corrected()}>
@@ -161,7 +161,7 @@ function NameInput(props: {
   onInput: (text: string, form: HTMLFormElement | null) => void;
 }) {
   return (
-    <label class="fieldset lg:col-span-2">
+    <label class="fieldset @3xl:col-span-2">
       <span class="fieldset-legend">{props.label}</span>
       <input
         name={props.name}

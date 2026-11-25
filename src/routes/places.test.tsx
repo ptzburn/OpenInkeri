@@ -791,9 +791,16 @@ describe('/places/parishes', () => {
     // localities to choose from show their parish.
     await waitFor(() => expect(field('churchPlaceId')).toHaveValue('1'));
     expect(field('churchText')).toHaveValue('Gorkka'); // English shows the Finnish name
+    // Its church is its own locality: nothing to say.
+    expect(screen.queryByRole('note')).toBeNull();
     fireEvent.input(field('note'), { target: { value: 'Губаницкий приход' } });
     fireEvent.input(field('churchText'), { target: { value: 'Кикерино' } });
     await waitFor(() => expect(field('churchPlaceId')).toHaveValue('2'));
+    // A locality of another parish: the form says so, and offers to move it.
+    expect(await screen.findByRole('note')).toHaveTextContent(
+      'Кикерино belongs to the parish Волосово.',
+    );
+    expect(screen.getByRole('checkbox', { name: 'Move Кикерино into this parish' })).toBeChecked();
     fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
 
     await waitFor(() => expect(window.location.pathname).toBe('/places/parishes'));
@@ -802,6 +809,7 @@ describe('/places/parishes', () => {
     expect(saved.get('version')).toBe('2');
     expect(saved.get('note')).toBe('Губаницкий приход');
     expect(saved.get('churchPlaceId')).toBe('2');
+    expect(saved.get('churchMove')).toBe('on');
     // The list it lands on says so (English shows the Finnish name).
     expect(await screen.findByRole('status')).toHaveTextContent('Parish Hevaa saved.');
   });

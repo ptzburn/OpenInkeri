@@ -1,0 +1,1 @@
+ALTER TABLE `record` ADD `entry_no` text;

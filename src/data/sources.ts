@@ -1,9 +1,10 @@
 // The sources pages' data: server functions ('use server') behind router
 // queries and actions, like ./parishes.ts. A source is one register or
 // list (a book, an archival file) that records are transcribed from. The
-// list is for signed-in users; creating, editing and deleting sources is
-// for admins. A save writes the source and a change_log entry in one D1
-// batch.
+// list and its page photographs are for signed-in users; creating, editing
+// and deleting sources is for admins. A save writes the source and a change_log entry in one D1
+// batch. Admins add page photos through src/routes/api/sources/[id]/pages.ts
+// and remove them here (both in src/server/page-photos.ts).
 import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
 import { and, count, eq } from 'drizzle-orm';
@@ -14,7 +15,7 @@ import { type RecordKind, recordKinds, sourceLanguages } from '~/lib/record-kind
 import { m } from '~/paraglide/messages.js';
 import { paths } from '~/router';
 import { db } from '~/server/database';
-import { parish, record, source } from '~/server/database/schema';
+import { parish, record, source, sourcePage } from '~/server/database/schema';
 import {
   type Refusals,
   deleteRow,
@@ -44,6 +45,7 @@ import {
   newParish,
   parishNamed,
 } from '~/server/linked-rows';
+import { numberPage, removePage } from '~/server/page-photos';
 
 // The read functions' results, spelled out: the pages' types feed the
 // routes' and so `paths`, which this module uses, so inferred types would be
@@ -59,6 +61,30 @@ export interface SourceRow {
   archiveReference: string | null;
   note: string | null;
   records: number;
+  /** How many page photographs it has. */
+  pages: number;
+}
+
+/** One page photograph: `key` names its copies (~/lib/photos). */
+export interface SourcePageRow {
+  id: number;
+  position: number;
+  label: string | null;
+  key: string;
+  width: number;
+  height: number;
+}
+
+export interface SourcePagesData {
+  id: number;
+  title: string;
+  kind: RecordKind;
+  parish: { ru: string; fi: string | null } | null;
+  yearFrom: number | null;
+  yearTo: number | null;
+  archiveReference: string | null;
+  /** In the source's order. */
+  pages: SourcePageRow[];
 }
 
 export interface SourceEditData {
@@ -76,11 +102,11 @@ export interface SourceEditData {
   records: number;
 }
 
-/** Every source, by type and title, with its parish and how many records it holds. */
+/** Every source, by type and title, with its parish and how many records and page photographs it holds. */
 export const getSources = query(async (): Promise<SourceRow[]> => {
   'use server';
   signedIn();
-  const [sources, counts] = await Promise.all([
+  const [sources, counts, pageCounts] = await Promise.all([
     db.query.source.findMany({
       columns: {
         id: true,
@@ -95,13 +121,19 @@ export const getSources = query(async (): Promise<SourceRow[]> => {
       with: { parish: { columns: { nameRu: true, nameFi: true } } },
     }),
     db.select({ sourceId: record.sourceId, n: count() }).from(record).groupBy(record.sourceId),
+    db
+      .select({ sourceId: sourcePage.sourceId, n: count() })
+      .from(sourcePage)
+      .groupBy(sourcePage.sourceId),
   ]);
   const records = new Map(counts.map((row) => [row.sourceId, row.n]));
+  const pages = new Map(pageCounts.map((row) => [row.sourceId, row.n]));
   return sources
     .map(({ parish, ...s }) => ({
       ...s,
       parish: namesOf(parish),
       records: records.get(s.id) ?? 0,
+      pages: pages.get(s.id) ?? 0,
     }))
     .sort(
       (a, b) =>
@@ -109,6 +141,33 @@ export const getSources = query(async (): Promise<SourceRow[]> => {
         a.title.localeCompare(b.title, 'ru'),
     );
 }, 'sources');
+
+/** One source with its page photographs, in order, for its pages, or null if there is none. */
+export const getSourcePages = query(async (id: number): Promise<SourcePagesData | null> => {
+  'use server';
+  signedIn();
+  const row = await db.query.source.findFirst({
+    where: { id: v.parse(rowId, id) },
+    columns: {
+      id: true,
+      title: true,
+      kind: true,
+      yearFrom: true,
+      yearTo: true,
+      archiveReference: true,
+    },
+    with: {
+      parish: { columns: { nameRu: true, nameFi: true } },
+      pages: {
+        columns: { id: true, position: true, label: true, key: true, width: true, height: true },
+        orderBy: { position: 'asc' },
+      },
+    },
+  });
+  if (!row) return null;
+  const { parish, ...rest } = row;
+  return { ...rest, parish: namesOf(parish) };
+}, 'source-pages');
 
 async function loadSource(id: number) {
   return db.query.source.findFirst({
@@ -151,8 +210,6 @@ const year = v.pipe(
 
 const form = v.pipe(
   v.object({
-    // Save and add records: the new source's first record's form follows.
-    next: v.optional(v.literal('on')),
     id: optionalId, // empty for a new source
     version,
     title: requiredLine(),
@@ -188,11 +245,12 @@ const sourceRefusals: Refusals = {
 
 /**
  * Creates a source (no id in the form) or saves the edit page's form over
- * one, then redirects to the sources list, or with Save and add records to
- * the form of its first record. Refused, with the fields at fault, when a
- * value doesn't read (or the years run backwards); when the type would
- * change while records belong to the source (their details are the type's);
- * and when the source changed since the page loaded it.
+ * one, then redirects: a new source to its page, where its photos are
+ * added (its records are transcribed beside them), an edit to the sources
+ * list. Refused, with the fields at fault, when a value doesn't read (or
+ * the years run backwards); when the type would change while records
+ * belong to the source (their details are the type's); and when the source
+ * changed since the page loaded it.
  *
  * The parish is typed by name and linked to the parish it names (the form
  * does this as the admin types; here for a form posted before JavaScript
@@ -203,7 +261,7 @@ export const saveSource = formAction(async (formData: FormData) => {
   'use server';
   const user = adminOnly();
   const entries = Object.fromEntries(formData);
-  const { id, version, next, parishText, parishCreate, ...fields } = parseOrRefuse(form, entries);
+  const { id, version, parishText, parishCreate, ...fields } = parseOrRefuse(form, entries);
   const before = id ? await rowForEdit(loadSource, id, version, sourceRefusals) : null;
   if (before && before.kind !== fields.kind && (await countRecords(before.id))) {
     throw refuse({ message: m.form_invalid(), fields: { kind: m.source_kind_locked() } }, 409);
@@ -232,8 +290,7 @@ export const saveSource = formAction(async (formData: FormData) => {
     fields.parishId = created.id;
   }
 
-  let sourceId = before?.id;
-  await writing(
+  const saved = await writing(
     'Saving a source',
     async () => {
       if (before) {
@@ -249,6 +306,7 @@ export const saveSource = formAction(async (formData: FormData) => {
           }),
           ...added.flatMap((row) => row.statements),
         ]);
+        return before.id;
       } else {
         // The change_log entry needs the new id, so it is written after the
         // insert rather than in one batch with it.
@@ -256,24 +314,17 @@ export const saveSource = formAction(async (formData: FormData) => {
           .insert(source)
           .values({ ...fields, createdBy: user.id, ...stamp })
           .returning({ id: source.id });
-        sourceId = created.id;
         await db.batch([
           logChange(by, 'source', created.id, 'create', null, fields),
           ...added.flatMap((row) => row.statements),
         ]);
+        return created.id;
       }
     },
     { undo: () => deleteCreated(added) },
   );
-  if (next) {
-    throw redirect(
-      paths.records.new({
-        kind: fields.kind === 'baptisms' ? undefined : fields.kind,
-        source: String(sourceId),
-      }),
-    );
-  }
-  throw redirect(paths.sources());
+  // A new source opens on its page, where its photos are added.
+  throw redirect(before ? paths.sources() : paths.sources(saved)());
 }, 'save-source');
 
 const deletion = deletionForm();
@@ -300,3 +351,44 @@ export const deleteSource = formAction(async (formData: FormData) => {
   });
   throw redirect(paths.sources());
 }, 'delete-source');
+
+// A page photo's form names the page and the photo it showed: positions
+// shift as pages come and go, so the photo is what stays the same.
+const pagePhoto = {
+  id: v.pipe(v.string(), v.transform(Number), rowId),
+  key: v.pipe(v.string(), v.regex(/^[0-9a-f]{16,64}$/)),
+};
+
+// What a page photo's Remove dialog posts, with the confirmation.
+const pageDeletion = v.object({ ...pagePhoto, confirm: v.literal('on') });
+
+/**
+ * Removes a page photo from its source once confirmed in its dialog (see
+ * removePage: the pages after it move up, and records transcribed from it
+ * stay), then redirects to the source's pages. Refused when the page is gone
+ * or shows another photo since the dialog opened.
+ */
+export const deleteSourcePage = formAction(async (formData: FormData) => {
+  'use server';
+  const user = adminOnly();
+  const { id, key } = parseDeletion(pageDeletion, formData, m.source_photo_remove_unconfirmed);
+  const sourceId = await removePage(id, key, { userId: user.id });
+  throw redirect(paths.sources(sourceId)());
+}, 'delete-source-page');
+
+// What the page number form of a photo that has none posts.
+const pageNumbering = v.object({ ...pagePhoto, label: requiredLine() });
+
+/**
+ * Gives a page photo that has none its page number, as the register writes
+ * it (see numberPage), then redirects to the photo, where its records are
+ * transcribed from then on. Refused when the number doesn't read, and when
+ * the page is gone, is another photo now, or has a number already.
+ */
+export const numberSourcePage = formAction(async (formData: FormData) => {
+  'use server';
+  const user = adminOnly();
+  const { id, key, label } = parseOrRefuse(pageNumbering, Object.fromEntries(formData));
+  const page = await numberPage(id, key, label, { userId: user.id });
+  throw redirect(paths.sources(page.sourceId).pages(String(page.position))());
+}, 'number-source-page');

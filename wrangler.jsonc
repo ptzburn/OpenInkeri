@@ -19,6 +19,16 @@
     "directory": "./dist/client",
     "binding": "ASSETS",
   },
+  // The photographs of the sources' pages (src/server/photos.ts), put there
+  // by the app's upload (src/server/page-photos.ts) or scripts/import-pages.ts.
+  // Local dev keeps the bucket under .wrangler/; production's bucket is
+  // created once by hand (see README "Deploying").
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "openinkeri-photos" }],
+  // Cloudflare Images, which turns an uploaded page photo upright and makes
+  // its WebP copies (src/server/page-photos.ts). Production counts each new
+  // copy against the account's transformations (5,000 a month free); local
+  // dev runs an offline stand-in on sharp, which costs nothing.
+  "images": { "binding": "IMAGES" },
   "d1_databases": [
     {
       "binding": "DB",

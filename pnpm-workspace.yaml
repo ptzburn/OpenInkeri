@@ -7,11 +7,14 @@ allowBuilds:
 # and templates track them closely; exclude the whole family from any
 # minimumReleaseAge policy so fresh Solid releases install immediately.
 #
-# NOTE: this exclusion is a temporary measure for the Solid 2.0 prerelease
+# NOTE: this exclusion is a temporary measure from the Solid 2.0 prerelease
 # cycle (frequent lockstep releases where new floors would otherwise fail
-# under an age policy). It should be removed once Solid 2.0 is stable —
-# at that point a caret range nearly always contains an age-satisfying
-# release and the policy can protect these packages like any other.
+# under an age policy). Solid 2.0 went stable on 2026-11-17, and pnpm's
+# default policy (a day) still refuses a release that young, --frozen-lockfile
+# included: the floors are now solid-js 2.0.4 and @solidjs/web 2.0.4, released
+# 2026-11-25. Remove it once they are a day old (from 2026-11-26): then a caret
+# range nearly always contains an age-satisfying release and the policy can
+# protect these packages like any other.
 minimumReleaseAgeExclude:
   - solid-js
   - '@solidjs/*'

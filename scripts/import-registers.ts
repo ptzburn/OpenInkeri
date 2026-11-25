@@ -327,6 +327,7 @@ function addRecord(sourceId: number, fields: Row) {
     id,
     source_id: sourceId,
     status: 'ok',
+    entry_no: null,
     date: null,
     place_text: null,
     place_id: null,
@@ -420,6 +421,7 @@ if (args.marriages) {
     if (!year) warn('rows without a year', raw);
     // The couple's villages are each spouse's; the record has none.
     const id = addRecord(sourceId, {
+      entry_no: value(cells[1]),
       date: dateIn(year, cells[2], 'wedding'),
       note: value(cells[13]),
       raw,
@@ -477,6 +479,7 @@ if (args.deaths) {
     const placeText = value(cells[4]);
     const note = value(cells[15]);
     const id = addRecord(sourceId, {
+      entry_no: value(cells[1]),
       date: died,
       place_text: placeText,
       place_id: resolvePlace(placeText),

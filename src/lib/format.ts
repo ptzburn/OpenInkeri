@@ -36,6 +36,14 @@ export function lifespan(born: string | null, died: string | null): string {
  * zeros optional: '2.3.1895') as stored, '1895-03-02'. '' is null; anything
  * else, or a day the month doesn't have, is undefined.
  */
+/** A span of years: "1892–1919", or the one year there is, or "". */
+export const yearSpan = (from: number | null, to: number | null) =>
+  from && to && from !== to ? `${from}–${to}` : String(from ?? to ?? '');
+
+/** A source's page as the source numbers it ("p. 221об"), or, unnumbered, as the photo's place in the source. */
+export const pageName = (position: number, label: string | null) =>
+  label === null ? m.source_photo_number({ n: position }) : m.source_page_label({ label });
+
 export function parsePartialDate(text: string): string | null | undefined {
   const value = text.trim();
   if (!value) return null;

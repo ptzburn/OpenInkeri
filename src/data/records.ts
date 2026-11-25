@@ -13,7 +13,7 @@
 // row as first transcribed, is never edited.
 import { formAction, query } from '@solidjs/router';
 import { redirect } from '@solidjs/web';
-import { and, count, eq, inArray, sql } from 'drizzle-orm';
+import { type SQL, and, count, eq, inArray, sql } from 'drizzle-orm';
 import * as v from 'valibot';
 
 import { FIELD_MAX } from '~/lib/field-limits';
@@ -147,57 +147,6 @@ export const getRecords = query(
     const pages = Math.max(1, Math.ceil(total / RECORDS_PAGE_SIZE));
     const current = Math.min(Math.max(1, Math.trunc(page) || 1), pages);
 
-    const rows = await db.query.record.findMany({
-      where: { RAW: filter },
-      orderBy: { id: 'asc' },
-      limit: RECORDS_PAGE_SIZE,
-      offset: (current - 1) * RECORDS_PAGE_SIZE,
-      columns: { id: true, status: true, date: true, placeText: true, note: true },
-      with: {
-        place: { columns: { nameRu: true, nameFi: true } },
-        baptism: {
-          columns: { birthDate: true, stillborn: true, multipleBirth: true, illegitimate: true },
-        },
-        death: { columns: { burialDate: true, causeText: true, stillborn: true } },
-        holding: { columns: { holdingNo: true, estateText: true, tenantText: true } },
-        personas: {
-          columns: {
-            id: true,
-            role: true,
-            nameRu: true,
-            nameFi: true,
-            ageText: true,
-            residenceText: true,
-            relationText: true,
-            hasWife: true,
-            birthDate: true,
-            deathDate: true,
-            note: true,
-            noteOriginal: true,
-          },
-          with: {
-            residence: { columns: { nameRu: true, nameFi: true } },
-            relation: { columns: { ru: true, fi: true, en: true } },
-          },
-          orderBy: { id: 'asc' },
-        },
-      },
-    });
-
-    // The first person in a role: names, age and where they lived.
-    const named = (personas: (typeof rows)[number]['personas'], role: PersonaRole) => {
-      const p = personas.find((p) => p.role === role);
-      return p
-        ? {
-            ru: p.nameRu,
-            fi: p.nameFi,
-            age: p.ageText,
-            residence: namesOf(p.residence),
-            residenceAsWritten: p.residenceText,
-          }
-        : null;
-    };
-
     return {
       kind,
       source: narrowed,
@@ -205,50 +154,150 @@ export const getRecords = query(
       total,
       page: current,
       pages,
-      records: rows.map((r) => ({
-        id: r.id,
-        lost: r.status === 'lost',
-        // Baptised, married or died.
-        date: r.date,
-        birthDate: r.baptism?.birthDate ?? null,
-        stillborn: r.baptism?.stillborn ?? r.death?.stillborn ?? false,
-        multipleBirth: r.baptism?.multipleBirth ?? null,
-        illegitimate: r.baptism?.illegitimate ?? false,
-        burialDate: r.death?.burialDate ?? null,
-        cause: r.death?.causeText ?? null,
-        // Where the people lived; for a death, where it happened.
-        village: namesOf(r.place),
-        villageAsWritten: r.placeText,
-        child: named(r.personas, 'child'),
-        father: named(r.personas, 'father'),
-        mother: named(r.personas, 'mother'),
-        groom: named(r.personas, 'groom'),
-        bride: named(r.personas, 'bride'),
-        deceased: named(r.personas, 'deceased'),
-        // A household or farm: its number, estate and tenant, and its people.
-        holding: r.holding,
-        members: isListKind(kind)
-          ? r.personas.map((p) => ({
-              id: p.id,
-              ru: p.nameRu,
-              fi: p.nameFi,
-              relation: p.relation,
-              relationAsWritten: p.relationText,
-              hasWife: p.hasWife,
-              birthDate: p.birthDate,
-              deathDate: p.deathDate,
-              note: p.note ?? p.noteOriginal,
-            }))
-          : [],
-        note: r.note,
-      })),
+      records: await recordRows(kind, filter, {
+        limit: RECORDS_PAGE_SIZE,
+        offset: (current - 1) * RECORDS_PAGE_SIZE,
+      }),
     };
   },
   'records',
 );
 
-/** One row of the records list. */
-export type RecordRow = Awaited<ReturnType<typeof getRecords>>['records'][number];
+/**
+ * The rows of a records table, all of `kind`: the records `filter` picks
+ * (it takes the table, which the relational query aliases), in register
+ * order, a page of them when `page` says which.
+ */
+async function recordRows(
+  kind: RecordKind,
+  filter: (table: typeof record) => SQL,
+  page?: { limit: number; offset: number },
+) {
+  const rows = await db.query.record.findMany({
+    where: { RAW: filter },
+    orderBy: { id: 'asc' },
+    ...page,
+    columns: {
+      id: true,
+      status: true,
+      date: true,
+      placeText: true,
+      note: true,
+      entryNo: true,
+      photoTop: true,
+      photoBottom: true,
+    },
+    with: {
+      place: { columns: { nameRu: true, nameFi: true } },
+      baptism: {
+        columns: { birthDate: true, stillborn: true, multipleBirth: true, illegitimate: true },
+      },
+      death: { columns: { burialDate: true, causeText: true, stillborn: true } },
+      holding: { columns: { holdingNo: true, estateText: true, tenantText: true } },
+      personas: {
+        columns: {
+          id: true,
+          role: true,
+          nameRu: true,
+          nameFi: true,
+          ageText: true,
+          residenceText: true,
+          relationText: true,
+          hasWife: true,
+          birthDate: true,
+          deathDate: true,
+          note: true,
+          noteOriginal: true,
+        },
+        with: {
+          residence: { columns: { nameRu: true, nameFi: true } },
+          relation: { columns: { ru: true, fi: true, en: true } },
+        },
+        orderBy: { id: 'asc' },
+      },
+    },
+  });
+
+  // The first person in a role: names, age and where they lived.
+  const named = (personas: (typeof rows)[number]['personas'], role: PersonaRole) => {
+    const p = personas.find((p) => p.role === role);
+    return p
+      ? {
+          ru: p.nameRu,
+          fi: p.nameFi,
+          age: p.ageText,
+          residence: namesOf(p.residence),
+          residenceAsWritten: p.residenceText,
+        }
+      : null;
+  };
+
+  return rows.map((r) => ({
+    id: r.id,
+    // Its number in the register, as written.
+    entryNo: r.entryNo,
+    lost: r.status === 'lost',
+    // Baptised, married or died.
+    date: r.date,
+    birthDate: r.baptism?.birthDate ?? null,
+    stillborn: r.baptism?.stillborn ?? r.death?.stillborn ?? false,
+    multipleBirth: r.baptism?.multipleBirth ?? null,
+    illegitimate: r.baptism?.illegitimate ?? false,
+    burialDate: r.death?.burialDate ?? null,
+    cause: r.death?.causeText ?? null,
+    // Where the people lived; for a death, where it happened.
+    village: namesOf(r.place),
+    villageAsWritten: r.placeText,
+    child: named(r.personas, 'child'),
+    father: named(r.personas, 'father'),
+    mother: named(r.personas, 'mother'),
+    groom: named(r.personas, 'groom'),
+    bride: named(r.personas, 'bride'),
+    deceased: named(r.personas, 'deceased'),
+    // A household or farm: its number, estate and tenant, and its people.
+    holding: r.holding,
+    members: isListKind(kind)
+      ? r.personas.map((p) => ({
+          id: p.id,
+          ru: p.nameRu,
+          fi: p.nameFi,
+          relation: p.relation,
+          relationAsWritten: p.relationText,
+          hasWife: p.hasWife,
+          birthDate: p.birthDate,
+          deathDate: p.deathDate,
+          note: p.note ?? p.noteOriginal,
+        }))
+      : [],
+    note: r.note,
+    // Where it starts and ends on its page's photo (0 the top, 1 the bottom).
+    photoTop: r.photoTop,
+    photoBottom: r.photoBottom,
+  }));
+}
+
+/** One row of a records table. */
+export type RecordRow = Awaited<ReturnType<typeof recordRows>>[number];
+
+/**
+ * The records transcribed from one page of a source, for its photo's page:
+ * those whose page is `label` as the source numbers it ("5", "221об"), in
+ * register order, with the source's kind; null when there is no source.
+ */
+export const getPageRecords = query(async (sourceId: number, label: string) => {
+  'use server';
+  signedIn();
+  const id = v.parse(rowId, sourceId);
+  const page = v.parse(v.pipe(v.string(), v.maxLength(FIELD_MAX.line)), label);
+  const found = await db.query.source.findFirst({ where: { id }, columns: { kind: true } });
+  if (!found) return null;
+  return {
+    kind: found.kind,
+    records: await recordRows(found.kind, (table) =>
+      and(eq(table.sourceId, id), eq(table.page, page))!,
+    ),
+  };
+}, 'page-records');
 
 // --- Editing a record --------------------------------------------------------------
 
@@ -286,6 +335,11 @@ export interface RecordEditData {
   sourceId: number | null;
   /** The page as the source numbers it ("221об"). */
   page: string | null;
+  /** The entry's number as the register gives it ("41", "12а"). */
+  entryNo: string | null;
+  /** Where it starts and ends on its page's photo, as fractions of its height. */
+  photoTop: number | null;
+  photoBottom: number | null;
   /** The language of the original register: ru, fi, sv… */
   language: string | null;
   version: number;
@@ -379,6 +433,9 @@ async function loadRecord(id: number) {
       version: true,
       sourceId: true,
       page: true,
+      entryNo: true,
+      photoTop: true,
+      photoBottom: true,
       status: true,
       date: true,
       placeText: true,
@@ -433,6 +490,38 @@ export const getRecordEdit = query(async (id: number): Promise<RecordEditData | 
   );
   return { ...rest, kind, language: source.language, people, members: [] };
 }, 'record-edit');
+
+// The position of the photo of page `label` among its source's, if the
+// source has one.
+async function photoOfPage(sourceId: number, label: string | null) {
+  if (!label) return null;
+  const found = await db.query.sourcePage.findFirst({
+    where: { sourceId, label },
+    columns: { position: true },
+  });
+  return found?.position ?? null;
+}
+
+/**
+ * For a record's own edit page, which is for records whose page has no
+ * photo (those imported from transcriptions): a record on a photographed
+ * page is edited beside its photo, so this redirects there with its form
+ * open. True otherwise, also when there is no such record.
+ */
+export const requireRecordOffPhoto = query(async (id: number) => {
+  'use server';
+  adminOnly();
+  const rid = v.parse(rowId, id);
+  const found = await db.query.record.findFirst({
+    where: { id: rid },
+    columns: { sourceId: true, page: true },
+  });
+  const photo = found && (await photoOfPage(found.sourceId, found.page));
+  if (photo) {
+    throw redirect(paths.sources(found.sourceId).pages(String(photo))({ record: String(rid) }));
+  }
+  return true;
+}, 'record-off-photo');
 
 /**
  * The sources, places, clergy and relations an edited record can point to,
@@ -514,15 +603,26 @@ const checkbox = v.pipe(
 );
 const recordId = v.pipe(v.string(), v.transform(Number), rowId);
 
+// A height on a page's photo (0 its top, 1 its bottom), or empty for none.
+const photoHeight = v.optional(
+  v.pipe(
+    v.string(),
+    v.transform((s) => (s === '' ? null : Number(s))),
+    v.nullable(v.pipe(v.number(), v.minValue(0), v.maxValue(1))),
+  ),
+);
+
 // What every kind's form posts.
 const common = {
-  // Where the list was (kind, search, page, source), to return there after
+  // Where the list was (kind, search, page, source), or the source's page
+  // photo (source, photo) the form was opened from, to return there after
   // saving. The redirect is built from these, never taken whole from the
   // request.
   returnKind: listParam(v.picklist(recordKinds)),
   returnQ: listParam(v.pipe(v.string(), v.maxLength(FIELD_MAX.search))),
   returnPage: listParam(v.pipe(v.string(), v.regex(/^[1-9]\d{0,5}$/))),
   returnSource: optionalId,
+  returnPhoto: listParam(v.pipe(v.string(), v.regex(/^[1-9]\d{0,5}$/))),
   // Save and add next: a new record's form follows, carrying this one's
   // source and page.
   next: v.optional(v.literal('on')),
@@ -530,6 +630,11 @@ const common = {
   version,
   sourceId: v.pipe(v.string(), v.transform(Number), rowId),
   page: line(),
+  entryNo: line(),
+  // Where it starts and ends on its page's photo, posted only by the form
+  // beside the photo: absent leaves them as they are, empty clears them.
+  photoTop: photoHeight,
+  photoBottom: photoHeight,
   status: v.picklist(recordStatuses),
   date: partialDate,
   note: text,
@@ -815,15 +920,19 @@ async function createLinked(entries: Record<string, unknown>, input: Values, by:
 }
 
 /**
- * Saves the edit page's form over a record, then redirects to the records
- * list where the admin came from (the redirect revalidates, so the list
- * shows the change), or with Save and add next to a new record's form that
- * starts from this one (see getRecordEdit's use in the form). The record's kind comes from the database, not the
- * form. Refused, with the fields at fault, when a value doesn't read; and
- * when the record changed since the page loaded it (its version moved on),
- * so one admin's save doesn't silently undo another's. The check reads the
- * version just before the batch, so two saves within the same moment could
- * still both pass.
+ * Saves a record's form over it, then redirects (which revalidates, so the
+ * list shows the change): a new record to its page's photo, with Save and
+ * add next to the next record's form beside it, which starts from this one
+ * (see getRecordEdit's use in the form); an edit to the records list where
+ * the admin came from, or to the page photo it was opened from. The
+ * record's kind comes from the database, not the form. Refused, with the
+ * fields at fault, when a value doesn't read; when a new record's page has
+ * no photo in its source, since records are transcribed beside their
+ * page's photo; when its start is marked on that photo without an end
+ * below it; and when the record changed since the page loaded it (its
+ * version moved on), so one admin's save doesn't silently undo another's.
+ * The check reads the version just before the batch, so two saves within
+ * the same moment could still both pass.
  *
  * A place or relation as written is linked to the one it names (see
  * linkSpellings) when the form didn't link it.
@@ -862,6 +971,18 @@ export const saveRecord = formAction(async (formData: FormData) => {
   if (indexes.length > MAX_MEMBERS) throw refuse({ message: m.form_invalid() }, 400);
   const parsedInput = parseOrRefuse(formOf(kind, indexes), entries);
   const input = parsedInput as typeof parsedInput & Values;
+  // A new record is transcribed beside its page's photo, where it returns.
+  const photo = existing ? null : await photoOfPage(chosen.id, input.page as string | null);
+  if (!existing && !photo) {
+    throw refuse({ message: m.form_invalid(), fields: { page: m.record_new_needs_photo() } }, 400);
+  }
+  // Marked on its page's photo: its start and its end, the end below.
+  if (input.photoTop !== undefined && !marksRead(input.photoTop, input.photoBottom)) {
+    throw refuse(
+      { message: m.form_invalid(), fields: { photoTop: m.record_mark_unfinished() } },
+      400,
+    );
+  }
   if (existing && existing.version !== input.version) {
     throw refuse({ message: recordRefusals.conflict() }, 409);
   }
@@ -1101,6 +1222,11 @@ export const saveRecord = formAction(async (formData: FormData) => {
   const fields = {
     sourceId: chosen.id,
     page: input.page as string | null,
+    entryNo: input.entryNo as string | null,
+    ...(input.photoTop !== undefined && {
+      photoTop: input.photoTop as number | null,
+      photoBottom: input.photoBottom as number | null,
+    }),
     status: input.status,
     date: input.date,
     placeId,
@@ -1182,60 +1308,51 @@ export const saveRecord = formAction(async (formData: FormData) => {
       await db.batch(linkStatements(personaId, personId, by));
     }
   });
-  const listKind = kind === 'baptisms' ? undefined : kind; // the default
-  // The source the list was narrowed to, while the record is still in it.
-  const listSource = input.returnSource === chosen.id ? String(chosen.id) : undefined;
-  if (input.next) {
-    throw redirect(paths.records.new({ kind: listKind, source: listSource, after: String(rid) }));
-  }
-  // A new record is the last of its type (or of its source, when the list
-  // shows one), so the list opens on its last page, unsearched; an edit
-  // returns to where the admin came from.
-  if (created) {
-    const total = await db.$count(
-      record,
-      listSource
-        ? eq(record.sourceId, chosen.id)
-        : sql`${record.sourceId} in (select ${source.id} from ${source} where ${source.kind} = ${kind})`,
-    );
-    const last = Math.ceil(total / RECORDS_PAGE_SIZE);
-    throw redirect(
-      paths.records({
-        kind: listKind,
-        source: listSource,
-        page: last > 1 ? String(last) : undefined,
-      }),
-    );
+  // A new record returns to its page's photo, which lists the page's
+  // records; with Save and add next, the next one's form opens beside it.
+  if (photo) {
+    const page = paths.sources(chosen.id).pages(String(photo));
+    throw redirect(input.next ? page({ record: 'new', after: String(rid) }) : page());
   }
   throw redirect(backToList(input));
 }, 'save-record');
 
-// The records list as a form came from it (kind, search, page, source).
-// The redirect is built from these, never taken whole from the request.
+// Whether a record's marks on its page's photo go together: none, or a
+// start with an end below it.
+const marksRead = (top: number | null | undefined, bottom: number | null | undefined) =>
+  top == null ? bottom == null : bottom != null && bottom > top;
+
+// The records list as a form came from it (kind, search, page, source), or
+// the source's page photo (source, photo). The redirect is built from these,
+// never taken whole from the request.
 const backToList = (input: {
   returnKind?: RecordKind;
   returnQ?: string;
   returnPage?: string;
   returnSource: number | null;
+  returnPhoto?: string;
 }) =>
-  paths.records({
-    kind: input.returnKind === 'baptisms' ? undefined : input.returnKind, // the default
-    q: input.returnQ || undefined,
-    page: input.returnPage,
-    source: input.returnSource ? String(input.returnSource) : undefined,
-  });
+  input.returnSource && input.returnPhoto
+    ? paths.sources(input.returnSource).pages(input.returnPhoto)()
+    : paths.records({
+        kind: input.returnKind === 'baptisms' ? undefined : input.returnKind, // the default
+        q: input.returnQ || undefined,
+        page: input.returnPage,
+        source: input.returnSource ? String(input.returnSource) : undefined,
+      });
 
 const deletion = deletionForm({
   returnKind: common.returnKind,
   returnQ: common.returnQ,
   returnPage: common.returnPage,
   returnSource: common.returnSource,
+  returnPhoto: common.returnPhoto,
 });
 
 /**
  * Deletes the edit page's record, with its details and the people it names
  * (on delete cascade), once confirmed in its dialog, then redirects to the
- * records list it came from. change_log keeps the record as it was. Refused,
+ * records list (or the page photo) it came from. change_log keeps the record as it was. Refused,
  * like a save, when it changed since the page loaded it.
  */
 export const deleteRecord = formAction(async (formData: FormData) => {

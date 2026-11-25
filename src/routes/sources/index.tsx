@@ -1,9 +1,9 @@
+import { useNavigate } from '@solidjs/router';
 import { defineFileRoute } from '@solidjs/router/fs';
 import { For, Show, createMemo } from 'solid-js';
-import AddIcon from '~icons/ri/add-line';
 
 import type { QueryData } from '~/lib/query-data';
-import { localName } from '~/lib/format';
+import { localName, yearSpan } from '~/lib/format';
 import { type SourceLanguage, sourceLanguages } from '~/lib/record-kinds';
 import { recordKindLabels, sourceLanguageLabels } from '~/components/labels';
 import EditLinkCell from '~/components/edit-link-cell';
@@ -56,8 +56,9 @@ export default function Sources() {
               <th>{m.sources_col_years()}</th>
               <th>{m.sources_col_language()}</th>
               <th class="text-right">{m.sources_col_records()}</th>
+              <th class="text-right">{m.sources_col_pages()}</th>
               <th>{m.form_note()}</th>
-              <ActionsHeader when={canEdit()} span={2} />
+              <ActionsHeader when={canEdit()} />
             </tr>
           </thead>
           <tbody>
@@ -77,26 +78,30 @@ export default function Sources() {
   );
 }
 
-// "1892–1919", or the one year there is.
-const years = (from: number | null, to: number | null) =>
-  from && to && from !== to ? `${from}–${to}` : String(from ?? to ?? '');
-
 // A language's name, or its code when the app has no name for it.
 const languageName = (code: string | null) =>
   sourceLanguages.find((l) => l === code) ? sourceLanguageLabels[code as SourceLanguage]() : code;
 
 function SourceTableRow(props: { source: SourceRow; canEdit: boolean; editHref?: string }) {
-  // The title and the count open the source's records; Add records a new
-  // record's form in the source (an admin transcribes it from there).
-  const listPlace = () => ({
-    kind: props.source.kind === 'baptisms' ? undefined : props.source.kind,
-    source: String(props.source.id),
-  });
-  const recordsHref = () => paths.records(listPlace());
+  // The row opens the source (its page photos, where an admin transcribes
+  // its records): its title is the link, and a click anywhere else on the
+  // row follows it, but for the row's own links (the records count, Edit).
+  // The records count opens the source's records.
+  const recordsHref = () =>
+    paths.records({
+      kind: props.source.kind === 'baptisms' ? undefined : props.source.kind,
+      source: String(props.source.id),
+    });
+  const sourceHref = () => paths.sources(props.source.id)();
+  const navigate = useNavigate();
+  const open = (event: MouseEvent) => {
+    if (event.target instanceof Element && event.target.closest('a, button')) return;
+    navigate(sourceHref());
+  };
   return (
-    <tr>
+    <tr class="cursor-pointer hover:bg-base-200" onClick={open}>
       <td>
-        <a href={recordsHref()} class="link font-medium link-hover">
+        <a href={sourceHref()} class="link font-medium link-hover">
           {props.source.title}
         </a>
         <Show when={props.source.archiveReference}>
@@ -106,7 +111,7 @@ function SourceTableRow(props: { source: SourceRow; canEdit: boolean; editHref?:
       <td class="whitespace-nowrap">{recordKindLabels[props.source.kind]()}</td>
       <td>{localName(props.source.parish)}</td>
       <td class="whitespace-nowrap tabular-nums">
-        {years(props.source.yearFrom, props.source.yearTo)}
+        {yearSpan(props.source.yearFrom, props.source.yearTo)}
       </td>
       <td>{languageName(props.source.language)}</td>
       <td class="text-right tabular-nums">
@@ -116,21 +121,10 @@ function SourceTableRow(props: { source: SourceRow; canEdit: boolean; editHref?:
           </a>
         </Show>
       </td>
+      <td class="text-right tabular-nums">{props.source.pages}</td>
       <td class="max-w-64 truncate text-base-content/70" title={props.source.note ?? undefined}>
         {props.source.note}
       </td>
-      <Show when={props.canEdit}>
-        <td class="w-0 text-right">
-          <a
-            href={paths.records.new(listPlace())}
-            class="btn btn-square btn-ghost btn-xs"
-            aria-label={m.sources_add_records()}
-            title={m.sources_add_records()}
-          >
-            <AddIcon class="size-4" aria-hidden="true" />
-          </a>
-        </td>
-      </Show>
       <EditLinkCell href={props.editHref} label={m.source_edit_open()} />
     </tr>
   );

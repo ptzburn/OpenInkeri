@@ -346,14 +346,63 @@ vi.mock('~/data/people', () => ({
     return { total: rows.length, page: 1, pages: 1, people: rows };
   }),
 }));
-vi.mock('~/data/records', async () => {
+// New records are transcribed beside their page's photo, which reads the
+// source's pages (and offers admins its removal): the baptisms' (1) has two photos, the deaths' (2) and the
+// households' (3) one each.
+const { sourceKinds } = vi.hoisted(() => ({
+  sourceKinds: { 1: 'baptisms', 2: 'deaths', 3: 'households' } as Record<number, string>,
+}));
+vi.mock('~/data/sources', async () => {
   const { formAction } = await import('@solidjs/router');
+  const photo = (position: number, label: string | null) => ({
+    position,
+    label,
+    key: String(position).repeat(32),
+    width: 10,
+    height: 10,
+  });
+  const sources: Record<number, { title: string; pages: ReturnType<typeof photo>[] }> = {
+    1: { title: 'Губаницы: крещения', pages: [photo(1, null), photo(2, '221об')] },
+    2: { title: 'Губаницы: умершие', pages: [photo(1, '15')] },
+    3: { title: 'Губаницы: общий список', pages: [photo(1, '4')] },
+  };
+  return {
+    deleteSourcePage: formAction(async () => {}, 'delete-source-page'),
+    numberSourcePage: formAction(async () => {}, 'number-source-page'),
+    getSourcePages: vi.fn(async (id: number) =>
+      sources[id]
+        ? {
+            id,
+            ...sources[id],
+            kind: sourceKinds[id],
+            parish: null,
+            yearFrom: null,
+            yearTo: null,
+            archiveReference: null,
+          }
+        : null,
+    ),
+  };
+});
+vi.mock('~/data/records', async () => {
+  const { formAction, query } = await import('@solidjs/router');
   const { redirect } = await import('@solidjs/web');
   // A row's names, in Russian only.
   const ru = (name: string) => ({ ru: name, fi: null });
   return {
     getRecords,
+    // Nothing transcribed from the photographed pages yet.
+    getPageRecords: vi.fn(async (sourceId: number) => ({
+      kind: sourceKinds[sourceId],
+      records: [],
+    })),
     RECORDS_PAGE_SIZE: 50,
+    // Like the server: record 3 is on page 221об, whose photo it is edited
+    // beside; the others have no photo.
+    requireRecordOffPhoto: query(async (id: number) => {
+      if (id === 3) throw redirect('/sources/1/pages/2?record=3');
+      return true;
+    }, 'record-off-photo'),
     getRecordEdit: vi.fn(async (id: number) =>
       id === 2
         ? editing.record()
@@ -397,13 +446,16 @@ vi.mock('~/data/records', async () => {
       throw redirect('/records?kind=deaths');
     }, 'delete-record'),
     // Like the server: a refusal throws its error; a save redirects to the
-    // list place the form carried, and Save and add next to a new record
-    // after it (a new household is 401 here).
+    // page photo or the list place the form carried, and Save and add next
+    // to the photo with a new record's form after it (a new household is
+    // 401 here).
     saveRecord: formAction(async (form: FormData) => {
       editing.saved.push(form);
       if (editing.failWith) throw editing.failWith;
-      if (form.get('next') === 'on') {
-        throw redirect(`/records/new?kind=${form.get('returnKind') as string}&after=401`);
+      const photo = form.get('returnPhoto');
+      if (photo) {
+        const page = `/sources/${form.get('returnSource') as string}/pages/${photo as string}`;
+        throw redirect(form.get('next') === 'on' ? `${page}?record=new&after=401` : page);
       }
       const back = new URLSearchParams();
       for (const [field, key] of [
@@ -505,7 +557,7 @@ describe('/records', () => {
     renderAt('/records?kind=marriages');
     const groom = await screen.findByText('Mikkel Skippari');
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
-    expect(headers).toEqual(['Married', 'Groom', 'Bride', 'Notes']);
+    expect(headers).toEqual(['No.', 'Married', 'Groom', 'Bride', 'Notes']);
     const row = groom.closest('tr')!;
     expect(row).toHaveTextContent('14.01.1918');
     // English shows the Finnish name of the village when it has one.
@@ -520,6 +572,7 @@ describe('/records', () => {
     const deceased = await screen.findByText('Aleksanteri Juosepinp. Tattari');
     const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
     expect(headers).toEqual([
+      'No.',
       'Died',
       'Buried',
       'Deceased',
@@ -563,11 +616,7 @@ describe('/records', () => {
     expect(await screen.findByText('Source: Губаницы: крещения')).toBeInTheDocument();
     expect(getRecords).toHaveBeenLastCalledWith('baptisms', '', 1, 1);
     expect(screen.getByRole('link', { name: 'All sources' })).toHaveAttribute('href', '/records');
-    // Adding and editing keep the source, to come back to it.
-    expect(screen.getByRole('link', { name: 'Add record' })).toHaveAttribute(
-      'href',
-      '/records/new?source=1',
-    );
+    // Editing keeps the source, to come back to it.
     expect(screen.getAllByRole('link', { name: 'Edit record' })[0]).toHaveAttribute(
       'href',
       expect.stringMatching(/\/edit\?source=1$/),
@@ -603,6 +652,9 @@ describe('editing a baptism', () => {
   }
   const field = (name: string) =>
     document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
+  // The value of the radio checked in a group.
+  const picked = (name: string) =>
+    document.querySelector<HTMLInputElement>(`[name="${name}"]:checked`)?.value;
 
   test('a mention links to its person, or says who it is as the record is saved', async () => {
     await openMaria();
@@ -636,11 +688,11 @@ describe('editing a baptism', () => {
 
   test('a new person can be made from a mention as the record is saved', async () => {
     me.current = { isAdmin: true };
-    renderAt('/records/new?source=1');
+    renderAt('/sources/1/pages/2?record=new');
     await waitFor(() => expect(field('child.nameRu')).toBeTruthy());
     fireEvent.input(field('child.nameRu'), { target: { value: 'Мария' } });
     fireEvent.click(screen.getAllByRole('radio', { name: 'New person from this mention' })[0]);
-    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    fireEvent.submit(field('child.nameRu').closest('form')!);
 
     await waitFor(() => expect(editing.saved).toHaveLength(1));
     expect(editing.saved[0].get('child.personId')).toBe('new');
@@ -658,7 +710,9 @@ describe('editing a baptism', () => {
     fireEvent.focus(village);
     flush();
     expect(screen.queryByRole('listbox')).toBeNull();
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'Locality: show choices' }));
+    fireEvent.mouseDown(
+      screen.getByRole('button', { name: 'Locality (if the register names one): show choices' }),
+    );
     flush();
     const options = () =>
       within(screen.getByRole('listbox'))
@@ -735,7 +789,7 @@ describe('editing a baptism', () => {
 
   test('a household member’s relation is typed once, in any of its languages', async () => {
     me.current = { isAdmin: true };
-    renderAt('/records/new?kind=households');
+    renderAt('/sources/3/pages/1?record=new');
     await waitFor(() => expect(field('members.0.relationText')).toBeTruthy());
     fireEvent.input(field('members.0.relationText'), { target: { value: 'Vaimo' } });
     await waitFor(() => expect(field('members.0.relationTermId')).toHaveValue('2'));
@@ -743,7 +797,7 @@ describe('editing a baptism', () => {
 
   test('a new relation asks for its Russian wording, in Cyrillic', async () => {
     me.current = { isAdmin: true };
-    renderAt('/records/new?kind=households');
+    renderAt('/sources/3/pages/1?record=new');
     await waitFor(() => expect(field('members.0.relationText')).toBeTruthy());
     // Typed in Latin letters: the Finnish wording, and the Russian one to give.
     fireEvent.input(field('members.0.relationText'), { target: { value: 'Renki' } });
@@ -861,9 +915,12 @@ describe('editing a baptism', () => {
     expect(field('placeId')).toHaveValue('1');
     expect(field('placeText')).toHaveValue('Горкка');
     expect(field('officiantId')).toHaveValue('7');
-    expect(field('location')).toHaveValue('pastorate');
+    // A baptism's choices are rows of buttons: the one checked.
+    expect(picked('location')).toBe('pastorate');
     expect(field('multipleBirth')).toHaveValue('2');
-    expect(field('child.sex')).toHaveValue('female');
+    expect(picked('child.sex')).toBe('female');
+    expect(picked('illegitimate')).toBe('');
+    expect(picked('status')).toBe('ok');
     expect(field('father.nameRu')).toHaveValue('Иоанн Адамов Варис');
     expect(field('child.givenRu')).toHaveValue('Мария');
     // No mother yet: her fields are there, empty, to add her.
@@ -1042,59 +1099,35 @@ describe('adding and deleting records', () => {
   const field = (name: string) =>
     document.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLSelectElement;
 
-  test("only admins get Add record, and it opens a new record of the tab's type", async () => {
+  test("records are added beside their page's photo, not from the list", async () => {
+    me.current = { isAdmin: true };
     renderAt('/records?kind=deaths');
     await screen.findByText('Aleksanteri Juosepinp. Tattari');
     expect(screen.queryByRole('link', { name: 'Add record' })).toBeNull();
-    cleanup();
-
-    me.current = { isAdmin: true };
-    renderAt('/records?kind=deaths');
-    const add = await screen.findByRole('link', { name: 'Add record' });
-    expect(add).toHaveAttribute('href', '/records/new?kind=deaths');
-    fireEvent.click(add);
-    await screen.findByRole('heading', { level: 1, name: 'New record' });
-    await waitFor(() => expect(field('deceased.nameRu')).toBeTruthy());
-    // Empty, with no id; the sources offered are the type's.
-    expect(field('id')).toHaveValue('');
-    expect(field('causeText')).toHaveValue('');
-    const sources = [...(field('sourceId') as HTMLSelectElement).options].map((o) => o.text);
-    expect(sources).toEqual(['Губаницы: умершие']);
-    // Nothing to delete yet.
-    expect(screen.queryByRole('button', { name: 'Delete record' })).toBeNull();
   });
 
-  test('opening a new record from the list causes no diagnostics', async () => {
+  test("a new record beside a photo is of its source's type, and empty", async () => {
     me.current = { isAdmin: true };
-    renderAt('/records/new?kind=households');
-    await waitFor(() => expect(field('members.0.nameFi')).toBeTruthy());
-    cleanup();
-
-    me.current = { isAdmin: true };
-    renderAt('/records?kind=households');
-    const add = await screen.findByRole('link', { name: 'Add record' });
-    const { artifact } = await captureArtifact(
-      async () => {
-        fireEvent.click(add);
-        // A new household: one blank person, none on the record yet.
-        await waitFor(() => expect(field('members.0.nameFi')).toBeTruthy());
-        expect(field('members.1.nameFi')).toBeNull();
-        flush();
-      },
-      { scenario: 'record-new-open' },
-    );
-    expect(artifact).toHaveNoDiagnostics();
+    renderAt('/sources/2/pages/1');
+    fireEvent.click(await screen.findByRole('link', { name: 'Add record' }));
+    await waitFor(() => expect(field('deceased.nameRu')).toBeTruthy());
+    expect(field('child.nameRu')).toBeNull();
+    // Empty, with no id, and nothing to delete yet.
+    expect(field('id')).toHaveValue('');
+    expect(field('causeText')).toHaveValue('');
+    expect(screen.queryByRole('button', { name: 'Delete record' })).toBeNull();
   });
 
   test('a new record is saved with its source and page, and confirmed with a toast', async () => {
     me.current = { isAdmin: true };
-    renderAt('/records/new?kind=deaths');
-    await waitFor(() => expect(field('deceased.nameRu')).toBeTruthy());
-    fireEvent.input(field('page'), { target: { value: '15' } });
+    renderAt('/sources/2/pages/1?record=new');
+    await waitFor(() => expect(field('page')).toHaveValue('15'));
     fireEvent.input(field('deceased.nameRu'), { target: { value: 'Иван Петров' } });
-    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    fireEvent.submit(field('page').closest('form')!);
 
-    await waitFor(() => expect(window.location.pathname).toBe('/records'));
+    // Back to the photo, which lists the page's records.
+    await waitFor(() => expect(window.location.search).toBe(''));
+    expect(window.location.pathname).toBe('/sources/2/pages/1');
     const [saved] = editing.saved;
     expect(saved.get('id')).toBe('');
     expect(saved.get('sourceId')).toBe('2');
@@ -1103,18 +1136,18 @@ describe('adding and deleting records', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('Record added.');
   });
 
-  test('a new record starts in the source the list shows, and stays in it', async () => {
+  test('a new record stays in the source of its photo, and Save and add next leads', async () => {
     me.current = { isAdmin: true };
-    renderAt('/records/new?kind=deaths&source=2');
+    renderAt('/sources/2/pages/1?record=new');
     await waitFor(() => expect(field('sourceId')).toHaveValue('2'));
     expect(field('returnSource')).toHaveValue('2');
     // The source isn't asked again: it is shown, and posts hidden.
+    const form = field('sourceId').closest('form')!;
     expect(field('sourceId').tagName).toBe('INPUT');
     expect(field('sourceId')).toHaveAttribute('type', 'hidden');
-    expect(screen.getByText('Губаницы: умершие')).toBeInTheDocument();
+    expect(within(form).getByText('Губаницы: умершие')).toBeInTheDocument();
     // Transcribing goes on with the next record: Save and add next leads,
     // though Enter still saves.
-    const form = document.querySelector('main form') as HTMLFormElement;
     const buttons = [...form.querySelectorAll('button[type="submit"]')];
     expect(buttons[0]).toHaveTextContent('Save');
     expect(buttons[0]).not.toHaveClass('btn-primary');
@@ -1122,18 +1155,102 @@ describe('adding and deleting records', () => {
     expect(buttons[1]).toHaveClass('btn-primary');
   });
 
-  test("a new record in a source is of the source's type, whatever the tab", async () => {
+  test("a new record's form opens beside the page photo, on its page", async () => {
     me.current = { isAdmin: true };
-    // From the sources page: the list's kind isn't given.
-    renderAt('/records/new?source=3');
-    await waitFor(() => expect(field('sourceId')).toHaveValue('3'));
-    expect(field('members.0.nameFi')).toBeInTheDocument();
-    expect(field('child.nameRu')).toBeNull();
+    renderAt('/sources/1/pages/2?record=new');
+    const column = await screen.findByRole('complementary', { name: "This page's records" });
+    await waitFor(() => expect(column.querySelector('[name="page"]')).toHaveValue('221об'));
+    // The photo stays in view beside it.
+    expect(screen.getByRole('img', { name: /p\. 221об$/ })).toBeInTheDocument();
+    expect(field('returnPhoto')).toHaveValue('2');
+    // No Cancel: the column's first tab leads back to the page's records.
+    expect(within(column).queryByRole('link', { name: 'Cancel' })).toBeNull();
+    expect(within(column).getByRole('link', { name: /Records on this page/ })).toHaveAttribute(
+      'href',
+      '/sources/1/pages/2',
+    );
+  });
+
+  test("two clicks on the photo mark where the new record's entry starts and ends", async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/2?record=new');
+    await waitFor(() => expect(field('page')).toHaveValue('221об'));
+    expect(field('photoTop')).toHaveValue('');
+    expect(
+      screen.getByText(
+        'Not marked on the photo yet: click the photo at the first line of this entry.',
+      ),
+    ).toBeInTheDocument();
+    const photo = screen.getByRole('img', { name: /p\. 221об$/ });
+    photo.getBoundingClientRect = () => ({ top: 100, height: 400 }) as DOMRect;
+    // The start; its band shows at once, the end still to come.
+    fireEvent.click(photo, { clientY: 200 });
+    await waitFor(() => expect(field('photoTop')).toHaveValue('0.25'));
+    expect(field('photoBottom')).toHaveValue('');
+    const band = document.querySelector<HTMLElement>('main section a.absolute')!;
+    expect(band.style.top).toBe('25%');
+    expect(band).toHaveTextContent('New record');
+    expect(
+      screen.getByText('Start marked. Now click the photo where this entry ends.'),
+    ).toBeInTheDocument();
+    // Pointing below the start, the guide line says a click marks the end.
+    fireEvent.mouseMove(photo, { clientY: 260 });
+    expect(await screen.findByText('Entry ends here')).toBeInTheDocument();
+    fireEvent.click(photo, { clientY: 260 });
+    await waitFor(() => expect(field('photoBottom')).toHaveValue('0.4'));
+    expect(field('photoTop')).toHaveValue('0.25');
+    expect(
+      screen.getByText('Start and end marked. Click the photo to mark them again.'),
+    ).toBeInTheDocument();
+    // Once both are marked, a click starts again from the start.
+    fireEvent.mouseMove(photo, { clientY: 300 });
+    expect(await screen.findByText('Entry starts here')).toBeInTheDocument();
+    // Taken off: nothing is posted, and the band goes.
+    fireEvent.click(screen.getByRole('button', { name: 'Remove mark' }));
+    await waitFor(() => expect(field('photoTop')).toHaveValue(''));
+    expect(field('photoBottom')).toHaveValue('');
+    expect(document.querySelector('main section a.absolute')).toBeNull();
+  });
+
+  test('a record opened from its page photo causes no diagnostics', async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/2?record=new');
+    await waitFor(() => expect(field('page')).toHaveValue('221об'));
+    cleanup();
+
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/2');
+    const add = await screen.findByRole('link', { name: 'Add record' });
+    const { artifact } = await captureArtifact(
+      async () => {
+        fireEvent.click(add);
+        await waitFor(() => expect(field('page')).toHaveValue('221об'));
+        flush();
+      },
+      { scenario: 'page-photo-new-record' },
+    );
+    expect(artifact).toHaveNoDiagnostics();
+  });
+
+  test("a stillborn child's death date is said, not asked", async () => {
+    me.current = { isAdmin: true };
+    renderAt('/sources/1/pages/2?record=new');
+    await waitFor(() => expect(field('child.deathDate')).toBeTruthy());
+    expect(field('child.deathDate')).not.toHaveAttribute('type', 'hidden');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Stillborn' }));
+    // The field gives way to a note; the date stored (none here) still posts.
+    expect(await screen.findByText('Not needed: the child was stillborn.')).toBeInTheDocument();
+    expect(field('child.deathDate')).toHaveAttribute('type', 'hidden');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Stillborn' }));
+    await waitFor(() =>
+      expect(screen.queryByText('Not needed: the child was stillborn.')).toBeNull(),
+    );
+    expect(field('child.deathDate')).not.toHaveAttribute('type', 'hidden');
   });
 
   test('a locality named in a new record is added with it', async () => {
     me.current = { isAdmin: true };
-    renderAt('/records/new?source=2');
+    renderAt('/sources/2/pages/1?record=new');
     await waitFor(() => expect(field('deceased.nameRu')).toBeTruthy());
     fireEvent.input(field('deceased.nameRu'), { target: { value: 'Иван Петров' } });
     fireEvent.input(field('placeText'), { target: { value: 'Новая' } });
@@ -1141,9 +1258,9 @@ describe('adding and deleting records', () => {
     // fields to add one: a spelling no locality has shows them.
     await waitFor(() => expect(field('placeNew.nameRu')).toHaveValue('Новая'));
     fireEvent.change(field('placeNew.parishId'), { target: { value: '7' } });
-    fireEvent.submit(document.querySelector('main form') as HTMLFormElement);
+    fireEvent.submit(field('placeText').closest('form')!);
 
-    await waitFor(() => expect(window.location.pathname).toBe('/records'));
+    await waitFor(() => expect(editing.saved).toHaveLength(1));
     const [saved] = editing.saved;
     expect(saved.get('placeText')).toBe('Новая');
     expect(saved.get('placeId')).toBe('');
@@ -1155,7 +1272,7 @@ describe('adding and deleting records', () => {
 
   test('a new locality is located in a dialog, its settlement filling its fields', async () => {
     me.current = { isAdmin: true };
-    renderAt('/records/new?source=2');
+    renderAt('/sources/2/pages/1?record=new');
     await waitFor(() => expect(field('deceased.nameRu')).toBeTruthy());
     fireEvent.input(field('placeText'), { target: { value: 'Новая' } });
     await waitFor(() => expect(field('placeNew.nameRu')).toHaveValue('Новая'));
@@ -1182,16 +1299,18 @@ describe('adding and deleting records', () => {
 
   test('Save and add next opens the next record on the same page, village and date', async () => {
     me.current = { isAdmin: true };
-    renderAt('/records/new?kind=households');
+    renderAt('/sources/3/pages/1?record=new');
     await waitFor(() => expect(field('members.0.nameFi')).toBeTruthy());
     // Enter in a field submits with the form's first button: a plain Save.
-    const form = document.querySelector('main form') as HTMLFormElement;
+    const form = field('members.0.nameFi').closest('form')!;
     expect(form.querySelector('button[type="submit"]')).toHaveTextContent('Save');
     expect(form.querySelector('button[type="submit"]')).not.toHaveAttribute('name');
 
     fireEvent.input(field('members.0.nameFi'), { target: { value: 'Matti' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save and add next' }));
-    await waitFor(() => expect(window.location.search).toBe('?kind=households&after=401'));
+    // The next record's form opens beside the same photo.
+    await waitFor(() => expect(window.location.search).toBe('?record=new&after=401'));
+    expect(window.location.pathname).toBe('/sources/3/pages/1');
     expect(editing.saved[0].get('next')).toBe('on');
     expect(await screen.findByRole('status')).toHaveTextContent('Record added.');
 
@@ -1213,14 +1332,11 @@ describe('adding and deleting records', () => {
     expect(screen.queryByRole('button', { name: 'Save and add next' })).toBeNull();
   });
 
-  test('a record says when its type has no source yet', async () => {
+  test('a record on a photographed page is edited beside its photo', async () => {
     me.current = { isAdmin: true };
-    renderAt('/records/new?kind=marriages');
-    expect(await screen.findByText('Add a source of this type first.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Add source' })).toHaveAttribute(
-      'href',
-      '/sources/new',
-    );
+    renderAt('/records/3/edit');
+    await waitFor(() => expect(window.location.pathname).toBe('/sources/1/pages/2'));
+    expect(window.location.search).toBe('?record=3');
   });
 
   test('an existing record shows its source and page, and can be deleted', async () => {

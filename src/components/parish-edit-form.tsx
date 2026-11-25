@@ -126,6 +126,13 @@ export default function ParishEditForm(props: {
             ? namedRow(places(), id)
             : null;
         };
+        // The church linked, when it is a locality of another parish (or of
+        // none): the form offers to move it into this one as it saves.
+        const elsewhere = () => {
+          const id = churchLinked();
+          const found = id === null ? undefined : places()?.find((n) => n.id === id);
+          return found && (!p.id || found.parishId !== p.id) ? found : undefined;
+        };
         // Where a new church stands: this page's map sets it.
         const location = createLocation();
         // The church's choices: every locality, with its parish when it isn't
@@ -262,6 +269,32 @@ export default function ParishEditForm(props: {
                     <p class="mt-1 text-xs text-base-content/60">
                       {m.parish_church_unplaced({ name: name() })}
                     </p>
+                  )}
+                </Show>
+                {/* Keyed: another locality picked starts with the box ticked. */}
+                <Show when={elsewhere()} keyed>
+                  {(found) => (
+                    <div role="note" class="mt-2 alert alert-soft alert-warning text-sm">
+                      <div class="flex flex-col gap-1">
+                        <span>
+                          {found.parish
+                            ? m.parish_church_elsewhere({
+                                place: localName(found.name),
+                                parish: localName(found.parish),
+                              })
+                            : m.parish_church_no_parish({ place: localName(found.name) })}
+                        </span>
+                        <label class="label gap-2 whitespace-normal text-base-content">
+                          <input
+                            type="checkbox"
+                            name="churchMove"
+                            checked
+                            class="checkbox checkbox-sm"
+                          />
+                          {m.parish_church_move({ place: localName(found.name) })}
+                        </label>
+                      </div>
+                    </div>
                   )}
                 </Show>
               </div>
